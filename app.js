@@ -25,6 +25,7 @@ const storageKeys = {
   recipes: "kopishop-pos-recipes",
   orderDrafts: "kopishop-pos-order-drafts",
   cashflowExpenses: "kopishop-pos-cashflow-expenses",
+  pendingDeletes: "kopishop-pos-pending-deletes",
 };
 
 const boothPackagePhotoCounts = {
@@ -514,6 +515,21 @@ function saveCashflowExpense(expense) {
   const expenses = getCashflowExpenses();
   expenses.unshift(expense);
   writeJson(storageKeys.cashflowExpenses, expenses.slice(0, 500));
+}
+
+function getPendingDeletes() {
+  return readJson(storageKeys.pendingDeletes, []);
+}
+
+function savePendingDeletes(deletes) {
+  writeJson(storageKeys.pendingDeletes, deletes);
+}
+
+function queuePendingDelete(type, id) {
+  const deletes = getPendingDeletes();
+  if (deletes.some((entry) => entry.type === type && entry.id === id)) return;
+  deletes.push({ type, id, createdAt: new Date().toISOString() });
+  savePendingDeletes(deletes);
 }
 
 function getBoothSessions() {
@@ -1696,6 +1712,7 @@ function orderCard(transaction, kind) {
     : `
       <div class="history-actions">
         <button class="secondary-button compact" data-reprint-order="${transaction.id}" data-reprint-kind="paid" type="button">Cetak Ulang</button>
+        <button class="secondary-button compact danger-text" data-delete-transaction="${transaction.id}" type="button">Hapus</button>
       </div>
     `;
 
@@ -1722,6 +1739,32 @@ async function reprintOrder(id, kind) {
   await updateOfflineTransaction(transaction.localId || transaction.id, { printStatus: printed ? "PRINTED" : "PRINT_FAILED" }).catch(() => null);
   renderPendingSync();
   toast("Perintah cetak ulang dikirim.");
+}
+
+function removeTransactionFromLocalHistory(id) {
+  writeJson(storageKeys.history, getHistory().filter((entry) => entry.id !== id));
+}
+
+async function deletePaidTransaction(id) {
+  if (!id) return;
+  if (navigator.onLine) {
+    try {
+      await deleteTransactionInSupabase(id);
+      removeTransactionFromLocalHistory(id);
+      await pullTransactionsFromSupabase({ render: false }).catch(() => null);
+      renderAll();
+      toast("Transaksi dihapus dari laporan.");
+      return;
+    } catch {
+      queuePendingDelete("transaction", id);
+    }
+  } else {
+    queuePendingDelete("transaction", id);
+  }
+
+  removeTransactionFromLocalHistory(id);
+  renderAll();
+  toast("Transaksi dihapus lokal. Akan sync saat online.");
 }
 
 function renderOrders() {
@@ -1807,6 +1850,7 @@ async function syncPendingTransactions() {
     }
   }
   renderPendingSync();
+  await pullTransactionsFromSupabase({ render: true });
 }
 
 async function postCloudJson(url, payload) {
@@ -1844,6 +1888,44 @@ async function syncEmployeesToCloud() {
   if (employees.length) await postCloudJson("/api/sync-employees", { employees });
 }
 
+async function pullTransactionsFromSupabase({ render = true } = {}) {
+  if (!navigator.onLine) return false;
+  const response = await fetch("/api/get-transactions", { cache: "no-store" });
+  if (!response.ok) throw new Error(`Pull transaksi gagal: ${response.status}`);
+  const result = await response.json();
+  if (!result?.success || !Array.isArray(result.transactions)) {
+    throw new Error(result?.error || "Pull transaksi gagal.");
+  }
+  writeJson(storageKeys.history, result.transactions.slice(0, 500));
+  if (render) {
+    renderHistory();
+    renderOrders();
+    renderCashflow();
+    renderAnalytics();
+  }
+  return true;
+}
+
+async function deleteTransactionInSupabase(id) {
+  await postCloudJson("/api/delete-transaction", { id });
+}
+
+async function processPendingDeletes() {
+  if (!navigator.onLine) return;
+  const pending = getPendingDeletes();
+  const remaining = [];
+
+  for (const entry of pending) {
+    try {
+      if (entry.type === "transaction") await deleteTransactionInSupabase(entry.id);
+    } catch {
+      remaining.push(entry);
+    }
+  }
+
+  savePendingDeletes(remaining);
+}
+
 async function loadCloudData() {
   if (!navigator.onLine) return false;
   const response = await fetch("/api/bootstrap-data", { cache: "no-store" });
@@ -1866,6 +1948,7 @@ async function syncCloudData({ refresh = true } = {}) {
 
   cloudSyncPromise = (async () => {
     await Promise.allSettled([
+      processPendingDeletes(),
       syncPendingTransactions(),
       syncHistoryToCloud(),
       syncCashflowToCloud(),
@@ -1874,6 +1957,7 @@ async function syncCloudData({ refresh = true } = {}) {
     ]);
     if (refresh) {
       await loadCloudData();
+      await pullTransactionsFromSupabase({ render: false }).catch(() => null);
       renderAll();
     }
   })()
@@ -1889,7 +1973,10 @@ async function syncCloudData({ refresh = true } = {}) {
 function updateConnectionStatus() {
   renderPendingSync();
   if (navigator.onLine) {
-    syncPendingTransactions();
+    processPendingDeletes()
+      .then(() => syncPendingTransactions())
+      .then(() => pullTransactionsFromSupabase({ render: true }))
+      .catch(() => null);
     syncCloudData({ refresh: false });
   }
 }
@@ -2637,8 +2724,13 @@ els.orderList?.addEventListener("click", (event) => {
   const payButton = event.target.closest("button[data-pay-draft]");
   const deleteButton = event.target.closest("button[data-delete-draft]");
   const reprintButton = event.target.closest("button[data-reprint-order]");
+  const deleteTransactionButton = event.target.closest("button[data-delete-transaction]");
   if (payButton) {
     payDraftOrder(payButton.dataset.payDraft);
+    return;
+  }
+  if (deleteTransactionButton) {
+    deletePaidTransaction(deleteTransactionButton.dataset.deleteTransaction);
     return;
   }
   if (reprintButton) {
@@ -2964,4 +3056,5 @@ updateClock();
 setInterval(updateClock, 1000);
 renderAll();
 updateConnectionStatus();
+if (navigator.onLine) pullTransactionsFromSupabase({ render: true }).catch(() => null);
 if (isLoggedIn()) syncCloudData();
