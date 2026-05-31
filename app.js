@@ -2346,6 +2346,7 @@ function savePurchase(event) {
   els.ingredientUnit.value = "gram";
   els.purchaseCost.value = "";
   renderAll();
+  syncInventoryToCloud().catch(() => null);
   toast(`Bahan "${itemName}" tersimpan.`);
 }
 
@@ -2705,6 +2706,7 @@ els.employeeAddForm?.addEventListener("submit", (event) => {
   if (auth?.loggedIn) writeJson(storageKeys.auth, { ...auth, employee: name });
   if (els.employeeNewName) els.employeeNewName.value = "";
   renderEmployeeControls();
+  syncEmployeesToCloud().catch(() => null);
   toast(`${name} ditambahkan ke daftar karyawan.`);
 });
 els.employeeList?.addEventListener("click", (event) => {
@@ -2728,6 +2730,7 @@ els.employeeList?.addEventListener("click", (event) => {
       if (auth?.loggedIn) writeJson(storageKeys.auth, { ...auth, employee: roster[0] });
     }
     renderEmployeeControls();
+    syncEmployeesToCloud().catch(() => null);
     toast(`${name} dihapus dari daftar karyawan.`);
   }
 });
@@ -2795,6 +2798,8 @@ els.cashflowExpenseForm?.addEventListener("submit", (event) => {
   syncCfExpenseNoteField();
   renderInventory();
   renderCashflow();
+  syncCashflowToCloud().catch(() => null);
+  if (category === "Bahan Baku") syncInventoryToCloud().catch(() => null);
   toast("Pengeluaran dicatat.");
 });
 
@@ -2863,6 +2868,7 @@ els.stockTable?.addEventListener("click", (event) => {
     renderInventory();
     renderCashflow();
     syncCfExpenseNoteField();
+    syncInventoryToCloud().catch(() => null);
     toast(`Bahan "${name}" dihapus dari stok.`);
   }
 });
