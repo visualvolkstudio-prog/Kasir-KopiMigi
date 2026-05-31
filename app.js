@@ -240,12 +240,17 @@ function isOnlineChannel(channel) {
 }
 
 function currentShiftName(value = new Date()) {
-  return localStorage.getItem(storageKeys.sessionShift) || autoShiftName(value);
+  return autoShiftName(value);
 }
 
 function autoShiftName(value = new Date()) {
   const date = value instanceof Date ? value : new Date(value);
-  return date.getHours() >= 14 ? "Shift 2" : "Shift 1";
+  return date.getHours() >= 17 ? "Shift 2" : "Shift 1";
+}
+
+function shiftScheduleText(value = new Date()) {
+  const shift = currentShiftName(value);
+  return `${shift} · ${shift === "Shift 1" ? "10.00-17.00" : "17.00-22.00"}`;
 }
 
 function orderSequenceFromId(id, prefix) {
@@ -332,7 +337,7 @@ function renderEmployeeControls() {
     els.loginEmployee.replaceChildren(...roster.map((name) => new Option(name, name)));
     els.loginEmployee.value = active;
   }
-  if (els.loginShift) els.loginShift.value = localStorage.getItem(storageKeys.sessionShift) || autoShiftName();
+  if (els.loginShift) els.loginShift.value = shiftScheduleText();
 }
 
 function initAuth() {
@@ -343,7 +348,7 @@ function initAuth() {
     setTimeout(() => els.loginUsername?.focus(), 50);
   } else {
     if (auth.employee) localStorage.setItem(storageKeys.employee, auth.employee);
-    if (auth.shift) localStorage.setItem(storageKeys.sessionShift, auth.shift);
+    localStorage.removeItem(storageKeys.sessionShift);
     renderEmployeeControls();
   }
 }
@@ -354,9 +359,8 @@ function login(event) {
   const password = els.loginPassword.value;
   if (username === "admin" && password === "migi123") {
     const employee = els.loginEmployee?.value || getEmployeeRoster()[0] || "Admin";
-    const shift = els.loginShift?.value || autoShiftName();
+    const shift = currentShiftName();
     localStorage.setItem(storageKeys.employee, employee);
-    localStorage.setItem(storageKeys.sessionShift, shift);
     writeJson(storageKeys.auth, { loggedIn: true, employee, shift, at: new Date().toISOString() });
     renderEmployeeControls();
     document.body.classList.remove("locked");
@@ -384,6 +388,9 @@ function updateClock() {
   const now = new Date();
   els.todayLabel.textContent = now.toLocaleDateString("id-ID", { weekday: "short", day: "2-digit", month: "short" });
   els.clockLabel.textContent = now.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
+  if (els.loginShift) els.loginShift.value = shiftScheduleText(now);
+  if (els.orderShift) els.orderShift.value = currentShiftName(now);
+  if (els.activeEmployeeHeader) els.activeEmployeeHeader.textContent = activeEmployeeName();
 }
 
 function getMenu() {
@@ -1659,8 +1666,10 @@ function renderHistory() {
 
   const today = selectedDailyDate();
   const todayTransactions = getHistory().filter((entry) => dateKey(entry.createdAt) === today);
-  els.shiftTotal.textContent = money(todayTransactions.reduce((sum, entry) => sum + entry.grandTotal, 0));
-  els.shiftCount.textContent = `${todayTransactions.length} transaksi`;
+  const activeShift = currentShiftName();
+  const activeShiftTransactions = todayTransactions.filter((entry) => (entry.shift || "Shift 1") === activeShift);
+  els.shiftTotal.textContent = money(activeShiftTransactions.reduce((sum, entry) => sum + entry.grandTotal, 0));
+  els.shiftCount.textContent = `${activeShift} · ${activeShiftTransactions.length} transaksi`;
   renderDailySummary(todayTransactions, today);
 }
 
@@ -1834,6 +1843,11 @@ function dailyReportText(todayTransactions, reportDateValue = selectedDailyDate(
     });
     return map;
   }, new Map()).values()].sort((a, b) => b.qty - a.qty || b.revenue - a.revenue);
+  const shiftLines = ["Shift 1", "Shift 2"].map((shift) => {
+    const transactions = todayTransactions.filter((entry) => (entry.shift || "Shift 1") === shift);
+    const shiftRevenue = transactions.reduce((sum, entry) => sum + entry.grandTotal, 0);
+    return `- ${shift}: ${money(shiftRevenue)} (${transactions.length} transaksi)`;
+  });
 
   return [
     "Laporan Penjualan",
@@ -1842,6 +1856,9 @@ function dailyReportText(todayTransactions, reportDateValue = selectedDailyDate(
     `Total Penjualan: ${money(revenue)}`,
     `Transaksi: ${todayTransactions.length}`,
     `Item terjual: ${items}`,
+    "",
+    "Rincian Shift:",
+    ...shiftLines,
     "",
     "Rincian Orderan:",
     ...(orderedItems.length ? orderedItems.map((item) => `- ${item.name}: ${item.qty} pcs (${money(item.revenue)})`) : ["- Belum ada order"]),

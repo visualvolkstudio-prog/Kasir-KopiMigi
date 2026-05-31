@@ -12,29 +12,26 @@
     <link rel="manifest" href="/manifest.json" />
     <link rel="icon" href="/assets/pwa-icon-192.png" />
     <link rel="apple-touch-icon" href="/assets/pwa-icon-192.png" />
-    <link rel="stylesheet" href="styles.css?v=6" />
+    <link rel="stylesheet" href="styles.css?v=8" />
   </head>
   <body>
     <section class="login-screen" id="loginScreen" aria-label="Login kasir">
       <form class="login-card" id="loginForm">
-        <img src="assets/logo-migi.png" alt="Logo Migi" />
+        <img src="assets/logo-paw.png" alt="Logo Migi" />
         <p class="eyebrow">Kasir Migi</p>
         <h2>Masuk Kasir</h2>
         <label>
           Username
-          <input id="loginUsername" type="text" autocomplete="username" placeholder="admin" required />
+          <input id="loginUsername" type="text" autocomplete="username" placeholder="Username" required />
         </label>
         <label>
           Password
-          <input id="loginPassword" type="password" autocomplete="current-password" placeholder="••••••" required />
+          <input id="loginPassword" type="password" autocomplete="current-password" placeholder="Password" required />
         </label>
         <div class="login-session-grid">
           <label>
-            Shift
-            <select id="loginShift">
-              <option value="Shift 1">Shift 1</option>
-              <option value="Shift 2">Shift 2</option>
-            </select>
+            Shift otomatis
+            <input id="loginShift" type="text" value="Shift 1" readonly />
           </label>
           <label>
             Karyawan
@@ -42,7 +39,7 @@
           </label>
         </div>
         <button class="primary-button full-button" type="submit">Masuk</button>
-        <p class="login-hint" id="loginHint">Default: admin / migi123</p>
+        <p class="login-hint" id="loginHint">Shift mengikuti jam transaksi.</p>
       </form>
     </section>
 
@@ -138,7 +135,7 @@
       <aside class="sidebar" aria-label="Navigasi kasir">
         <div class="brand-block">
           <div class="brand-mark" aria-hidden="true">
-            <img src="assets/logo-migi.png" alt="" />
+            <img src="assets/logo-paw.png" alt="" />
           </div>
           <div>
             <p class="eyebrow">Migi Coffee</p>
@@ -207,11 +204,6 @@
             </div>
             <div class="active-employee-card" id="activeEmployeeCard">
               <strong id="activeEmployeeHeader">Admin</strong>
-            </div>
-            <div class="sync-status-card" id="syncStatusCard">
-              <span id="connectionStatus">Online</span>
-              <strong id="pendingSyncCount">0 pending</strong>
-              <button class="secondary-button compact" id="manualSyncBtn" type="button">Sync</button>
             </div>
             <button class="printer-toggle fullscreen-toggle" id="fullscreenToggle" type="button" title="Fullscreen" aria-label="Fullscreen">
               <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -636,6 +628,19 @@
               </div>
               <a class="secondary-button full-button text-link-button" href="photobooth/" target="_blank" rel="noopener">Buka Halaman Booth</a>
             </section>
+            <section class="settings-panel">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">Sinkronisasi</p>
+                  <h3>Status Data</h3>
+                </div>
+              </div>
+              <div class="sync-status-card" id="syncStatusCard">
+                <span id="connectionStatus">Online</span>
+                <strong id="pendingSyncCount">0 pending</strong>
+                <button class="secondary-button compact" id="manualSyncBtn" type="button">Sync</button>
+              </div>
+            </section>
           </div>
         </section>
       </main>
@@ -645,6 +650,6 @@
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-    <script src="app.js?v=10"></script>
+    <script src="app.js?v=11"></script>
   </body>
 </html>
