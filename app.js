@@ -26,6 +26,8 @@ const storageKeys = {
   orderDrafts: "kopishop-pos-order-drafts",
   cashflowExpenses: "kopishop-pos-cashflow-expenses",
   pendingDeletes: "kopishop-pos-pending-deletes",
+  activeView: "kasir-migi-active-view",
+  shiftActions: "kasir-migi-shift-actions",
 };
 
 const boothPackagePhotoCounts = {
@@ -358,7 +360,7 @@ function login(event) {
   event.preventDefault();
   const username = els.loginUsername.value.trim();
   const password = els.loginPassword.value;
-  if (username === "admin" && password === "migi123") {
+  if (username === "kopimigi" && password === "migi46") {
     const employee = els.loginEmployee?.value || getEmployeeRoster()[0] || "Admin";
     const shift = currentShiftName();
     localStorage.setItem(storageKeys.employee, employee);
@@ -390,6 +392,39 @@ function isLoggedIn() {
   return Boolean(readJson(storageKeys.auth, null)?.loggedIn);
 }
 
+function markShiftActionOnce(action, date = new Date()) {
+  const key = `${dateKey(date)}:${action}`;
+  const actions = readJson(storageKeys.shiftActions, {});
+  if (actions[key]) return false;
+  actions[key] = new Date().toISOString();
+  writeJson(storageKeys.shiftActions, actions);
+  return true;
+}
+
+function runShiftScheduleChecks(now = new Date()) {
+  const hour = now.getHours();
+  const minute = now.getMinutes();
+  if (minute !== 0) return;
+
+  if (hour === 14 && markShiftActionOnce("shift-2-arrival", now)) {
+    setTimeout(() => {
+      window.confirm("Shift 2 sudah hadir. Semua transaksi tetap masuk Shift 1 sampai 17.00. Lanjutkan kasir Shift 1?");
+    }, 0);
+  }
+
+  if (!isLoggedIn()) return;
+
+  if (hour === 17 && markShiftActionOnce("shift-1-close", now)) {
+    logout();
+    setTimeout(() => window.alert("17.00: Shift 1 ditutup. Lakukan serah terima uang sebelum login lagi."), 0);
+  }
+
+  if (hour === 22 && markShiftActionOnce("shift-2-close", now)) {
+    logout();
+    setTimeout(() => window.alert("22.00: Shift 2 ditutup. Laporan harian siap dicek."), 0);
+  }
+}
+
 function updateClock() {
   const now = new Date();
   els.todayLabel.textContent = now.toLocaleDateString("id-ID", { weekday: "short", day: "2-digit", month: "short" });
@@ -397,6 +432,7 @@ function updateClock() {
   if (els.loginShift) els.loginShift.value = shiftScheduleText(now);
   if (els.orderShift) els.orderShift.value = currentShiftName(now);
   if (els.activeEmployeeHeader) els.activeEmployeeHeader.textContent = activeEmployeeName();
+  runShiftScheduleChecks(now);
 }
 
 function getMenu() {
@@ -950,6 +986,14 @@ function stockStatus(record) {
   return { tone: "good", label: "Aman" };
 }
 
+function stockChartPercent(record) {
+  const stock = Math.max(0, Number(record.stock || 0));
+  const unit = record.unit || "";
+  const target = unit === "pcs" ? 20 : 1000;
+  if (!target) return 0;
+  return Math.min(100, Math.round((stock / target) * 100));
+}
+
 function renderInventory() {
   if (!els.stockTable) return;
   const inventory = getInventory();
@@ -966,16 +1010,17 @@ function renderInventory() {
       ? inventoryRows
           .map(([, record]) => {
             const status = stockStatus(record);
+            const percent = stockChartPercent(record);
             return `
-            <article class="stock-row stock-availability-row stock-${status.tone}">
-              <div>
+            <article class="stock-chart-row stock-${status.tone}">
+              <div class="stock-chart-copy">
                 <strong>${record.name}</strong>
-                <span>${record.buyPrice ? `${money(record.buyPrice)}/${record.unit || "unit"}` : "Harga belum diset"}</span>
+                <span>${status.label}${record.buyPrice ? ` · ${money(record.buyPrice)}/${record.unit || "unit"}` : ""}</span>
               </div>
-              <div class="stock-status-box">
-                <strong>${Number(record.stock || 0).toLocaleString("id-ID")} ${record.unit || ""}</strong>
-                <span>${status.label}</span>
+              <div class="stock-chart-meter" aria-label="${record.name} ${percent}%">
+                <span class="stock-chart-fill" style="width:${percent}%;min-width:${percent ? 6 : 0}px"></span>
               </div>
+              <strong class="stock-chart-value">${Number(record.stock || 0).toLocaleString("id-ID")} ${record.unit || ""}</strong>
             </article>
           `;
           })
@@ -2620,12 +2665,26 @@ function registerServiceWorker() {
   });
 }
 
+function setActiveView(viewName, { persist = true } = {}) {
+  const target = document.querySelector(`#view-${viewName}`);
+  const tab = [...els.tabs].find((entry) => entry.dataset.view === viewName);
+  if (!target || !tab) return false;
+  els.tabs.forEach((entry) => entry.classList.remove("active"));
+  els.views.forEach((view) => view.classList.remove("active"));
+  tab.classList.add("active");
+  target.classList.add("active");
+  if (persist) localStorage.setItem(storageKeys.activeView, viewName);
+  return true;
+}
+
+function restoreActiveView() {
+  const savedView = localStorage.getItem(storageKeys.activeView);
+  if (savedView) setActiveView(savedView, { persist: false });
+}
+
 els.tabs.forEach((tab) => {
   tab.addEventListener("click", () => {
-    els.tabs.forEach((entry) => entry.classList.remove("active"));
-    els.views.forEach((view) => view.classList.remove("active"));
-    tab.classList.add("active");
-    document.querySelector(`#view-${tab.dataset.view}`)?.classList.add("active");
+    setActiveView(tab.dataset.view);
   });
 });
 
@@ -3054,6 +3113,7 @@ registerServiceWorker();
 initAuth();
 updateClock();
 setInterval(updateClock, 1000);
+restoreActiveView();
 renderAll();
 updateConnectionStatus();
 if (navigator.onLine) pullTransactionsFromSupabase({ render: true }).catch(() => null);
