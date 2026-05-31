@@ -56,13 +56,15 @@ module.exports = async function handler(req, res) {
   if (req.method !== "GET") return sendJson(res, 405, { error: "Method not allowed" });
 
   try {
-    const [transactions, items, expenses, inventory, employees] = await Promise.all([
+    const [transactions, items, expenses, inventory, employees, settingsRows] = await Promise.all([
       supabaseFetch("transactions?select=*&order=created_at.desc&limit=500"),
       supabaseFetch("transaction_items?select=*"),
       supabaseFetch("cashflow_expenses?select=*&order=created_at.desc&limit=500"),
       supabaseFetch("inventory?select=*&order=name.asc"),
       supabaseFetch("employees?select=*&active=eq.true&order=name.asc"),
+      supabaseFetch("app_settings?select=*&key=eq.global&limit=1").catch(() => []),
     ]);
+    const settingsRow = Array.isArray(settingsRows) ? settingsRows[0] : null;
 
     const itemsByTransaction = items.reduce((map, item) => {
       const list = map.get(item.transaction_id) || [];
@@ -83,6 +85,8 @@ module.exports = async function handler(req, res) {
       cashflowExpenses: expenses.map(toLocalExpense),
       inventory: toLocalInventory(inventory),
       employees: employees.map((row) => row.name),
+      settingsFound: Boolean(settingsRow),
+      settings: settingsRow?.value || {},
     });
   } catch (error) {
     return sendJson(res, 500, { success: false, error: error.message });

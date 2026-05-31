@@ -28,6 +28,9 @@ const storageKeys = {
   pendingDeletes: "kopishop-pos-pending-deletes",
   activeView: "kasir-migi-active-view",
   shiftActions: "kasir-migi-shift-actions",
+  settingsDirty: "kasir-migi-settings-dirty",
+  deviceId: "kasir-migi-device-id",
+  lastDeviceWarning: "kasir-migi-last-device-warning",
 };
 
 const boothPackagePhotoCounts = {
@@ -356,12 +359,52 @@ function initAuth() {
   }
 }
 
-function login(event) {
+function ensureDeviceId() {
+  let deviceId = localStorage.getItem(storageKeys.deviceId);
+  if (deviceId) return deviceId;
+  deviceId = window.crypto?.randomUUID ? window.crypto.randomUUID() : `device-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+  localStorage.setItem(storageKeys.deviceId, deviceId);
+  return deviceId;
+}
+
+async function checkOtherActiveDevice(employee) {
+  if (!navigator.onLine) return { otherActive: false };
+  const response = await fetch("/api/device-presence", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      deviceId: ensureDeviceId(),
+      employee,
+      checkOnly: true,
+    }),
+  });
+  if (!response.ok) return { otherActive: false };
+  return response.json();
+}
+
+async function confirmLoginDevice(employee) {
+  try {
+    const result = await checkOtherActiveDevice(employee);
+    if (!result?.otherActive) return true;
+    const activeEmployee = result.activeDevice?.employee || "petugas lain";
+    return window.confirm(`Kasir sedang aktif di device lain oleh ${activeEmployee}. Lanjutkan login di device ini?`);
+  } catch {
+    return true;
+  }
+}
+
+async function login(event) {
   event.preventDefault();
   const username = els.loginUsername.value.trim();
   const password = els.loginPassword.value;
   if (username === "kopimigi" && password === "migi46") {
     const employee = els.loginEmployee?.value || getEmployeeRoster()[0] || "Admin";
+    const confirmed = await confirmLoginDevice(employee);
+    if (!confirmed) {
+      els.loginPassword.value = "";
+      toast("Login dibatalkan.");
+      return;
+    }
     const shift = currentShiftName();
     localStorage.setItem(storageKeys.employee, employee);
     writeJson(storageKeys.auth, { loggedIn: true, employee, shift, at: new Date().toISOString() });
@@ -369,6 +412,7 @@ function login(event) {
     document.body.classList.remove("locked");
     els.loginPassword.value = "";
     toast(`Masuk sebagai ${employee} · ${shift}.`);
+    updateDevicePresence().catch(() => null);
     syncCloudData();
     return;
   }
@@ -541,6 +585,39 @@ function getRecipes() {
 
 function saveRecipes(recipes) {
   writeJson(storageKeys.recipes, recipes);
+}
+
+function getSettingsPayload() {
+  return {
+    menu: getMenu(),
+    recipes: getRecipes(),
+  };
+}
+
+function markSettingsDirty() {
+  localStorage.setItem(storageKeys.settingsDirty, "true");
+}
+
+function clearSettingsDirty() {
+  localStorage.removeItem(storageKeys.settingsDirty);
+}
+
+function hasDirtySettings() {
+  return localStorage.getItem(storageKeys.settingsDirty) === "true";
+}
+
+function applyCloudSettings(settings) {
+  if (!settings || typeof settings !== "object") return false;
+  let changed = false;
+  if (Array.isArray(settings.menu) && settings.menu.length) {
+    writeJson(storageKeys.menu, settings.menu);
+    changed = true;
+  }
+  if (settings.recipes && typeof settings.recipes === "object" && !Array.isArray(settings.recipes)) {
+    saveRecipes(settings.recipes);
+    changed = true;
+  }
+  return changed;
 }
 
 function getCashflowExpenses() {
@@ -1933,6 +2010,29 @@ async function syncEmployeesToCloud() {
   if (employees.length) await postCloudJson("/api/sync-employees", { employees });
 }
 
+async function syncSettingsToCloud({ force = false } = {}) {
+  if (!navigator.onLine || !isLoggedIn()) return false;
+  if (!force && !hasDirtySettings()) return false;
+  await postCloudJson("/api/sync-settings", { settings: getSettingsPayload() });
+  clearSettingsDirty();
+  return true;
+}
+
+async function pullSettingsFromSupabase({ render = false } = {}) {
+  if (!navigator.onLine) return false;
+  const response = await fetch("/api/get-settings", { cache: "no-store" });
+  if (!response.ok) throw new Error(`Pull setting gagal: ${response.status}`);
+  const result = await response.json();
+  if (!result?.success) throw new Error(result?.error || "Pull setting gagal.");
+  if (result.found && !hasDirtySettings()) {
+    applyCloudSettings(result.settings);
+    if (render) renderAll();
+  } else if (!result.found || hasDirtySettings()) {
+    await syncSettingsToCloud({ force: true });
+  }
+  return true;
+}
+
 async function pullTransactionsFromSupabase({ render = true } = {}) {
   if (!navigator.onLine) return false;
   const response = await fetch("/api/get-transactions", { cache: "no-store" });
@@ -1982,6 +2082,11 @@ async function loadCloudData() {
   if (Array.isArray(data.cashflowExpenses)) writeJson(storageKeys.cashflowExpenses, data.cashflowExpenses.slice(0, 500));
   if (data.inventory && typeof data.inventory === "object") saveInventory(data.inventory);
   if (Array.isArray(data.employees) && data.employees.length) saveEmployeeRoster(data.employees);
+  if (data.settingsFound && !hasDirtySettings()) {
+    applyCloudSettings(data.settings);
+  } else if (!data.settingsFound || hasDirtySettings()) {
+    await syncSettingsToCloud({ force: true }).catch(() => null);
+  }
   return true;
 }
 
@@ -1999,6 +2104,7 @@ async function syncCloudData({ refresh = true } = {}) {
       syncCashflowToCloud(),
       syncInventoryToCloud(),
       syncEmployeesToCloud(),
+      syncSettingsToCloud(),
     ]);
     if (refresh) {
       await loadCloudData();
@@ -2015,6 +2121,22 @@ async function syncCloudData({ refresh = true } = {}) {
   return cloudSyncPromise;
 }
 
+async function updateDevicePresence() {
+  if (!navigator.onLine || !isLoggedIn()) return;
+  const result = await postCloudJson("/api/device-presence", {
+    deviceId: ensureDeviceId(),
+    employee: activeEmployeeName(),
+  });
+  if (!result?.otherActive) return;
+
+  const now = Date.now();
+  const lastWarning = Number(localStorage.getItem(storageKeys.lastDeviceWarning) || 0);
+  if (now - lastWarning < 5 * 60 * 1000) return;
+  localStorage.setItem(storageKeys.lastDeviceWarning, String(now));
+  const employee = result.activeDevice?.employee || "petugas lain";
+  window.alert(`Kasir juga sedang aktif di device lain oleh ${employee}. Pastikan hanya satu kasir yang mengambil transaksi utama.`);
+}
+
 function updateConnectionStatus() {
   renderPendingSync();
   if (navigator.onLine) {
@@ -2023,6 +2145,7 @@ function updateConnectionStatus() {
       .then(() => pullTransactionsFromSupabase({ render: true }))
       .catch(() => null);
     syncCloudData({ refresh: false });
+    updateDevicePresence().catch(() => null);
   }
 }
 
@@ -2438,9 +2561,11 @@ function saveMenu(event) {
   else delete recipes[data.id];
   writeJson(storageKeys.menu, menu);
   saveRecipes(recipes);
+  markSettingsDirty();
   resetMenuForm();
   state.category = "Semua";
   renderAll();
+  syncSettingsToCloud({ force: true }).catch(() => null);
   toast("Menu tersimpan.");
 }
 
@@ -3079,7 +3204,9 @@ els.menuTable.addEventListener("click", (event) => {
     delete recipes[deleteButton.dataset.deleteMenu];
     saveRecipes(recipes);
     writeJson(storageKeys.menu, menu.filter((item) => item.id !== deleteButton.dataset.deleteMenu));
+    markSettingsDirty();
     renderAll();
+    syncSettingsToCloud({ force: true }).catch(() => null);
     toast("Menu dihapus.");
   }
 });
@@ -3113,8 +3240,10 @@ registerServiceWorker();
 initAuth();
 updateClock();
 setInterval(updateClock, 1000);
+setInterval(() => updateDevicePresence().catch(() => null), 30000);
 restoreActiveView();
 renderAll();
 updateConnectionStatus();
 if (navigator.onLine) pullTransactionsFromSupabase({ render: true }).catch(() => null);
+if (navigator.onLine) pullSettingsFromSupabase({ render: true }).catch(() => null);
 if (isLoggedIn()) syncCloudData();
