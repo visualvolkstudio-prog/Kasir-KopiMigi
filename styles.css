@@ -1303,19 +1303,18 @@ input:focus, select:focus {
 
 .cashflow-entry-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(120px, 0.7fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 9px;
   align-items: end;
 }
 
-.cashflow-entry-grid #cfIngredientQtyWrap:not([hidden]) {
-  display: grid;
-  grid-template-columns: minmax(100px, 1fr) minmax(90px, 0.8fr);
+#cfIngredientQtyWrap[hidden] {
+  display: none !important;
 }
 
-.cashflow-entry-grid:has(#cfIngredientQtyWrap:not([hidden])) {
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr) minmax(120px, 0.75fr);
-  align-items: end;
+.cashflow-entry-grid #cfIngredientQtyWrap:not([hidden]) {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .modal-order-list {

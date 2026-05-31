@@ -1043,29 +1043,33 @@ function syncCfExpenseNoteField() {
   if (category === "Bahan Baku") {
     const inventory = getInventory();
     const items = Object.entries(inventory).filter(([, record]) => record?.name);
-    if (items.length) {
-      if (els.cfExpenseNote.tagName === "INPUT") {
-        const select = document.createElement("select");
-        select.id = "cfExpenseNote";
-        select.name = "cfExpenseNote";
-        select.className = els.cfExpenseNote.className;
-        select.required = true;
-        select.innerHTML = items.map(([id, item]) => `<option value="${id}">${item.name}</option>`).join("");
-        els.cfExpenseNote.replaceWith(select);
-        els.cfExpenseNote = select;
-      } else {
-        els.cfExpenseNote.innerHTML = items.map(([id, item]) => `<option value="${id}">${item.name}</option>`).join("");
-      }
-      if (els.cfIngredientQtyWrap) els.cfIngredientQtyWrap.hidden = false;
-      const selectedId = els.cfExpenseNote.value;
-      const selected = inventory[selectedId];
-      if (els.cfExpenseUnit) els.cfExpenseUnit.value = selected?.unit || "";
-      return;
+    if (els.cfIngredientQtyWrap) els.cfIngredientQtyWrap.hidden = false;
+    const currentValue = els.cfExpenseNote.value;
+    const options = items.length
+      ? items.map(([id, item]) => `<option value="${id}">${item.name}</option>`).join("")
+      : `<option value="" disabled selected>Input bahan di Stock Bahan Baku dulu</option>`;
+
+    if (els.cfExpenseNote.tagName === "INPUT") {
+      const select = document.createElement("select");
+      select.id = "cfExpenseNote";
+      select.name = "cfExpenseNote";
+      select.className = els.cfExpenseNote.className;
+      select.required = true;
+      select.innerHTML = options;
+      els.cfExpenseNote.replaceWith(select);
+      els.cfExpenseNote = select;
+    } else {
+      els.cfExpenseNote.innerHTML = options;
     }
+
+    if (items.some(([id]) => id === currentValue)) els.cfExpenseNote.value = currentValue;
+    const selected = inventory[els.cfExpenseNote.value];
+    if (els.cfExpenseUnit) els.cfExpenseUnit.value = selected?.unit || "gram";
+    return;
   }
   if (els.cfIngredientQtyWrap) els.cfIngredientQtyWrap.hidden = true;
   if (els.cfExpenseQty) els.cfExpenseQty.value = "";
-  if (els.cfExpenseUnit) els.cfExpenseUnit.value = "";
+  if (els.cfExpenseUnit) els.cfExpenseUnit.value = "gram";
   if (els.cfExpenseNote.tagName === "SELECT") {
     const input = document.createElement("input");
     input.id = "cfExpenseNote";
@@ -1076,6 +1080,8 @@ function syncCfExpenseNoteField() {
     input.required = true;
     els.cfExpenseNote.replaceWith(input);
     els.cfExpenseNote = input;
+  } else {
+    els.cfExpenseNote.placeholder = "Beli gelas, bayar listrik, dll";
   }
 }
 
@@ -2425,6 +2431,7 @@ function renderAll() {
   renderCashflow();
   renderBoothQueue();
   drawBoothCanvas();
+  syncCfExpenseNoteField();
   renderPendingSync();
 }
 
@@ -2655,7 +2662,7 @@ els.cashflowExpenseForm?.addEventListener("submit", (event) => {
   const amount = parseRupiah(els.cfExpenseAmount?.value);
   const category = els.cfExpenseCategory?.value;
   if (!rawNoteValue || !amount) {
-    toast("Keterangan dan jumlah wajib diisi.");
+    toast("Keterangan dan harga total wajib diisi.");
     return;
   }
   let note = rawNoteValue;
@@ -2672,17 +2679,20 @@ els.cashflowExpenseForm?.addEventListener("submit", (event) => {
     const ingredientId = rawNoteValue;
     const ingredient = inventory[ingredientId];
     const qty = Number(els.cfExpenseQty?.value || 0);
-    if (!ingredient || !Number.isFinite(qty) || qty <= 0) {
-      toast("Pilih bahan baku dan isi quantity pembelian.");
+    const unit = els.cfExpenseUnit?.value || ingredient?.unit || "gram";
+    if (!ingredient || !ingredient.name || !unit || !Number.isFinite(qty) || qty <= 0) {
+      toast("Pilih bahan dari Stock Bahan Baku, lalu isi jumlah dan harga total.");
       return;
     }
     note = `Beli ${ingredient.name}`;
     payload.note = note;
     payload.ingredientId = ingredientId;
     payload.qty = qty;
-    payload.unit = ingredient.unit || "";
+    payload.unit = unit;
     inventory[ingredientId] = {
       ...ingredient,
+      name: ingredient.name,
+      unit,
       stock: Number(ingredient.stock || 0) + qty,
       buyPrice: amount / qty,
       updatedAt: payload.createdAt,
@@ -2696,7 +2706,7 @@ els.cashflowExpenseForm?.addEventListener("submit", (event) => {
   els.cfExpenseAmount.value = "";
   if (els.cfExpenseNote.tagName === "INPUT") els.cfExpenseNote.value = "";
   if (els.cfExpenseQty) els.cfExpenseQty.value = "";
-  if (els.cfExpenseUnit) els.cfExpenseUnit.value = "";
+  if (els.cfExpenseUnit) els.cfExpenseUnit.value = "gram";
   syncCfExpenseNoteField();
   renderInventory();
   renderCashflow();
@@ -2708,7 +2718,7 @@ els.cashflowExpenseForm?.addEventListener("change", (event) => {
   if (event.target.id !== "cfExpenseNote") return;
   if (els.cfExpenseCategory?.value !== "Bahan Baku") return;
   const ingredient = getInventory()[els.cfExpenseNote.value];
-  if (els.cfExpenseUnit) els.cfExpenseUnit.value = ingredient?.unit || "";
+  if (els.cfExpenseUnit) els.cfExpenseUnit.value = ingredient?.unit || "gram";
 });
 
 els.cfExpenseAmount?.addEventListener("blur", () => {
