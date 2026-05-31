@@ -366,6 +366,7 @@ function login(event) {
     document.body.classList.remove("locked");
     els.loginPassword.value = "";
     toast(`Masuk sebagai ${employee} · ${shift}.`);
+    syncCloudData();
     return;
   }
 
@@ -382,6 +383,10 @@ function logout() {
   renderEmployeeControls();
   setTimeout(() => els.loginUsername?.focus(), 50);
   toast("Kasir logout.");
+}
+
+function isLoggedIn() {
+  return Boolean(readJson(storageKeys.auth, null)?.loggedIn);
 }
 
 function updateClock() {
@@ -1804,9 +1809,89 @@ async function syncPendingTransactions() {
   renderPendingSync();
 }
 
+async function postCloudJson(url, payload) {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) throw new Error(`Cloud sync gagal: ${response.status}`);
+  return response.json();
+}
+
+async function syncHistoryToCloud() {
+  if (!navigator.onLine) return;
+  for (const transaction of getHistory()) {
+    await postCloudJson("/api/sync-transactions", transaction);
+  }
+}
+
+async function syncCashflowToCloud() {
+  if (!navigator.onLine) return;
+  const expenses = getCashflowExpenses();
+  if (expenses.length) await postCloudJson("/api/sync-cashflow", expenses);
+}
+
+async function syncInventoryToCloud() {
+  if (!navigator.onLine) return;
+  const inventory = getInventory();
+  if (Object.keys(inventory).length) await postCloudJson("/api/sync-inventory", { inventory });
+}
+
+async function syncEmployeesToCloud() {
+  if (!navigator.onLine) return;
+  const employees = getEmployeeRoster();
+  if (employees.length) await postCloudJson("/api/sync-employees", { employees });
+}
+
+async function loadCloudData() {
+  if (!navigator.onLine) return false;
+  const response = await fetch("/api/bootstrap-data", { cache: "no-store" });
+  if (!response.ok) throw new Error(`Load data cloud gagal: ${response.status}`);
+  const data = await response.json();
+  if (!data?.success) throw new Error(data?.error || "Load data cloud gagal.");
+
+  if (Array.isArray(data.history)) writeJson(storageKeys.history, data.history.slice(0, 300));
+  if (Array.isArray(data.cashflowExpenses)) writeJson(storageKeys.cashflowExpenses, data.cashflowExpenses.slice(0, 500));
+  if (data.inventory && typeof data.inventory === "object") saveInventory(data.inventory);
+  if (Array.isArray(data.employees) && data.employees.length) saveEmployeeRoster(data.employees);
+  return true;
+}
+
+let cloudSyncPromise = null;
+
+async function syncCloudData({ refresh = true } = {}) {
+  if (!navigator.onLine || !isLoggedIn()) return;
+  if (cloudSyncPromise) return cloudSyncPromise;
+
+  cloudSyncPromise = (async () => {
+    await Promise.allSettled([
+      syncPendingTransactions(),
+      syncHistoryToCloud(),
+      syncCashflowToCloud(),
+      syncInventoryToCloud(),
+      syncEmployeesToCloud(),
+    ]);
+    if (refresh) {
+      await loadCloudData();
+      renderAll();
+    }
+  })()
+    .catch(() => null)
+    .finally(() => {
+      cloudSyncPromise = null;
+      renderPendingSync();
+    });
+
+  return cloudSyncPromise;
+}
+
 function updateConnectionStatus() {
   renderPendingSync();
-  if (navigator.onLine) syncPendingTransactions();
+  if (navigator.onLine) {
+    syncPendingTransactions();
+    syncCloudData({ refresh: false });
+  }
 }
 
 function payDraftOrder(id) {
@@ -2873,3 +2958,4 @@ updateClock();
 setInterval(updateClock, 1000);
 renderAll();
 updateConnectionStatus();
+if (isLoggedIn()) syncCloudData();
