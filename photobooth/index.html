@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MigiCam — Sesi Studio</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Playfair+Display:ital,wght@0,700;1,400&family=Reenie+Beanie&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <style>
+    /* Inline styles for tab control or specific Booth tweaks */
+    .btn-camera-control {
+      margin-top: 15px;
+      width: 100%;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="dots-background" aria-hidden="true"></canvas>
+
+  <!-- Hidden elements for Canvas rendering -->
+  <canvas id="hidden-capture-canvas" style="display: none;" width="720" height="960"></canvas>
+  <canvas id="hidden-strip-canvas" style="display: none;"></canvas>
+
+  <header>
+    <a href="#" class="brand-title">
+      <div class="brand-logo-small">✦</div>
+      <span style="font-style:italic;">MigiCam <span style="font-family:var(--font-mono); font-size:12px; font-style:normal; color:var(--accent2); letter-spacing:0.15em;">PHOTO</span></span>
+    </a>
+    <div class="header-actions">
+      <div class="status-badge-network">
+        <span class="status-dot online" id="booth-sync-dot"></span>
+        <span id="booth-sync-text">Studio Live</span>
+      </div>
+      <div class="operator-menu-wrap">
+        <button id="operator-menu-btn" class="operator-icon-button" onclick="toggleOperatorMenu()" title="Pengaturan booth" aria-label="Pengaturan booth">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5A3.5 3.5 0 1 0 12 8.5a3.5 3.5 0 0 0 0 7Z"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.2a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.2a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3h.1a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.2a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8v.1a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.2a1.6 1.6 0 0 0-1.4 1Z"/></svg>
+        </button>
+        <div id="operator-menu" class="operator-menu">
+          <p class="operator-menu-title">Pengaturan</p>
+          <button id="btn-fullscreen-booth" class="operator-action-button" type="button">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5"/><path d="M16 3h5v5"/><path d="M21 16v5h-5"/><path d="M8 21H3v-5"/></svg>
+            <span>Fullscreen</span>
+          </button>
+          <div class="operator-divider"></div>
+          <div class="operator-status-row">
+            <span id="ble-status-badge" class="ble-status-badge">TERPUTUS</span>
+            <span id="ble-device-name" class="ble-device-name"></span>
+          </div>
+          <button id="btn-connect-ble" class="operator-action-button" onclick="connectBluetoothPrinter()">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9V3h12v6"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 14h12v7H6z"/><path d="M8 17h8"/></svg>
+            <span>Sambungkan Printer</span>
+          </button>
+          <label class="operator-select-label">
+            <span>Ukuran Kertas</span>
+            <select id="print-width-select" onchange="adjustPrintSettings()">
+              <option value="58mm" selected>58mm — Thermal Bluetooth</option>
+            </select>
+          </label>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <div class="container" id="booth-container">
+      <!-- ================= SCREEN 1: LOGIN / VERIFIKASI ================= -->
+      <div id="screen-login" class="booth-paper-start" onclick="focusBoothCode()">
+        <div class="paper-printer-scene">
+          <div class="paper-printer-head"></div>
+          <div class="paper-receipt-out">
+            <div class="paper-receipt-preview" aria-hidden="true">
+              <div class="paper-receipt-title">MigiCam</div>
+              <div class="paper-receipt-subtitle">Receipt Photobooth</div>
+              <div class="paper-receipt-rule"></div>
+              <div class="paper-receipt-row">
+                <span>Date</span>
+                <strong>Today</strong>
+              </div>
+              <div class="paper-receipt-row">
+                <span>Session</span>
+                <strong>A000</strong>
+              </div>
+              <div class="paper-receipt-row">
+                <span>Frame</span>
+                <strong>Story</strong>
+              </div>
+              <div class="paper-receipt-rule dashed"></div>
+              <div class="paper-receipt-photo-box">
+                <span>Your Photo Here</span>
+              </div>
+              <div class="paper-receipt-total">
+                <span>Total</span>
+                <strong>15K</strong>
+              </div>
+            </div>
+            <input type="text" id="booth-input-code" class="paper-code-input" placeholder="A000" maxlength="6" autocomplete="off" autofocus>
+            <button class="paper-tap-button" id="btn-login-booth" onclick="event.stopPropagation(); verifyCode();">Mulai</button>
+          </div>
+        </div>
+        <p class="paper-start-footer">by Kopimigi</p>
+        <div class="message-box status-ok" id="login-msg-ok" style="display: none; margin-top:12px;">
+          <span>✓ Kode valid — Mempersiapkan kamera...</span>
+        </div>
+        <div class="message-box status-err" id="login-msg-err" style="display: none; margin-top:12px;">
+          <span>✗ Kode tidak valid atau sudah digunakan.</span>
+        </div>
+      </div>
+
+      <!-- ================= SCREEN 2: KAMERA & CAPTURE ================= -->
+      <div id="screen-camera" class="glass-card" style="max-width: 880px; margin: 0 auto; display: none;">
+        <h1 class="card-title" style="text-align: center;" id="camera-screen-title">Kamera Siap</h1>
+        <p class="card-subtitle" style="text-align: center;" id="camera-screen-subtitle">Ambil foto terbaikmu secara otomatis</p>
+
+        <!-- Photo Count Selector -->
+        <div style="display: flex; align-items: center; gap: 10px; justify-content: center; margin-bottom: 18px;">
+          <span style="font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em;">Jumlah foto:</span>
+          <button class="photo-count-btn" data-photo-count="1" onclick="setPhotoCount(1, this)">1 Foto</button>
+          <button class="photo-count-btn" data-photo-count="2" onclick="setPhotoCount(2, this)">2 Foto</button>
+          <button class="photo-count-btn" data-photo-count="4" onclick="setPhotoCount(4, this)" id="default-count-btn">4 Foto</button>
+        </div>
+
+        <div class="camera-container-layout">
+          <div class="camera-viewport-wrapper">
+            <video id="webcam-feed" autoplay playsinline muted></video>
+            <div class="camera-live-controls">
+              <button type="button" class="camera-live-btn mirror active" id="btn-camera-mirror" onclick="toggleCameraMirror()">Mirror</button>
+              <button class="camera-shutter-btn" id="btn-start-capture" onclick="startPhotoSession()" aria-label="Mulai sesi foto">
+                <span></span>
+              </button>
+            </div>
+            
+            <!-- Countdown Overlay -->
+            <div class="countdown-overlay-number" id="countdown-number">3</div>
+            
+            <!-- Countdown Circle Progress SVG -->
+            <svg class="countdown-ring-svg" id="countdown-ring">
+              <circle class="countdown-ring-bg" cx="25" cy="25" r="20"/>
+              <circle class="countdown-ring-progress" id="countdown-ring-progress" cx="25" cy="25" r="20"/>
+            </svg>
+
+            <!-- Flash Overlay -->
+            <div class="camera-flash-overlay" id="camera-flash"></div>
+          </div>
+
+          <!-- Capture Indicators (4 dots) -->
+          <div class="capture-indicator-dots">
+            <div class="indicator-dot" id="dot-1"></div>
+            <div class="indicator-dot" id="dot-2"></div>
+            <div class="indicator-dot" id="dot-3"></div>
+            <div class="indicator-dot" id="dot-4"></div>
+          </div>
+
+        </div>
+
+        <!-- ── INLINE RETAKE SECTION (muncul setelah semua foto diambil) ── -->
+        <div id="inline-retake-section" style="display:none; margin-top: 24px;">
+          <!-- Header -->
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+            <p style="font-size:11px; text-transform:uppercase; letter-spacing:0.14em; color:var(--accent2); margin:0; font-family:var(--font-mono);">Hasil Foto</p>
+            <span id="retake-slot-label" style="font-size:10px; color:var(--accent2); font-family:var(--font-mono); font-weight:700;"></span>
+          </div>
+
+          <!-- Thumbnail grid — kolom diatur JS sesuai jumlah foto -->
+          <div id="captured-thumbnails" style="display:grid; gap:8px; margin-bottom:16px;">
+            <!-- diisi oleh JS -->
+          </div>
+
+          <!-- Tombol Lanjut ke Editor -->
+          <button class="btn-primary" id="btn-proceed-to-editor" onclick="proceedToEditor()" style="width:100%; margin-bottom:10px; font-size:15px; padding:16px;">
+            ✓ Lanjut ke Editor →
+          </button>
+        </div>
+
+        <button class="btn-secondary" onclick="exitCameraScreen()" style="margin-top: 8px; width: 100%;">
+          ← Batalkan / Keluar
+        </button>
+      </div>
+
+      <!-- ================= SCREEN 3: EDITOR KUSTOMISASI ================= -->
+      <div id="screen-editor" class="glass-card" style="display: none;">
+        <h1 class="card-title">Kustomisasi Foto</h1>
+        <p class="card-subtitle">Atur frame, teks, dan stiker sesuai selera</p>
+
+        <div class="editor-layout">
+          <!-- Left: Dynamic Photo Strip Preview -->
+          <div class="preview-pane-wrapper">
+            <div class="preview-stack">
+              <div class="receipt-preview-stage" id="receipt-preview-stage">
+                <img id="receipt-live-preview" class="receipt-live-preview" src="" alt="Preview hasil cetak">
+                <button class="theme-swipe-button theme-prev" type="button" onclick="cycleReceiptTheme(-1)" aria-label="Tema sebelumnya">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+                </button>
+                <button class="theme-swipe-button theme-next" type="button" onclick="cycleReceiptTheme(1)" aria-label="Tema berikutnya">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+                </button>
+                <div class="theme-preview-dots" aria-label="Tema receipt">
+                  <button class="theme-dot active" data-theme-dot="0" type="button" onclick="setReceiptThemeByIndex(0)" aria-label="Tema Kopimigi"></button>
+                  <button class="theme-dot" data-theme-dot="1" type="button" onclick="setReceiptThemeByIndex(1)" aria-label="Tema Struk"></button>
+                  <button class="theme-dot" data-theme-dot="2" type="button" onclick="setReceiptThemeByIndex(2)" aria-label="Tema Express"></button>
+                  <button class="theme-dot" data-theme-dot="3" type="button" onclick="setReceiptThemeByIndex(3)" aria-label="Tema Simple"></button>
+                </div>
+              </div>
+            </div>
+            <div class="photostrip-canvas-container frame-white preview-source-hidden" id="strip-preview">
+              <div class="receipt-preview-header">
+                <strong>KOPIMIGI</strong>
+                <span>CREATE STORY</span>
+              </div>
+              <div class="receipt-preview-details">
+                <div><span>PEMBELI</span><b id="receipt-preview-buyer">Pelanggan Setia</b></div>
+                <div><span>ITEM</span><b id="receipt-preview-item">PHOTO SESSION</b></div>
+                <div><span>TOTAL</span><b>15K</b></div>
+              </div>
+              <!-- Placed Stickers will sit in this layer -->
+              <div class="sticker-interaction-layer" id="sticker-layer"></div>
+
+              <!-- 4 Photo frames -->
+              <div class="strip-item-photo-wrapper" id="photo-wrapper-1">
+                <img class="strip-photo-img" id="prev-photo-1" src="" alt="Foto 1">
+              </div>
+              <div class="strip-item-photo-wrapper" id="photo-wrapper-2">
+                <img class="strip-photo-img" id="prev-photo-2" src="" alt="Foto 2">
+              </div>
+              <div class="strip-item-photo-wrapper" id="photo-wrapper-3">
+                <img class="strip-photo-img" id="prev-photo-3" src="" alt="Foto 3">
+              </div>
+              <div class="strip-item-photo-wrapper" id="photo-wrapper-4">
+                <img class="strip-photo-img" id="prev-photo-4" src="" alt="Foto 4">
+              </div>
+
+              <!-- Strip Footer Date/Logo -->
+              <div class="strip-footer" id="strip-footer-text">
+                Pelanggan Setia
+              </div>
+              <div class="receipt-preview-barcode"></div>
+            </div>
+          </div>
+
+          <!-- Right: Editing Panels -->
+          <div class="editor-controls-pane">
+            <!-- TAB 1: FRAME & LAYOUT -->
+            <div id="tab-frame" class="tab-content-panel active">
+              <div class="mini-tool-section">
+                <label class="mini-text-field" title="Teks footer">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7V4h16v3"/><path d="M9 20h6"/><path d="M12 4v16"/></svg>
+                  <input type="text" id="text-caption-input" class="text-input-field" placeholder="Pelanggan Setia" maxlength="28" oninput="updateFooterText()">
+                </label>
+              </div>
+
+              <div class="mini-tool-section">
+                <p class="mini-section-label">Frame</p>
+                <div class="icon-choice-grid frame-choice-grid">
+                  <button type="button" class="icon-choice frame-theme-card active" onclick="setFrameTheme('white', this)" title="Putih" aria-label="Frame putih">
+                    <span class="preset-preview-circle color-white"></span>
+                  </button>
+                  <button type="button" class="icon-choice frame-theme-card" onclick="setFrameTheme('ink', this)" title="Hitam" aria-label="Frame hitam">
+                    <span class="preset-preview-circle color-ink"></span>
+                  </button>
+                  <button type="button" class="icon-choice frame-theme-card" onclick="setFrameTheme('black', this)" title="Grain" aria-label="Frame grain">
+                    <span class="preset-preview-circle color-black"></span>
+                  </button>
+                </div>
+              </div>
+
+              <div id="arrangement-picker" class="mini-tool-section arrangement-picker">
+                <p class="mini-section-label">Layout</p>
+                <div class="icon-choice-grid">
+                  <button type="button" class="icon-choice arrangement-card active" data-arrangement="story" onclick="setPhotoArrangement('story', this)" title="Story" aria-label="Layout story">
+                    <span class="arrangement-icon arrangement-story"></span>
+                  </button>
+                  <button type="button" class="icon-choice arrangement-card" data-arrangement="grid" onclick="setPhotoArrangement('grid', this)" title="Grid" aria-label="Layout grid">
+                    <span class="arrangement-icon arrangement-grid-icon"></span>
+                  </button>
+                </div>
+              </div>
+
+              <div id="single-frame-shape-picker" class="single-frame-shape-picker">
+                <p class="mini-section-label">Bentuk</p>
+                <div class="icon-choice-grid">
+                  <button type="button" class="icon-choice single-frame-shape-card active" data-single-frame-shape="rounded" onclick="setSingleFrameShape('rounded', this)" title="Rounded" aria-label="Frame rounded">
+                    <span class="shape-icon shape-rounded"></span>
+                  </button>
+                  <button type="button" class="icon-choice single-frame-shape-card" data-single-frame-shape="circle" onclick="setSingleFrameShape('circle', this)" title="Bulat" aria-label="Frame bulat">
+                    <span class="shape-icon shape-circle"></span>
+                  </button>
+                  <button type="button" class="icon-choice single-frame-shape-card" data-single-frame-shape="scallop" onclick="setSingleFrameShape('scallop', this)" title="Scallop" aria-label="Frame scallop">
+                    <span class="shape-icon shape-scallop"></span>
+                  </button>
+                </div>
+              </div>
+
+              <div class="mini-tool-section photo-bg-picker">
+                <p class="mini-section-label">Background</p>
+                <div class="icon-choice-grid">
+                  <button type="button" class="icon-choice photo-bg-card active" data-photo-bg="original" onclick="setPhotoBackground('original', this)" title="Asli" aria-label="Background asli">
+                    <span class="photo-bg-swatch bg-original"></span>
+                  </button>
+                  <button type="button" class="icon-choice photo-bg-card" data-photo-bg="white" onclick="setPhotoBackground('white', this)" title="Putih" aria-label="Background putih">
+                    <span class="photo-bg-swatch bg-white"></span>
+                  </button>
+                  <button type="button" class="icon-choice photo-bg-card" data-photo-bg="burst" onclick="setPhotoBackground('burst', this)" title="Hitam pudar" aria-label="Background hitam pudar">
+                    <span class="photo-bg-swatch bg-burst"></span>
+                  </button>
+                </div>
+                <p class="photo-bg-hint" id="photo-bg-status">Mode gratis: potong background sederhana di browser.</p>
+              </div>
+            </div>
+
+            <!-- Editor Action Button -->
+            <div class="editor-action-dock">
+              <button class="btn-primary review-next-button" onclick="renderAndGoToFinal()">
+                <span>Berikutnya</span>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ================= SCREEN 4: HASIL / PRINT & SHARE ================= -->
+      <div id="screen-result" class="glass-card" style="display: none;">
+        <h1 class="card-title" style="text-align: center;">Hasil MigiCam Anda!</h1>
+        <p class="card-subtitle" style="text-align: center;">Simpan cetakan digital atau cetak melalui dialog print iPad</p>
+
+        <div class="result-layout">
+          <!-- Left: Final rendered static image -->
+          <div class="final-preview-container">
+            <img id="final-render-img" class="final-strip-img-render" src="" alt="Final Strip Render">
+          </div>
+
+          <!-- Right: Action panel -->
+          <div class="result-actions-pane">
+            <p class="card-subtitle" id="print-qty-note" style="margin-top: 0;">Jumlah cetak mengikuti order kasir.</p>
+
+            <!-- Tombol cetak utama -->
+            <button class="btn-primary" id="btn-print-ble" onclick="printViaBluetooth()" style="font-size: 15px; padding: 18px 24px; width:100%; background:var(--accent2); border-color:var(--accent2); color:var(--accent);">
+              🖨 Cetak Bluetooth Tablet
+            </button>
+
+            <button class="btn-secondary" onclick="downloadFinalImage()" style="width: 100%;">
+              Unduh File Digital (HD)
+            </button>
+
+            <!-- Simulated QR Code sharing -->
+            <div class="qr-code-section">
+              <div class="qr-placeholder" id="share-qr-container"></div>
+              <div class="qr-info-text">
+                <strong>Ingin versi digital di HP?</strong><br>
+                Pindai kode QR ini untuk mengunduh foto resolusi tinggi.
+              </div>
+            </div>
+
+            <button class="btn-danger" onclick="completeSessionAndExit()" style="margin-top: 8px; width: 100%;">
+              🔄 Selesai & Kembali ke Menu Utama
+            </button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- ================= PRINT CAPTURE ZONE (Only Visible to Printer) ================= -->
+  <div id="print-capture-area">
+    <img id="print-image-target" src="" alt="Print Output Image">
+  </div>
+
+  <div id="print-animation-overlay" class="print-animation-overlay" style="display:none;">
+    <div class="print-animation-card">
+      <div class="print-animation-printer">
+        <div class="print-animation-slot"></div>
+        <img id="print-animation-receipt" src="" alt="Animasi cetak">
+      </div>
+      <div class="print-animation-text" id="print-animation-text">Mencetak...</div>
+    </div>
+  </div>
+
+  <!-- retake modal removed — retake now happens inline on screen-camera -->
+
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

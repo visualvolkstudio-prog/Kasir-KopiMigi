@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MigiCam — Dashboard Kasir</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <style>
+    /* Custom tweaks for cashier dashboard */
+    .btn-action-group {
+      display: flex;
+      gap: 10px;
+      margin-top: 15px;
+    }
+    .quick-stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+    .stat-box {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px;
+      text-align: center;
+    }
+    .stat-val {
+      font-size: 20px;
+      font-weight: bold;
+      color: var(--accent2);
+    }
+    .stat-label {
+      font-size: 8px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <a href="#" class="brand-title">
+      <div class="brand-logo-small">🔑</div>
+      <span>MigiCam <span style="font-family: var(--font-mono); font-size: 14px; color: var(--accent2);">KASIR</span></span>
+    </a>
+    <div style="display:flex; align-items:center; gap:12px;">
+      <div class="status-badge-network" id="network-status">
+        <span class="status-dot online" id="status-dot"></span>
+        <span id="status-text">Local Sync (Tab)</span>
+      </div>
+      <div style="position:relative;">
+        <button id="cashier-printer-menu-btn" onclick="toggleCashierPrinterMenu()" style="background:transparent; border:1px solid var(--border); border-radius:8px; color:var(--muted); padding:6px 11px; cursor:pointer; font-size:14px; line-height:1; font-family:var(--font-mono);" title="Print Station">⚙</button>
+        <div id="cashier-printer-menu" style="display:none; position:absolute; top:calc(100% + 8px); right:0; background:var(--surface-card); border:1px solid var(--border-warm); border-radius:12px; padding:16px; width:280px; z-index:999;">
+          <label class="form-label">Print Station Mac</label>
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:12px;">
+            <span id="ble-status-badge" style="font-size:10px; font-weight:700; padding:4px 10px; border-radius:20px; background:rgba(239,68,68,0.15); color:#ef4444;">TERPUTUS</span>
+            <span id="ble-printer-name" style="display:none; font-size:10px; color:var(--muted);">
+              <span id="ble-name-text"></span>
+            </span>
+          </div>
+          <button class="btn-secondary" id="btn-connect-ble" onclick="connectBluetoothPrinter()" style="width:100%; margin-bottom:12px;">
+            🔌 Sambungkan Printer Bluetooth
+          </button>
+          <div class="settings-row">
+            <span style="font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:0.12em;">Ukuran Kertas</span>
+            <select id="cashier-paper-size" class="settings-select">
+              <option value="58mm" selected>58mm</option>
+            </select>
+          </div>
+          <p id="ble-hint" style="font-size:10px; color:var(--muted); line-height:1.5; margin-top:12px;">
+            Biarkan halaman ini terbuka. Job dari iPad akan masuk ke antrian cetak.
+          </p>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <div class="container" style="max-width: 900px;">
+      <div class="glass-card">
+        <h1 class="card-title">Dashboard Kasir</h1>
+        <p class="card-subtitle">Manajemen Voucher & Kode Sesi MigiCam</p>
+
+        <!-- Quick Stats -->
+        <div class="quick-stats">
+          <div class="stat-box">
+            <div class="stat-val" id="stat-unused">0</div>
+            <div class="stat-label">Belum Dipakai</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-val" id="stat-active" style="color: var(--info-text);">0</div>
+            <div class="stat-label">Sedang Dipakai</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-val" id="stat-used" style="color: var(--ok-text);">0</div>
+            <div class="stat-label">Telah Selesai</div>
+          </div>
+        </div>
+
+        <div class="cashier-layout">
+          <!-- Left: Generator + Printer -->
+          <div class="code-generator-section">
+            <div class="form-group">
+              <label class="form-label">Menu Kasir</label>
+              <button class="btn-primary" onclick="generateVoucher()" id="btn-generate">
+                ✨ Buat Kode Sesi Baru
+              </button>
+            </div>
+
+            <div class="generated-code-display" id="generated-box" style="display: none;">
+              <div class="generated-code-title">Kode Sesi Dibuat</div>
+              <div class="generated-code-text" id="code-output">A000</div>
+              <div class="copy-badge" onclick="copyCode()" id="copy-btn">Salin Kode</div>
+              <p style="font-size: 10px; color: var(--muted); margin-top: 15px;">
+                Berikan kode di atas kepada pelanggan untuk dimasukkan pada mesin MigiCam.
+              </p>
+            </div>
+
+            <div id="print-queue-box" class="print-settings-box" style="display:none; margin-top:14px;">
+              <label class="form-label">Antrian Cetak</label>
+              <div id="print-queue-list" style="display:flex; flex-direction:column; gap:8px;"></div>
+            </div>
+          </div>
+
+          <!-- Right: Active Sessions List -->
+          <div class="code-list-section">
+            <label class="form-label" style="display:flex; justify-content:space-between; align-items:center;">
+              <span>Daftar Kode Sesi</span>
+              <span style="font-size: 10px; cursor: pointer; color: var(--accent2);" onclick="clearAllCodes()">Hapus Semua</span>
+            </label>
+            <div class="code-list-container" id="code-list">
+              <!-- Code items will be injected here -->
+              <div style="text-align: center; color: var(--muted); padding: 40px 10px; font-size: 12px;">
+                Belum ada kode sesi yang dibuat hari ini.
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </main>
+
+  <script>
+    // ── DATABASE & SYNC STATE ──
+    let sessions = [];
+    const syncChannel = new BroadcastChannel('photobooth-sync');
+    let isServerMode = false;
+    let serverUrl = '';
+
+    // Detect if we are hosted on a server or file system
+    if (window.location.protocol !== 'file:') {
+      isServerMode = true;
+      serverUrl = window.location.origin; // Same origin
+      document.getElementById('status-text').textContent = 'Network Sync (Wi-Fi)';
+      document.getElementById('status-dot').className = 'status-dot online';
+    }
+
+    // Load initial codes from localStorage
+    function loadLocalState() {
+      const stored = localStorage.getItem('pb_sessions');
+      if (stored) {
+        sessions = JSON.parse(stored);
+      } else {
+        // Default codes from initial prototype
+        sessions = [
+          { code: "A001", status: "unused", createdAt: Date.now() - 3600000 },
+          { code: "A002", status: "unused", createdAt: Date.now() - 1800000 },
+          { code: "A003", status: "unused", createdAt: Date.now() }
+        ];
+        saveState();
+      }
+      renderList();
+    }
+
+    function saveState() {
+      localStorage.setItem('pb_sessions', JSON.stringify(sessions));
+      updateStats();
+    }
+
+    // Broadcast states to other tabs
+    function broadcastState(action, data = null) {
+      syncChannel.postMessage({ action, data, sender: 'cashier', timestamp: Date.now() });
+    }
+
+    // Server-based sync (if server.js is running)
+    async function syncWithServer() {
+      if (!isServerMode) return;
+      try {
+        const res = await fetch('/api/sessions');
+        if (res.ok) {
+          const serverSessions = await res.json();
+          sessions = serverSessions;
+          saveState();
+          renderList();
+        }
+      } catch (err) {
+        console.warn("Gagal terhubung ke API server local, fallback ke local sync:", err);
+        document.getElementById('status-text').textContent = 'Sync Offline';
+        document.getElementById('status-dot').className = 'status-dot local-only';
+      }
+    }
+
+    async function sendServerAction(action, code, payload = {}) {
+      if (!isServerMode) return false;
+      try {
+        const res = await fetch('/api/action', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action, code, ...payload })
+        });
+        if (res.ok) {
+          const result = await res.json();
+          if (result.success) {
+            sessions = result.sessions;
+            saveState();
+            renderList();
+            return true;
+          }
+        }
+      } catch (err) {
+        console.error("Gagal mengirim aksi ke server:", err);
+      }
+      return false;
+    }
+
+    // ── LOGIKA GENERATE KODE ──
+    async function generateVoucher() {
+      // Format: A + random 3-digit number (cth: A741)
+      const prefix = 'A';
+      let code = '';
+      do {
+        const num = Math.floor(100 + Math.random() * 900); // 100-999
+        code = `${prefix}${num}`;
+      } while (sessions.some(s => s.code === code));
+      
+      const newSession = {
+        code: code,
+        status: 'unused',
+        createdAt: Date.now()
+      };
+
+      if (isServerMode) {
+        const success = await sendServerAction('create', code, { createdAt: newSession.createdAt });
+        if (!success) {
+          // Fallback to local
+          sessions.unshift(newSession);
+          saveState();
+          renderList();
+        }
+      } else {
+        sessions.unshift(newSession);
+        saveState();
+        renderList();
+        broadcastState('update_sessions', sessions);
+      }
+
+      // Display to user
+      document.getElementById('code-output').textContent = code;
+      document.getElementById('generated-box').style.display = 'block';
+      document.getElementById('copy-btn').textContent = 'Salin Kode';
+      document.getElementById('copy-btn').style.background = '';
+    }
+
+    function copyCode() {
+      const code = document.getElementById('code-output').textContent;
+      navigator.clipboard.writeText(code).then(() => {
+        const btn = document.getElementById('copy-btn');
+        btn.textContent = 'Tersalin! ✓';
+        btn.style.background = 'var(--ok)';
+      });
+    }
+
+    async function deleteSession(code) {
+      if (isServerMode) {
+        await sendServerAction('delete', code);
+      } else {
+        sessions = sessions.filter(s => s.code !== code);
+        saveState();
+        renderList();
+        broadcastState('update_sessions', sessions);
+      }
+    }
+
+    async function clearAllCodes() {
+      if (!confirm("Apakah Anda yakin ingin menghapus semua kode sesi?")) return;
+      if (isServerMode) {
+        await sendServerAction('clear_all', '');
+      } else {
+        sessions = [];
+        saveState();
+        renderList();
+        broadcastState('update_sessions', sessions);
+      }
+    }
+
+    // ── RENDER DAFTAR KODE ──
+    function renderList() {
+      const container = document.getElementById('code-list');
+      
+      if (sessions.length === 0) {
+        container.innerHTML = `
+          <div style="text-align: center; color: var(--muted); padding: 40px 10px; font-size: 12px;">
+            Belum ada kode sesi yang dibuat hari ini.
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = '';
+      
+      sessions.forEach(sess => {
+        const dateStr = new Date(sess.createdAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+        
+        let statusBadge = '';
+        if (sess.status === 'unused') statusBadge = `<span class="badge badge-unused">Belum Dipakai</span>`;
+        else if (sess.status === 'active') statusBadge = `<span class="badge badge-active">Sedang Foto</span>`;
+        else if (sess.status === 'used') statusBadge = `<span class="badge badge-used">Selesai</span>`;
+
+        const item = document.createElement('div');
+        item.className = 'code-item';
+        item.innerHTML = `
+          <div class="code-item-info">
+            <span class="code-item-name">${sess.code}</span>
+            <span class="code-item-time">Dibuat pukul ${dateStr}</span>
+          </div>
+          <div class="code-item-actions">
+            ${statusBadge}
+            <button class="btn-delete-code" onclick="deleteSession('${sess.code}')" title="Hapus Sesi">
+              🗑️
+            </button>
+          </div>
+        `;
+        container.appendChild(item);
+      });
+    }
+
+    function updateStats() {
+      const unusedCount = sessions.filter(s => s.status === 'unused').length;
+      const activeCount = sessions.filter(s => s.status === 'active').length;
+      const usedCount = sessions.filter(s => s.status === 'used').length;
+
+      document.getElementById('stat-unused').textContent = unusedCount;
+      document.getElementById('stat-active').textContent = activeCount;
+      document.getElementById('stat-used').textContent = usedCount;
+    }
+
+    function toggleCashierPrinterMenu() {
+      const menu = document.getElementById('cashier-printer-menu');
+      if (!menu) return;
+      const isOpen = menu.style.display === 'block';
+      menu.style.display = isOpen ? 'none' : 'block';
+      if (!isOpen) {
+        setTimeout(() => {
+          document.addEventListener('click', closeCashierPrinterMenuOutside, { once: true });
+        }, 10);
+      }
+    }
+
+    function closeCashierPrinterMenuOutside(e) {
+      const menu = document.getElementById('cashier-printer-menu');
+      const btn = document.getElementById('cashier-printer-menu-btn');
+      if (menu && !menu.contains(e.target) && e.target !== btn) {
+        menu.style.display = 'none';
+      }
+    }
+
+    // ══ PRINT STATION BLUETOOTH ══
+    const BLE_SERVICE_UUIDS = [
+      '000018f0-0000-1000-8000-00805f9b34fb',
+      '49535343-fe7d-4ae5-8fa9-9fafd205e455',
+      '0000ff00-0000-1000-8000-00805f9b34fb',
+      'e7810a71-73ae-499d-8c15-faa9aef0c3f2',
+    ];
+    const BLE_CHAR_UUIDS = [
+      '00002af1-0000-1000-8000-00805f9b34fb',
+      '49535343-8841-43f4-a8d4-ecbe34729bb3',
+      '0000ff02-0000-1000-8000-00805f9b34fb',
+      'bef8d6c9-9c21-4c9e-b632-bd58c1009f9f',
+    ];
+
+    let bleDevice = null;
+    let bleChar = null;
+    let printJobs = [];
+    let isPrinting = false;
+
+    function setBleStatus(status, color) {
+      const badge = document.getElementById('ble-status-badge');
+      const btn = document.getElementById('btn-connect-ble');
+      badge.textContent = status;
+      badge.style.color = color;
+      badge.style.background = color + '22';
+
+      if (status === 'TERSAMBUNG') {
+        btn.textContent = '🔄 Ganti Printer';
+        btn.disabled = false;
+        document.getElementById('ble-hint').textContent = 'Printer siap. Job dari iPad akan dicetak otomatis.';
+      } else if (status === 'MENGHUBUNGKAN...') {
+        btn.textContent = '⏳ Menghubungkan...';
+        btn.disabled = true;
+      } else {
+        btn.textContent = '🔌 Sambungkan Printer Bluetooth';
+        btn.disabled = false;
+        document.getElementById('ble-hint').textContent = 'Biarkan halaman ini terbuka. Job dari iPad akan masuk ke antrian cetak.';
+      }
+    }
+
+    async function connectBluetoothPrinter() {
+      if (!navigator.bluetooth) {
+        alert('Web Bluetooth tidak didukung di browser ini. Di Mac, coba buka kasir memakai Chrome atau Brave desktop.');
+        return;
+      }
+
+      setBleStatus('MENGHUBUNGKAN...', '#f59e0b');
+      try {
+        bleDevice = await navigator.bluetooth.requestDevice({
+          acceptAllDevices: true,
+          optionalServices: BLE_SERVICE_UUIDS
+        });
+        bleDevice.addEventListener('gattserverdisconnected', () => {
+          bleChar = null;
+          setBleStatus('TERPUTUS', '#ef4444');
+          document.getElementById('ble-printer-name').style.display = 'none';
+        });
+
+        const server = await bleDevice.gatt.connect();
+        let service = null;
+        for (const uuid of BLE_SERVICE_UUIDS) {
+          try { service = await server.getPrimaryService(uuid); break; } catch {}
+        }
+        if (!service) {
+          const allServices = await server.getPrimaryServices();
+          service = allServices[0];
+        }
+        if (!service) throw new Error('Service printer tidak ditemukan.');
+
+        let characteristic = null;
+        for (const uuid of BLE_CHAR_UUIDS) {
+          try { characteristic = await service.getCharacteristic(uuid); break; } catch {}
+        }
+        if (!characteristic) {
+          const allChars = await service.getCharacteristics();
+          characteristic = allChars.find(c => c.properties.write || c.properties.writeWithoutResponse);
+        }
+        if (!characteristic) throw new Error('Characteristic write printer tidak ditemukan.');
+
+        bleChar = characteristic;
+        document.getElementById('ble-name-text').textContent = bleDevice.name || 'Printer ESC/POS';
+        document.getElementById('ble-printer-name').style.display = 'block';
+        setBleStatus('TERSAMBUNG', '#22c55e');
+        processNextPrintJob();
+      } catch (err) {
+        setBleStatus('TERPUTUS', '#ef4444');
+        if (!err.message?.includes('cancelled') && !err.message?.includes('User cancelled')) {
+          alert(`Koneksi printer gagal:\n${err.message}`);
+        }
+      }
+    }
+
+    function renderPrintQueue() {
+      const box = document.getElementById('print-queue-box');
+      const list = document.getElementById('print-queue-list');
+      if (!printJobs.length) {
+        box.style.display = 'none';
+        list.innerHTML = '';
+        return;
+      }
+
+      box.style.display = 'block';
+      list.innerHTML = printJobs.map(job => `
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; background:rgba(255,255,255,0.03); border:1px solid var(--border); border-radius:8px; padding:8px 10px;">
+          <div style="min-width:0;">
+            <div style="font-size:12px; color:var(--accent);">Sesi ${job.code || '-'} ${job.quantity > 1 ? `x${job.quantity}` : ''}</div>
+            <div style="font-size:9px; color:var(--muted);">${new Date(job.createdAt).toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' })} • ${job.status}</div>
+          </div>
+          <button class="btn-secondary" onclick="printSpecificJob('${job.id}')" style="width:auto; padding:7px 10px; font-size:9px;">Cetak${job.quantity > 1 ? ` x${job.quantity}` : ''}</button>
+        </div>
+      `).join('');
+    }
+
+    async function fetchPrintJobs() {
+      if (!isServerMode) return;
+      try {
+        const res = await fetch('/api/print-jobs');
+        if (!res.ok) return;
+        printJobs = await res.json();
+        renderPrintQueue();
+        if (bleChar) processNextPrintJob();
+      } catch (err) {
+        console.warn('Gagal mengambil antrian cetak:', err);
+      }
+    }
+
+    async function updatePrintJob(id, action, payload = {}) {
+      if (!isServerMode) return;
+      const res = await fetch('/api/print-action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, action, ...payload })
+      });
+      if (res.ok) {
+        const result = await res.json();
+        if (result.printJobs) printJobs = result.printJobs;
+        if (result.sessions) sessions = result.sessions;
+        saveState();
+        renderList();
+        renderPrintQueue();
+      }
+    }
+
+    function processImageForThermal(imgSrc, targetWidth) {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => {
+          targetWidth = Math.floor(targetWidth / 8) * 8;
+          const targetHeight = Math.round(img.height * (targetWidth / img.width));
+          const canvas = document.createElement('canvas');
+          canvas.width = targetWidth;
+          canvas.height = targetHeight;
+          const ctx = canvas.getContext('2d');
+          ctx.fillStyle = '#fff';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
+          ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
+
+          const imgData = ctx.getImageData(0, 0, targetWidth, targetHeight);
+          const data = imgData.data;
+          const total = targetWidth * targetHeight;
+          const gray = new Float32Array(total);
+
+          for (let i = 0; i < total; i++) {
+            const lum = 0.2126 * data[i * 4] + 0.7152 * data[i * 4 + 1] + 0.0722 * data[i * 4 + 2];
+            if (lum < 24) {
+              gray[i] = 0;
+            } else if (lum > 244) {
+              gray[i] = 255;
+            } else {
+              gray[i] = Math.max(0, Math.min(255, (lum - 128) * 0.82 + 128 + 36));
+            }
+          }
+
+          const bayer4 = [
+             0,  8,  2, 10,
+            12,  4, 14,  6,
+             3, 11,  1,  9,
+            15,  7, 13,  5
+          ];
+
+          for (let y = 0; y < targetHeight; y++) {
+            for (let x = 0; x < targetWidth; x++) {
+              const i = y * targetWidth + x;
+              const threshold = 114 + bayer4[(y & 3) * 4 + (x & 3)] * 4;
+              gray[i] = gray[i] < threshold ? 0 : 255;
+            }
+          }
+
+          for (let i = 0; i < total; i++) {
+            const v = gray[i] < 128 ? 0 : 255;
+            data[i * 4] = data[i * 4 + 1] = data[i * 4 + 2] = v;
+            data[i * 4 + 3] = 255;
+          }
+          ctx.putImageData(imgData, 0, 0);
+          resolve(canvas);
+        };
+        img.onerror = reject;
+        img.src = imgSrc;
+      });
+    }
+
+    function canvasToEscPos(canvas) {
+      const width = canvas.width;
+      const height = canvas.height;
+      const ctx = canvas.getContext('2d');
+      const pixels = ctx.getImageData(0, 0, width, height).data;
+      const bytes = [
+        0x1B, 0x40,
+        0x1B, 0x33, 0x18,
+        0x1B, 0x4D, 0x01,
+        0x1B, 0x61, 0x00
+      ];
+
+      const stripeHeight = 24;
+      const nL = width & 0xFF;
+      const nH = (width >> 8) & 0xFF;
+
+      for (let y = 0; y < height; y += stripeHeight) {
+        bytes.push(0x1B, 0x2A, 0x21, nL, nH);
+
+        for (let x = 0; x < width; x++) {
+          for (let byteIndex = 0; byteIndex < 3; byteIndex++) {
+            let byte = 0;
+            for (let bit = 0; bit < 8; bit++) {
+              const yy = y + byteIndex * 8 + bit;
+              if (yy < height && pixels[(yy * width + x) * 4] < 128) {
+                byte |= (0x80 >> bit);
+              }
+            }
+            bytes.push(byte);
+          }
+        }
+        bytes.push(0x0A);
+      }
+
+      bytes.push(0x1B, 0x32, 0x0A, 0x0A, 0x0A, 0x1D, 0x56, 0x42, 0x00);
+      return new Uint8Array(bytes);
+    }
+
+    async function writeBle(data) {
+      const chunkSize = 128;
+      for (let offset = 0; offset < data.length; offset += chunkSize) {
+        const chunk = data.slice(offset, offset + chunkSize);
+        if (bleChar.properties.writeWithoutResponse) {
+          await bleChar.writeValueWithoutResponse(chunk);
+        } else {
+          await bleChar.writeValue(chunk);
+        }
+        await new Promise(r => setTimeout(r, 25));
+      }
+    }
+
+    async function printSpecificJob(id) {
+      const job = printJobs.find(j => j.id === id);
+      if (!job) return;
+      if (!bleChar) {
+        alert('Sambungkan printer Bluetooth dulu.');
+        return;
+      }
+
+      isPrinting = true;
+      await updatePrintJob(job.id, 'printing');
+      try {
+        const paperSize = '58mm';
+        const dots = 384;
+        const quantity = Math.max(1, Math.min(4, parseInt(job.quantity || '1', 10) || 1));
+        const canvas = await processImageForThermal(job.image, dots);
+        const bytes = canvasToEscPos(canvas);
+        for (let copy = 1; copy <= quantity; copy++) {
+          await writeBle(bytes);
+          if (copy < quantity) await new Promise(r => setTimeout(r, 450));
+        }
+        await updatePrintJob(job.id, 'done');
+        syncChannel.postMessage({
+          action: 'print_done',
+          sender: 'cashier',
+          data: { code: job.code, id: job.id, quantity }
+        });
+      } catch (err) {
+        console.error('[PRINT]', err);
+        await updatePrintJob(job.id, 'failed', { error: err.message });
+        alert(`Gagal cetak:\n${err.message}`);
+      } finally {
+        isPrinting = false;
+      }
+    }
+
+    async function processNextPrintJob() {
+      if (isPrinting || !bleChar) return;
+      const job = printJobs.find(j => j.status === 'pending' || j.status === 'failed');
+      if (job) await printSpecificJob(job.id);
+    }
+
+    // Listen to updates from PhotoBooth Booth Screen
+    syncChannel.onmessage = function(e) {
+      console.log("Broadcast diterima di Kasir:", e.data);
+      const { action, data, sender } = e.data;
+
+      if (sender === 'booth') {
+        if (action === 'claim_code') {
+          const sess = sessions.find(s => s.code === data.code);
+          if (sess && sess.status === 'unused') {
+            sess.status = 'active';
+            saveState(); renderList();
+            broadcastState('code_claimed_ok', { code: sess.code });
+          }
+        }
+        else if (action === 'request_print') {
+          printJobs.push({
+            id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+            code: data.code || '',
+            image: data.image,
+            paperSize: data.paperSize || '80mm',
+            quantity: Math.max(1, Math.min(4, parseInt(data.quantity || '1', 10) || 1)),
+            status: 'pending',
+            createdAt: Date.now()
+          });
+          renderPrintQueue();
+          processNextPrintJob();
+        }
+        else if (action === 'finish_session') {
+          const sess = sessions.find(s => s.code === data.code);
+          if (sess) { sess.status = 'used'; saveState(); renderList(); }
+        }
+        else if (action === 'release_code') {
+          const sess = sessions.find(s => s.code === data.code);
+          if (sess && sess.status === 'active') { sess.status = 'unused'; saveState(); renderList(); }
+        }
+        else if (action === 'request_sync') {
+          broadcastState('update_sessions', sessions);
+          broadcastState('printer_ready', { ready: false });
+        }
+      }
+    };
+
+    // Initialize
+    loadLocalState();
+    
+    // Periodically poll server if in server mode
+    if (isServerMode) {
+      syncWithServer();
+      setInterval(syncWithServer, 2000); // Poll every 2 seconds
+      fetchPrintJobs();
+      setInterval(fetchPrintJobs, 2000);
+    }
+  </script>
+</body>
+</html>

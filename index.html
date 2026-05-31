@@ -1,0 +1,650 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Kasir Migi</title>
+    <meta name="theme-color" content="#405aa8" />
+    <meta name="application-name" content="Kasir Migi" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Kasir Migi" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="icon" href="/assets/pwa-icon-192.png" />
+    <link rel="apple-touch-icon" href="/assets/pwa-icon-192.png" />
+    <link rel="stylesheet" href="styles.css?v=6" />
+  </head>
+  <body>
+    <section class="login-screen" id="loginScreen" aria-label="Login kasir">
+      <form class="login-card" id="loginForm">
+        <img src="assets/logo-migi.png" alt="Logo Migi" />
+        <p class="eyebrow">Kasir Migi</p>
+        <h2>Masuk Kasir</h2>
+        <label>
+          Username
+          <input id="loginUsername" type="text" autocomplete="username" placeholder="admin" required />
+        </label>
+        <label>
+          Password
+          <input id="loginPassword" type="password" autocomplete="current-password" placeholder="••••••" required />
+        </label>
+        <div class="login-session-grid">
+          <label>
+            Shift
+            <select id="loginShift">
+              <option value="Shift 1">Shift 1</option>
+              <option value="Shift 2">Shift 2</option>
+            </select>
+          </label>
+          <label>
+            Karyawan
+            <select id="loginEmployee"></select>
+          </label>
+        </div>
+        <button class="primary-button full-button" type="submit">Masuk</button>
+        <p class="login-hint" id="loginHint">Default: admin / migi123</p>
+      </form>
+    </section>
+
+    <section class="order-modal" id="orderModal" aria-label="Order aktif" aria-hidden="true">
+      <form class="order-card" id="orderForm">
+        <div class="modal-head">
+          <div>
+            <p class="eyebrow">Process</p>
+            <h2>Order Aktif</h2>
+          </div>
+          <button class="icon-button modal-close" id="cancelOrderModal" type="button" title="Tutup order">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12" /><path d="M18 6 6 18" /></svg>
+          </button>
+        </div>
+        <div class="order-modal-grid">
+          <section class="order-summary-pane" aria-label="Ringkasan pesanan">
+            <div class="modal-section-title">
+              <p class="eyebrow">Item dipilih</p>
+              <h3>Keranjang</h3>
+            </div>
+            <div class="modal-order-list" id="modalOrderList"></div>
+            <div class="totals modal-totals">
+              <div><span>Subtotal</span><strong id="subtotal">Rp0</strong></div>
+              <div class="grand"><span>Total</span><strong id="grandTotal">Rp0</strong></div>
+            </div>
+          </section>
+
+          <section class="order-payment-pane" aria-label="Detail pembayaran">
+            <div class="order-field-grid">
+              <label>
+                Nama customer
+                <input id="orderCustomerName" type="text" placeholder="Teman Migi" />
+              </label>
+              <label>
+                Nomor pesanan
+                <input id="orderTableNumber" type="text" placeholder="S-001" readonly />
+              </label>
+              <label>
+                Shift otomatis
+                <input id="orderShift" type="text" value="Shift 1" readonly />
+              </label>
+            </div>
+            <div class="order-source">
+              <p class="eyebrow">Sumber order</p>
+              <div class="channel-options" id="orderChannels" role="group" aria-label="Sumber order">
+                <button class="active" data-channel="Kasir" type="button">Kasir</button>
+                <button data-channel="GoFood" type="button">GoFood</button>
+                <button data-channel="GrabFood" type="button">GrabFood</button>
+                <button data-channel="ShopeeFood" type="button">ShopeeFood</button>
+              </div>
+            </div>
+            <div class="photobooth-inline">
+              <label>
+                Paket sesi
+                <select id="boothPackage">
+                  <option value="single">Single 1 foto</option>
+                  <option value="classic">Classic 2 foto</option>
+                  <option value="premium">Premium 4 foto</option>
+                </select>
+              </label>
+              <div class="booth-code-box">
+                <span>Kode akses terakhir</span>
+                <strong id="latestBoothCode">Belum ada</strong>
+              </div>
+            </div>
+            <div class="payment-box">
+              <div class="segmented payment-methods" id="paymentMethods" role="tablist" aria-label="Metode bayar">
+                <button class="active" data-payment="Tunai" type="button">Tunai</button>
+                <button data-payment="QRIS" type="button">QRIS</button>
+              </div>
+              <label>
+                Dibayar
+                <input id="paidAmount" type="number" min="0" step="1000" placeholder="0" />
+              </label>
+              <div class="change-line">
+                <span>Kembalian</span>
+                <strong id="changeDue">Rp0</strong>
+              </div>
+            </div>
+          </section>
+        </div>
+        <div class="modal-actions">
+          <button class="secondary-button" id="clearCart" type="button">Batalkan</button>
+          <div class="modal-action-primary">
+            <button class="secondary-button" id="billOrderBtn" type="button">Cetak Bill</button>
+            <button class="primary-button" type="submit">Bayar & Cetak</button>
+          </div>
+        </div>
+      </form>
+    </section>
+
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="Navigasi kasir">
+        <div class="brand-block">
+          <div class="brand-mark" aria-hidden="true">
+            <img src="assets/logo-migi.png" alt="" />
+          </div>
+          <div>
+            <p class="eyebrow">Migi Coffee</p>
+            <h1>Kasir Migi</h1>
+          </div>
+        </div>
+
+        <nav class="nav-tabs" aria-label="Tampilan">
+          <button class="nav-tab active" data-view="pos" type="button">
+            <span class="tab-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M4 7h16v12H4z" /><path d="M8 7V5h8v2" /><path d="M8 12h8" /><path d="M8 16h4" /></svg>
+            </span>
+            <span class="nav-label">Kasir</span>
+          </button>
+          <button class="nav-tab" data-view="orders" type="button">
+            <span class="tab-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M7 4h10" /><path d="M6 8h12" /><path d="M5 12h14v8H5z" /><path d="M9 16h6" /></svg>
+            </span>
+            <span class="nav-label">Order</span>
+          </button>
+          <button class="nav-tab" data-view="menu" type="button">
+            <span class="tab-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M4 7h16" /><path d="M4 12h16" /><path d="M4 17h16" /><path d="M8 4v16" /></svg>
+            </span>
+            <span class="nav-label">Menu</span>
+          </button>
+          <button class="nav-tab" data-view="stock" type="button">
+            <span class="tab-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M4 8h16" /><path d="M6 8v12h12V8" /><path d="M9 4h6l1 4H8z" /><path d="M9 13h6" /></svg>
+            </span>
+            <span class="nav-label">Bahan Baku</span>
+          </button>
+          <button class="nav-tab" data-view="cashflow" type="button">
+            <span class="tab-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M12 2v20"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            </span>
+            <span class="nav-label">Arus Kas</span>
+          </button>
+          <button class="nav-tab" data-view="analytics" type="button">
+            <span class="tab-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M4 19V5" /><path d="M4 19h16" /><path d="M8 15v-4" /><path d="M12 15V8" /><path d="M16 15v-6" /></svg>
+            </span>
+            <span class="nav-label">Analitik</span>
+          </button>
+          <button class="nav-tab" data-view="settings" type="button">
+            <span class="tab-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M12 15.5A3.5 3.5 0 1 0 12 8.5a3.5 3.5 0 0 0 0 7Z" /><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.2a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.2a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3h.1a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.2a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8v.1a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.2a1.6 1.6 0 0 0-1.4 1Z" /></svg>
+            </span>
+            <span class="nav-label">Pengaturan</span>
+          </button>
+        </nav>
+
+        <div class="shift-card">
+          <p class="muted">Shift hari ini</p>
+          <strong id="shiftTotal">Rp0</strong>
+          <span id="shiftCount">0 transaksi</span>
+        </div>
+      </aside>
+
+      <main class="workspace">
+        <header class="page-head">
+          <div class="head-meta">
+            <div class="workday-meta">
+              <span id="todayLabel"></span>
+              <strong id="clockLabel">00:00</strong>
+            </div>
+            <div class="active-employee-card" id="activeEmployeeCard">
+              <strong id="activeEmployeeHeader">Admin</strong>
+            </div>
+            <div class="sync-status-card" id="syncStatusCard">
+              <span id="connectionStatus">Online</span>
+              <strong id="pendingSyncCount">0 pending</strong>
+              <button class="secondary-button compact" id="manualSyncBtn" type="button">Sync</button>
+            </div>
+            <button class="printer-toggle fullscreen-toggle" id="fullscreenToggle" type="button" title="Fullscreen" aria-label="Fullscreen">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M8 4H5a1 1 0 0 0-1 1v3" />
+                <path d="M16 4h3a1 1 0 0 1 1 1v3" />
+                <path d="M20 16v3a1 1 0 0 1-1 1h-3" />
+                <path d="M8 20H5a1 1 0 0 1-1-1v-3" />
+              </svg>
+            </button>
+            <div class="printer-menu-wrap">
+              <button class="printer-toggle disconnected" id="printerToggle" type="button" title="Printer termal" aria-expanded="false">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9V3h12v6" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><path d="M6 14h12v7H6z" /><path d="M8 17h8" /></svg>
+              </button>
+              <div class="printer-dropdown" id="printerDropdown">
+                <div class="printer-dropdown-head">
+                  <div>
+                    <p class="eyebrow">Printer Bluetooth</p>
+                    <strong>Thermal Receipt</strong>
+                  </div>
+                  <span class="printer-status disconnected" id="printerStatus">Terputus</span>
+                </div>
+                <label>
+                  Ukuran kertas
+                  <select id="printerPaperSize">
+                    <option value="58mm">58mm</option>
+                    <option value="80mm">80mm</option>
+                  </select>
+                </label>
+                <button class="primary-button full-button" id="connectPrinter" type="button">Sambungkan Printer</button>
+                <button class="secondary-button full-button" id="testLogoPrint" type="button">Test Logo</button>
+                <p class="printer-hint" id="printerHint">Gunakan Chrome/Brave desktop jika tombol Bluetooth tidak muncul.</p>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        <section class="view-panel active" id="view-pos">
+          <div class="topbar">
+            <label class="search-field">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m21 21-4.3-4.3" /><circle cx="11" cy="11" r="7" /></svg>
+              <input id="menuSearch" type="search" placeholder="Cari menu, paket, atau kategori" />
+            </label>
+            <div class="segmented" role="tablist" aria-label="Kategori menu" id="categoryTabs"></div>
+          </div>
+
+          <div class="pos-grid">
+            <section class="menu-section" aria-label="Daftar menu">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">Menu aktif</p>
+                  <h3>Produk</h3>
+                </div>
+                <button class="ghost-button" id="resetFilter" type="button" title="Reset filter">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18" /><path d="M7 12h10" /><path d="M10 18h4" /></svg>
+                </button>
+              </div>
+              <div class="menu-grid" id="menuGrid"></div>
+              <input id="customerName" type="hidden" />
+              <input id="tableNumber" type="hidden" />
+            </section>
+            <aside class="checkout-panel" aria-label="Ringkasan order">
+              <div class="cart-header">
+                <div>
+                  <p class="eyebrow">Order aktif</p>
+                  <h3 id="cartTitle">Keranjang kosong</h3>
+                </div>
+                <button class="ghost-button" id="clearCartPanel" type="button" title="Batalkan order">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12" /><path d="M18 6 6 18" /></svg>
+                </button>
+              </div>
+              <div class="cart-list" id="cartList"></div>
+              <div class="totals">
+                <div><span>Subtotal</span><strong id="cartSubtotal">Rp0</strong></div>
+                <div class="grand"><span>Total</span><strong id="cartGrandTotal">Rp0</strong></div>
+              </div>
+              <button class="primary-button full-button" id="checkoutBtn" type="button">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg>
+                Process Order
+              </button>
+            </aside>
+          </div>
+        </section>
+
+        <section class="view-panel" id="view-orders">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Order masuk</p>
+              <h3>Daftar Pesanan</h3>
+            </div>
+            <div class="segmented order-status-tabs" id="orderStatusTabs" role="tablist" aria-label="Status order">
+              <button class="active" data-order-status="unpaid" type="button">Belum Dibayar <span id="unpaidOrderCount">0</span></button>
+              <button data-order-status="paid" type="button">Sudah Dibayar <span id="paidOrderCount">0</span></button>
+            </div>
+            <input class="order-date-filter" id="paidOrderDate" type="date" hidden />
+          </div>
+          <div class="history-list order-list" id="orderList"></div>
+          <section class="history-panel pending-sync-panel">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">Offline</p>
+                <h3>Transaksi Pending</h3>
+              </div>
+              <button class="secondary-button compact" id="manualSyncOrdersBtn" type="button">Sync Manual</button>
+            </div>
+            <div class="history-list" id="pendingSyncList"></div>
+          </section>
+        </section>
+
+        <section class="view-panel" id="view-menu">
+          <div class="management-grid">
+            <section class="settings-panel">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">Atur sendiri</p>
+                  <h3>Tambah / Edit Menu</h3>
+                </div>
+              </div>
+              <form id="menuForm" class="stack-form">
+                <input id="menuId" type="hidden" />
+                <label>
+                  Nama menu
+                  <input id="menuName" type="text" placeholder="Contoh: Iced Americano" required />
+                </label>
+                <label>
+                  Kategori
+                  <select id="menuCategorySelect" required></select>
+                  <input class="hidden-field" id="menuCategoryCustom" type="text" placeholder="Tulis kategori baru" />
+                  <input id="menuCategory" type="hidden" />
+                </label>
+                <label>
+                  Harga
+                  <input id="menuPrice" type="text" inputmode="numeric" placeholder="Rp 25.000" required />
+                </label>
+                <label>
+                  Gambar menu
+                  <input id="menuImageFile" type="file" accept="image/*" />
+                  <input id="menuImage" type="hidden" />
+                </label>
+                <div class="image-preview" id="menuImagePreview">Belum ada gambar</div>
+                <div class="recipe-editor">
+                  <div class="recipe-editor-head">
+                    <span>Bahan yang dipakai</span>
+                    <button class="secondary-button compact" id="addRecipeIngredient" type="button">Tambah Bahan</button>
+                  </div>
+                  <div class="recipe-ingredient-rows" id="recipeIngredientRows"></div>
+                </div>
+                <div class="button-row">
+                  <button class="secondary-button" id="cancelMenuEdit" type="button">Batal</button>
+                  <button class="primary-button" type="submit">Simpan Menu</button>
+                </div>
+              </form>
+            </section>
+            <section class="menu-table-panel">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">Daftar aktif</p>
+                  <h3>Menu & Harga</h3>
+                </div>
+              </div>
+              <div class="menu-table" id="menuTable"></div>
+            </section>
+          </div>
+
+        </section>
+
+        <section class="view-panel" id="view-stock">
+          <div class="inventory-grid">
+            <section class="settings-panel">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">Stock Bahan Baku</p>
+                  <h3>Set Harga Bahan Baku</h3>
+                </div>
+              </div>
+              <form id="purchaseForm" class="stack-form">
+                <label>
+                  Nama bahan
+                  <input id="purchaseMenuId" type="text" placeholder="Kopi beans / Syrup / SKM" required />
+                </label>
+                <div class="order-field-grid">
+                  <label>
+                    Jumlah
+                    <input id="purchaseQty" type="number" min="0.01" step="0.01" placeholder="1000" required />
+                  </label>
+                  <label>
+                    Satuan
+                    <select id="ingredientUnit" required>
+                      <option value="gram">gram</option>
+                      <option value="ml">ml</option>
+                      <option value="pcs">pcs</option>
+                    </select>
+                  </label>
+                </div>
+                <label>
+                  Harga total
+                  <input id="purchaseCost" type="text" inputmode="numeric" placeholder="Rp 100.000" required />
+                </label>
+                <input id="purchaseNote" type="hidden" />
+                <button class="primary-button full-button" type="submit">Simpan Harga Bahan</button>
+              </form>
+            </section>
+
+            <section class="menu-table-panel">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">Gudang</p>
+                  <h3>Ketersediaan Bahan Baku</h3>
+                </div>
+              </div>
+              <div class="stock-table compact-stock-list" id="stockAvailabilityList"></div>
+            </section>
+
+            <section class="menu-table-panel">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">Gudang</p>
+                  <h3>Stok Bahan</h3>
+                </div>
+              </div>
+              <div class="stock-alert" id="stockAlert" hidden></div>
+              <div class="stock-table" id="stockTable"></div>
+            </section>
+          </div>
+        </section>
+
+        <section class="view-panel" id="view-cashflow">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Keuangan</p>
+              <h3>Arus Kas</h3>
+            </div>
+            <div class="analytics-actions">
+              <input id="cashflowMonth" type="month" />
+            </div>
+          </div>
+
+          <!-- Summary cards -->
+          <div class="metric-grid">
+            <article class="metric-card cashflow-in">
+              <span>Kas Masuk</span>
+              <strong id="cfTotalIn">Rp0</strong>
+              <small id="cfInCount">0 transaksi</small>
+            </article>
+            <article class="metric-card cashflow-out">
+              <span>Kas Keluar</span>
+              <strong id="cfTotalOut">Rp0</strong>
+              <small id="cfOutCount">0 pembelian</small>
+            </article>
+            <article class="metric-card cashflow-net">
+              <span>Saldo Bersih</span>
+              <strong id="cfNet">Rp0</strong>
+              <small id="cfNetLabel">bulan ini</small>
+            </article>
+          </div>
+
+          <div class="analytics-grid" style="margin-top:24px;">
+            <!-- Form tambah pengeluaran manual -->
+            <section class="settings-panel">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">Catat Manual</p>
+                  <h3>Tambah Pengeluaran</h3>
+                </div>
+              </div>
+              <form id="cashflowExpenseForm" class="stack-form">
+                <label>
+                  Kategori
+                  <select id="cfExpenseCategory">
+                    <option value="Operasional">Operasional</option>
+                    <option value="Bahan Baku">Bahan Baku</option>
+                    <option value="Peralatan">Peralatan</option>
+                    <option value="Lain-lain">Lain-lain</option>
+                  </select>
+                </label>
+                <div class="cashflow-entry-grid">
+                  <label>
+                    Keterangan
+                    <input id="cfExpenseNote" type="text" placeholder="Beli gelas, bayar listrik, dll" required />
+                  </label>
+                  <div class="order-field-grid" id="cfIngredientQtyWrap" hidden>
+                    <label>
+                      Quantity
+                      <input id="cfExpenseQty" type="number" min="0.01" step="0.01" placeholder="100" />
+                    </label>
+                    <label>
+                      Satuan
+                      <input id="cfExpenseUnit" type="text" placeholder="gram / ml / pcs" disabled />
+                    </label>
+                  </div>
+                  <label>
+                    Jumlah
+                    <input id="cfExpenseAmount" type="text" inputmode="numeric" placeholder="Rp 50.000" required />
+                  </label>
+                </div>
+                <button class="primary-button full-button" type="submit">Catat Pengeluaran</button>
+              </form>
+            </section>
+
+            <!-- Riwayat arus kas -->
+            <section class="history-panel">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">Riwayat</p>
+                  <h3>Mutasi Kas</h3>
+                </div>
+                <div class="segmented" id="cfFilterTabs" role="tablist">
+                  <button class="active" data-cf-filter="all" type="button">Semua</button>
+                  <button data-cf-filter="in" type="button">Masuk</button>
+                  <button data-cf-filter="out" type="button">Keluar</button>
+                </div>
+              </div>
+              <div class="history-list" id="cashflowList"></div>
+            </section>
+          </div>
+        </section>
+
+        <section class="view-panel" id="view-analytics">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Ringkasan bisnis</p>
+              <h3>Analitik</h3>
+            </div>
+            <div class="analytics-actions">
+              <input id="analyticsMonth" type="month" />
+              <input id="analyticsDate" type="date" />
+              <div class="segmented chart-range-tabs" id="chartRangeTabs" role="tablist" aria-label="Rentang grafik">
+                <button class="active" data-chart-range="daily" type="button">Harian</button>
+                <button data-chart-range="monthly" type="button">Bulanan</button>
+                <button data-chart-range="yearly" type="button">Tahunan</button>
+              </div>
+            </div>
+          </div>
+          <div class="metric-grid">
+            <article class="metric-card"><span>Omset bulan ini</span><strong id="monthRevenue">Rp0</strong></article>
+            <article class="metric-card"><span>Rata-rata / hari jualan</span><strong id="avgDailyRevenue">Rp0</strong></article>
+            <article class="metric-card"><span>Transaksi</span><strong id="monthTransactions">0</strong></article>
+            <article class="metric-card"><span>Item terjual</span><strong id="monthItems">0</strong></article>
+          </div>
+          <section class="history-panel chart-panel">
+            <div class="section-heading">
+              <div>
+                  <p class="eyebrow">Kurva penjualan</p>
+                  <h3>Grafik Omset</h3>
+              </div>
+            </div>
+            <canvas id="revenueChart" width="980" height="360"></canvas>
+          </section>
+          <div class="analytics-grid daily-sales-grid">
+            <section class="history-panel">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">Hari ini</p>
+                  <h3>Summary Penjualan</h3>
+                </div>
+                <div class="report-actions">
+                  <button class="secondary-button compact" id="copyDailyReport" type="button">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 8h10v12H8z" /><path d="M6 16H4V4h10v2" /></svg>
+                    Copy
+                  </button>
+                  <button class="secondary-button compact whatsapp-button" id="shareDailyReport" type="button">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19l1.2-3.5A7 7 0 1 1 8.5 18z" /><path d="M9 9c.5 2.5 2.3 4.3 5 5" /></svg>
+                    WhatsApp
+                  </button>
+                </div>
+              </div>
+              <div class="daily-summary" id="dailySummary"></div>
+              <pre class="daily-report-text" id="dailyReportText"></pre>
+            </section>
+            <section class="history-panel">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">Menu</p>
+                  <h3>Best Seller</h3>
+                </div>
+              </div>
+              <div class="bestseller-list" id="bestsellerList"></div>
+            </section>
+          </div>
+          <section class="history-panel analytics-insight-panel">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">Catatan</p>
+                <h3>Ringkasan</h3>
+              </div>
+            </div>
+            <div class="insight-list" id="insightList"></div>
+          </section>
+        </section>
+
+        <section class="view-panel" id="view-settings">
+          <div class="management-grid">
+            <section class="settings-panel">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">Akun kasir</p>
+                  <h3>Pengaturan Petugas</h3>
+                </div>
+              </div>
+              <label>
+                Petugas aktif
+                <input id="employeeName" type="text" value="Admin" readonly />
+              </label>
+              <form class="employee-add-form" id="employeeAddForm">
+                <label>
+                  Tambah karyawan
+                  <input id="employeeNewName" type="text" placeholder="Nama karyawan" />
+                </label>
+                <button class="secondary-button" type="submit">Tambah</button>
+              </form>
+              <div class="employee-list" id="employeeList"></div>
+              <button class="secondary-button" id="logoutBtn" type="button">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 17l5-5-5-5" /><path d="M15 12H3" /><path d="M14 4h5v16h-5" /></svg>
+                Logout
+              </button>
+            </section>
+            <section class="settings-panel">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">Perangkat terpisah</p>
+                  <h3>Akses Photobooth</h3>
+                </div>
+              </div>
+              <a class="secondary-button full-button text-link-button" href="photobooth/" target="_blank" rel="noopener">Buka Halaman Booth</a>
+            </section>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <section class="receipt-paper" id="receiptPaper" aria-label="Struk cetak"></section>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+    <script src="app.js?v=10"></script>
+  </body>
+</html>
