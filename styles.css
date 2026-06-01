@@ -317,9 +317,19 @@ h3 { font-size: 16px; font-weight: 700; }
   color: #2f7a46;
 }
 
+.active-employee-card.owner-mode {
+  border-color: rgba(201, 134, 30, 0.3);
+  background: var(--amber-soft);
+  color: var(--amber);
+}
+
 .active-employee-card strong {
   font-size: 13px;
   line-height: 1.1;
+}
+
+.owner-only {
+  display: none !important;
 }
 
 /* ── Printer ─────────────────────────────────── */

@@ -320,13 +320,30 @@ function saveEmployeeRoster(names) {
 }
 
 function activeEmployeeName() {
+  if (currentRole() === "owner") return "Owner";
   return localStorage.getItem(storageKeys.employee) || getEmployeeRoster()[0] || "Admin";
+}
+
+function getAuth() {
+  return readJson(storageKeys.auth, null);
+}
+
+function currentRole() {
+  return getAuth()?.role || "cashier";
+}
+
+function isOwner() {
+  return currentRole() === "owner";
+}
+
+function isCashier() {
+  return currentRole() === "cashier";
 }
 
 function renderEmployeeControls() {
   const roster = getEmployeeRoster();
-  const active = roster.includes(activeEmployeeName()) ? activeEmployeeName() : roster[0];
-  localStorage.setItem(storageKeys.employee, active);
+  const active = isOwner() ? "Owner" : roster.includes(activeEmployeeName()) ? activeEmployeeName() : roster[0];
+  if (!isOwner()) localStorage.setItem(storageKeys.employee, active);
   if (els.employeeName) els.employeeName.value = active;
   if (els.activeEmployeeHeader) els.activeEmployeeHeader.textContent = active;
   if (els.employeeList) {
@@ -354,16 +371,17 @@ function renderEmployeeControls() {
 }
 
 function initAuth() {
-  const auth = readJson(storageKeys.auth, null);
+  const auth = getAuth();
   renderEmployeeControls();
   if (!auth?.loggedIn) {
     document.body.classList.add("locked");
     setTimeout(() => els.loginUsername?.focus(), 50);
   } else {
-    if (auth.employee) localStorage.setItem(storageKeys.employee, auth.employee);
+    if (auth.role !== "owner" && auth.employee) localStorage.setItem(storageKeys.employee, auth.employee);
     localStorage.removeItem(storageKeys.sessionShift);
     renderEmployeeControls();
   }
+  applyAccessControls();
 }
 
 function ensureDeviceId() {
@@ -405,23 +423,28 @@ async function login(event) {
   event.preventDefault();
   const username = els.loginUsername.value.trim();
   const password = els.loginPassword.value;
-  if (username === "kopimigi" && password === "migi46") {
-    const employee = els.loginEmployee?.value || getEmployeeRoster()[0] || "Admin";
-    const confirmed = await confirmLoginDevice(employee);
+  const isOwnerLogin = username === "gilfram" && password === "Generasimikagilang456";
+  const isCashierLogin = username === "kopimigi" && password === "migi46";
+
+  if (isOwnerLogin || isCashierLogin) {
+    const role = isOwnerLogin ? "owner" : "cashier";
+    const employee = role === "owner" ? "Owner" : els.loginEmployee?.value || getEmployeeRoster()[0] || "Admin";
+    const confirmed = role === "owner" ? true : await confirmLoginDevice(employee);
     if (!confirmed) {
       els.loginPassword.value = "";
       toast("Login dibatalkan.");
       return;
     }
     const shift = currentShiftName();
-    localStorage.setItem(storageKeys.employee, employee);
-    writeJson(storageKeys.auth, { loggedIn: true, employee, shift, at: new Date().toISOString() });
+    if (role === "cashier") localStorage.setItem(storageKeys.employee, employee);
+    writeJson(storageKeys.auth, { loggedIn: true, employee, shift, role, at: new Date().toISOString() });
     renderEmployeeControls();
+    applyAccessControls();
     document.body.classList.remove("locked");
     els.loginPassword.value = "";
     setActiveView("pos");
-    toast(`Masuk sebagai ${employee} · ${shift}.`);
-    updateDevicePresence().catch(() => null);
+    toast(role === "owner" ? "Masuk sebagai Owner." : `Masuk sebagai ${employee} · ${shift}.`);
+    if (role === "cashier") updateDevicePresence().catch(() => null);
     syncCloudData();
     return;
   }
@@ -433,31 +456,45 @@ async function login(event) {
 }
 
 function logout() {
-  clearDevicePresence().catch(() => null);
+  if (isCashier()) clearDevicePresence().catch(() => null);
   localStorage.removeItem(storageKeys.auth);
   document.body.classList.add("locked");
   els.loginPassword.value = "";
   renderEmployeeControls();
+  applyAccessControls();
   setTimeout(() => els.loginUsername?.focus(), 50);
   toast("Kasir logout.");
 }
 
 function isLoggedIn() {
-  return Boolean(readJson(storageKeys.auth, null)?.loggedIn);
+  return Boolean(getAuth()?.loggedIn);
 }
 
 function updateAuthShift(shift) {
-  const auth = readJson(storageKeys.auth, null);
-  if (!auth?.loggedIn || auth.shift === shift) return false;
+  const auth = getAuth();
+  if (!auth?.loggedIn || auth.role === "owner" || auth.shift === shift) return false;
   writeJson(storageKeys.auth, { ...auth, shift, shiftedAt: new Date().toISOString() });
   return true;
 }
 
 function updateEmployeeHeaderState(now = new Date()) {
   if (!els.activeEmployeeCard) return;
-  const active = isLoggedIn() && isShiftOperating(now);
+  const active = isLoggedIn() && isCashier() && isShiftOperating(now);
   els.activeEmployeeCard.classList.toggle("shift-active", active);
-  els.activeEmployeeCard.title = active ? `${currentShiftName(now)} aktif` : "Di luar jam shift";
+  els.activeEmployeeCard.classList.toggle("owner-mode", isLoggedIn() && isOwner());
+  els.activeEmployeeCard.title = isOwner() ? "Owner Mode" : active ? `${currentShiftName(now)} aktif` : "Di luar jam shift";
+}
+
+function applyAccessControls() {
+  const owner = isLoggedIn() && isOwner();
+  document.body.classList.toggle("role-owner", owner);
+  document.body.classList.toggle("role-cashier", isLoggedIn() && isCashier());
+  document.querySelector('[data-view="cashflow"]')?.classList.toggle("owner-only", !owner);
+  document.querySelector("#view-cashflow")?.classList.toggle("owner-only", !owner);
+  document.querySelector("#view-stock .inventory-grid > .settings-panel")?.classList.toggle("owner-only", !owner);
+  els.employeeAddForm?.classList.toggle("owner-only", !owner);
+  els.employeeList?.classList.toggle("owner-only", !owner);
+  if (!owner && document.querySelector("#view-cashflow")?.classList.contains("active")) setActiveView("pos");
 }
 
 function markShiftActionOnce(action, date = new Date()) {
@@ -480,7 +517,7 @@ function runShiftScheduleChecks(now = new Date()) {
     }, 0);
   }
 
-  if (!isLoggedIn()) return;
+  if (!isLoggedIn() || !isCashier()) return;
 
   if (hour === 17 && markShiftActionOnce("shift-1-close", now)) {
     updateAuthShift("Shift 2");
@@ -500,7 +537,7 @@ function updateClock() {
   if (els.loginShift) els.loginShift.value = shiftScheduleText(now);
   if (els.orderShift) els.orderShift.value = currentShiftName(now);
   if (els.activeEmployeeHeader) els.activeEmployeeHeader.textContent = activeEmployeeName();
-  if (isLoggedIn()) updateAuthShift(currentShiftName(now));
+  if (isLoggedIn() && isCashier()) updateAuthShift(currentShiftName(now));
   updateEmployeeHeaderState(now);
   runShiftScheduleChecks(now);
 }
@@ -1138,8 +1175,12 @@ function renderInventory() {
           </div>
           <div class="stock-row-actions">
             <strong>${stock.toLocaleString("id-ID")} ${record.unit || ""}</strong>
-            <button class="secondary-button compact" data-edit-stock="${id}" type="button">Edit</button>
-            <button class="secondary-button compact danger-text" data-delete-stock="${id}" type="button">Hapus</button>
+            ${
+              isOwner()
+                ? `<button class="secondary-button compact" data-edit-stock="${id}" type="button">Edit</button>
+                   <button class="secondary-button compact danger-text" data-delete-stock="${id}" type="button">Hapus</button>`
+                : ""
+            }
           </div>
         </article>
       `;
@@ -2156,7 +2197,7 @@ async function syncCloudData({ refresh = true } = {}) {
 }
 
 async function updateDevicePresence() {
-  if (!navigator.onLine || !isLoggedIn()) return;
+  if (!navigator.onLine || !isLoggedIn() || !isCashier()) return;
   const result = await postSupabaseAction("device-presence", {
     deviceId: ensureDeviceId(),
     employee: activeEmployeeName(),
@@ -2614,6 +2655,10 @@ function saveMenu(event) {
 
 function savePurchase(event) {
   event.preventDefault();
+  if (!isOwner()) {
+    toast("Set harga bahan baku hanya untuk Owner.");
+    return;
+  }
   const itemName = els.purchaseMenuId.value.trim();
   const unit = els.ingredientUnit.value.trim();
   const qty = Number(els.purchaseQty.value || 0);
@@ -2834,6 +2879,9 @@ function registerServiceWorker() {
 }
 
 function setActiveView(viewName, { persist = true } = {}) {
+  if (viewName === "cashflow" && !isOwner()) {
+    viewName = "pos";
+  }
   const target = document.querySelector(`#view-${viewName}`);
   const tab = [...els.tabs].find((entry) => entry.dataset.view === viewName);
   if (!target || !tab) return false;
@@ -3017,6 +3065,10 @@ els.boothPackage.addEventListener("change", () => {
 });
 els.employeeAddForm?.addEventListener("submit", (event) => {
   event.preventDefault();
+  if (!isOwner()) {
+    toast("Tambah karyawan hanya untuk Owner.");
+    return;
+  }
   const name = els.employeeNewName?.value.trim();
   if (!name) return;
   const roster = saveEmployeeRoster([...getEmployeeRoster(), name]);
@@ -3041,6 +3093,10 @@ els.employeeList?.addEventListener("click", (event) => {
     return;
   }
   if (deleteButton) {
+    if (!isOwner()) {
+      toast("Hapus karyawan hanya untuk Owner.");
+      return;
+    }
     const name = decodeURIComponent(deleteButton.dataset.deleteEmployee);
     const roster = saveEmployeeRoster(getEmployeeRoster().filter((entry) => entry !== name));
     if (activeEmployeeName() === name) {
@@ -3067,6 +3123,10 @@ els.purchaseForm?.addEventListener("submit", savePurchase);
 // ── Arus Kas: form pengeluaran ──────────────────────────────────────────────
 els.cashflowExpenseForm?.addEventListener("submit", (event) => {
   event.preventDefault();
+  if (!isOwner()) {
+    toast("Arus Kas hanya untuk Owner.");
+    return;
+  }
   const rawNoteValue = els.cfExpenseNote?.value?.trim();
   const amount = parseRupiah(els.cfExpenseAmount?.value);
   const category = els.cfExpenseCategory?.value;
@@ -3149,6 +3209,10 @@ els.cashflowMonth?.addEventListener("change", renderCashflow);
 els.cashflowList?.addEventListener("click", (event) => {
   const deleteBtn = event.target.closest("button[data-delete-expense]");
   if (!deleteBtn) return;
+  if (!isOwner()) {
+    toast("Arus Kas hanya untuk Owner.");
+    return;
+  }
   const id = deleteBtn.dataset.deleteExpense;
   const expenses = getCashflowExpenses().filter((entry) => entry.id !== id);
   writeJson(storageKeys.cashflowExpenses, expenses);
@@ -3163,6 +3227,10 @@ els.stockTable?.addEventListener("click", (event) => {
   const deleteBtn = event.target.closest("button[data-delete-stock]");
 
   if (editBtn) {
+    if (!isOwner()) {
+      toast("Edit bahan baku hanya untuk Owner.");
+      return;
+    }
     const id = editBtn.dataset.editStock;
     const inventory = getInventory();
     const record = inventory[id];
@@ -3181,6 +3249,10 @@ els.stockTable?.addEventListener("click", (event) => {
   }
 
   if (deleteBtn) {
+    if (!isOwner()) {
+      toast("Hapus bahan baku hanya untuk Owner.");
+      return;
+    }
     const id = deleteBtn.dataset.deleteStock;
     const inventory = getInventory();
     if (!inventory[id]) return;
@@ -3288,6 +3360,7 @@ updateClock();
 setInterval(updateClock, 1000);
 setInterval(() => updateDevicePresence().catch(() => null), 30000);
 restoreActiveView();
+applyAccessControls();
 renderAll();
 updateConnectionStatus();
 if (navigator.onLine) pullTransactionsFromSupabase({ render: true }).catch(() => null);
