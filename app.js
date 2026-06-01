@@ -188,6 +188,7 @@ const els = {
   stockAvailabilityList: document.querySelector("#stockAvailabilityList"),
   stockAlert: document.querySelector("#stockAlert"),
   stockTable: document.querySelector("#stockTable"),
+  syncTodayStockBtn: document.querySelector("#syncTodayStockBtn"),
   purchaseHistory: document.querySelector("#purchaseHistory"),
   recipeIngredientRows: document.querySelector("#recipeIngredientRows"),
   addRecipeIngredient: document.querySelector("#addRecipeIngredient"),
@@ -1469,6 +1470,7 @@ async function startOrder(event) {
   }
   transaction.boothCode = createBoothQueue(transaction);
   const stockChanged = deductStockForTransaction(transaction);
+  if (stockChanged) transaction.stockSyncedAt = transaction.createdAt;
   const history = getHistory();
   history.unshift(transaction);
   writeJson(storageKeys.history, history.slice(0, 300));
@@ -1585,6 +1587,55 @@ function deductStockForTransaction(transaction) {
   });
   if (changed) saveInventory(inventory);
   return changed;
+}
+
+async function syncTodayStockFromSales() {
+  if (!isOwner()) {
+    toast("Sinkron stok hanya untuk Owner.");
+    return;
+  }
+  const today = dateKey();
+  const history = getHistory();
+  const inventory = getInventory();
+  const syncedAt = new Date().toISOString();
+  let transactionCount = 0;
+  let ingredientCount = 0;
+  let skippedNoRecipe = 0;
+  let stockChanged = false;
+
+  history.forEach((transaction) => {
+    if (dateKey(transaction.createdAt) !== today) return;
+    if (transaction.status && transaction.status !== "paid") return;
+    if (transaction.stockSyncedAt) return;
+
+    const required = requiredIngredientsForItems(transaction.items || []);
+    const entries = Object.entries(required).filter(([ingredientId, qty]) => inventory[ingredientId] && Number(qty || 0) > 0);
+    if (!entries.length) {
+      skippedNoRecipe += 1;
+      return;
+    }
+
+    entries.forEach(([ingredientId, qty]) => {
+      inventory[ingredientId].stock = Math.max(0, Number(inventory[ingredientId].stock || 0) - Number(qty || 0));
+      inventory[ingredientId].updatedAt = syncedAt;
+      ingredientCount += 1;
+      stockChanged = true;
+    });
+    transaction.stockSyncedAt = syncedAt;
+    transactionCount += 1;
+  });
+
+  if (!transactionCount) {
+    toast(skippedNoRecipe ? "Tidak ada transaksi bersisa dengan resep bahan." : "Stok hari ini sudah sinkron.");
+    return;
+  }
+
+  saveInventory(inventory);
+  writeJson(storageKeys.history, history);
+  renderAll();
+  await Promise.allSettled([syncInventoryToCloud(), syncHistoryToCloud()]);
+  toast(`Stok disinkronkan dari ${transactionCount} transaksi (${ingredientCount} bahan).`);
+  if (!stockChanged) toast("Tidak ada stok berubah.");
 }
 
 function receiptHtml(transaction, kind = "paid") {
@@ -3125,6 +3176,10 @@ els.shareDailyReport?.addEventListener("click", shareDailyReportToWhatsApp);
 
 els.menuForm.addEventListener("submit", saveMenu);
 els.purchaseForm?.addEventListener("submit", savePurchase);
+els.syncTodayStockBtn?.addEventListener("click", () => {
+  if (!window.confirm("Sinkronkan stok dari transaksi hari ini yang belum pernah dipotong stoknya?")) return;
+  syncTodayStockFromSales();
+});
 
 // ── Arus Kas: form pengeluaran ──────────────────────────────────────────────
 els.cashflowExpenseForm?.addEventListener("submit", (event) => {
