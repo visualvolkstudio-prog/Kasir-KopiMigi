@@ -355,7 +355,6 @@ function renderEmployeeControls() {
           <article class="employee-list-row ${name === active ? "active" : ""}">
             <span>${safeName}</span>
             <div>
-              <button class="secondary-button compact" data-use-employee="${encodedName}" type="button">Pakai</button>
               <button class="secondary-button compact danger-text" data-delete-employee="${encodedName}" type="button" ${roster.length <= 1 ? "disabled" : ""}>Hapus</button>
             </div>
           </article>
@@ -3081,17 +3080,7 @@ els.employeeAddForm?.addEventListener("submit", (event) => {
   toast(`${name} ditambahkan ke daftar karyawan.`);
 });
 els.employeeList?.addEventListener("click", (event) => {
-  const useButton = event.target.closest("button[data-use-employee]");
   const deleteButton = event.target.closest("button[data-delete-employee]");
-  if (useButton) {
-    const name = decodeURIComponent(useButton.dataset.useEmployee);
-    localStorage.setItem(storageKeys.employee, name);
-    const auth = readJson(storageKeys.auth, null);
-    if (auth?.loggedIn) writeJson(storageKeys.auth, { ...auth, employee: name });
-    renderEmployeeControls();
-    toast(`Petugas aktif: ${name}.`);
-    return;
-  }
   if (deleteButton) {
     if (!isOwner()) {
       toast("Hapus karyawan hanya untuk Owner.");
