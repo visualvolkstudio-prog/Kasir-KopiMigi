@@ -1020,16 +1020,20 @@ function renderMenuTable() {
   const menu = getMenu();
   const categories = [...new Set(menu.map((item) => item.category || "Tanpa Kategori"))].sort((a, b) => a.localeCompare(b, "id-ID"));
   const rows = categories
-    .map((category) => {
+    .map((category, index) => {
       const items = menu
         .filter((item) => (item.category || "Tanpa Kategori") === category)
         .sort((a, b) => a.name.localeCompare(b.name, "id-ID"));
       return `
-        <div class="menu-category-group">
-          <div class="menu-category-heading">
-            <strong>${category}</strong>
-            <span>${items.length} menu</span>
-          </div>
+        <details class="menu-category-group" ${index === 0 ? "open" : ""}>
+          <summary class="menu-category-heading">
+            <span>
+              <strong>${category}</strong>
+              <small>${items.length} menu</small>
+            </span>
+            <b aria-hidden="true">v</b>
+          </summary>
+          <div class="menu-category-items">
           ${items
             .map((item) => {
               const recipeCount = recipes[item.id]?.length || 0;
@@ -1050,7 +1054,8 @@ function renderMenuTable() {
         `;
             })
             .join("")}
-        </div>
+          </div>
+        </details>
       `;
     })
     .join("");
