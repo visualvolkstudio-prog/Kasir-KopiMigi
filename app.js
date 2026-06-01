@@ -501,8 +501,8 @@ function updateEmployeeHeaderState(now = new Date()) {
   if (els.activeEmployeeHeader) {
     els.activeEmployeeHeader.textContent = isOwner()
       ? state.activeCashier.online
-        ? state.activeCashier.employee || "Kasir"
-        : "Tidak ada"
+        ? `Owner · ${state.activeCashier.employee || "Kasir"}`
+        : "Owner"
       : activeEmployeeName();
   }
   els.activeEmployeeCard.title = isOwner()
