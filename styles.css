@@ -875,7 +875,7 @@ input:focus, select:focus {
 }
 
 .inventory-grid > :first-child {
-  grid-row: 1 / span 2;
+  grid-row: auto;
 }
 
 .inventory-grid > * {
@@ -883,6 +883,36 @@ input:focus, select:focus {
 }
 
 .menu-table, .bestseller-list { display: grid; gap: 7px; margin-top: 12px; }
+
+.menu-category-group {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+
+.menu-category-group + .menu-category-group {
+  margin-top: 10px;
+}
+
+.menu-category-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 2px 3px;
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.menu-category-heading span {
+  flex: 0 0 auto;
+  font-size: 11px;
+  letter-spacing: 0;
+  text-transform: none;
+}
 
 .inventory-grid { margin-top: 16px; }
 
@@ -943,6 +973,11 @@ input:focus, select:focus {
 .stock-table { display: grid; gap: 7px; margin-top: 12px; }
 .compact-stock-list { gap: 10px; }
 .purchase-history { margin-top: 14px; }
+
+#stockAvailabilityList,
+.inventory-grid > .menu-table-panel:has(#stockAvailabilityList) {
+  display: none;
+}
 
 .stock-chart-list {
   display: grid;
@@ -1887,10 +1922,6 @@ body.locked .login-screen { display: grid; }
 
   .inventory-grid {
     grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
-  }
-
-  .inventory-grid > :first-child {
-    grid-row: 1 / span 2;
   }
 
   .pos-grid {

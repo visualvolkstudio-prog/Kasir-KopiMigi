@@ -1004,11 +1004,23 @@ function renderMenuGrid() {
 
 function renderMenuTable() {
   const recipes = getRecipes();
-  const rows = getMenu()
-    .map(
-      (item) => {
-        const recipeCount = recipes[item.id]?.length || 0;
-        return `
+  const menu = getMenu();
+  const categories = [...new Set(menu.map((item) => item.category || "Tanpa Kategori"))].sort((a, b) => a.localeCompare(b, "id-ID"));
+  const rows = categories
+    .map((category) => {
+      const items = menu
+        .filter((item) => (item.category || "Tanpa Kategori") === category)
+        .sort((a, b) => a.name.localeCompare(b.name, "id-ID"));
+      return `
+        <div class="menu-category-group">
+          <div class="menu-category-heading">
+            <strong>${category}</strong>
+            <span>${items.length} menu</span>
+          </div>
+          ${items
+            .map((item) => {
+              const recipeCount = recipes[item.id]?.length || 0;
+              return `
           <article class="menu-row">
             <div class="menu-row-main">
               <span class="menu-thumb">${itemVisual(item)}</span>
@@ -1023,8 +1035,11 @@ function renderMenuTable() {
             </div>
           </article>
         `;
-      },
-    )
+            })
+            .join("")}
+        </div>
+      `;
+    })
     .join("");
 
   els.menuTable.innerHTML = rows || `<div class="empty-state">Belum ada menu.</div>`;
@@ -1453,7 +1468,7 @@ async function startOrder(event) {
     return;
   }
   transaction.boothCode = createBoothQueue(transaction);
-  deductStockForTransaction(transaction);
+  const stockChanged = deductStockForTransaction(transaction);
   const history = getHistory();
   history.unshift(transaction);
   writeJson(storageKeys.history, history.slice(0, 300));
@@ -1481,6 +1496,7 @@ async function startOrder(event) {
   }
   renderAll();
   syncPendingTransactions();
+  if (stockChanged) syncInventoryToCloud().catch(() => null);
   toast(transaction.boothCode ? `Checkout selesai. Kode photobooth: ${transaction.boothCode}` : "Checkout selesai.");
 }
 
@@ -1568,6 +1584,7 @@ function deductStockForTransaction(transaction) {
     changed = true;
   });
   if (changed) saveInventory(inventory);
+  return changed;
 }
 
 function receiptHtml(transaction, kind = "paid") {
