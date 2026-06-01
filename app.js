@@ -376,10 +376,11 @@ function ensureDeviceId() {
 
 async function checkOtherActiveDevice(employee) {
   if (!navigator.onLine) return { otherActive: false };
-  const response = await fetch("/api/device-presence", {
+  const response = await fetch("/api/supabase", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
+      action: "device-presence",
       deviceId: ensureDeviceId(),
       employee,
       checkOnly: true,
@@ -684,18 +685,10 @@ function saveLegacyBoothSessions(sessions) {
 }
 
 async function sendBoothServerAction(action, code, payload = {}) {
-  try {
-    const response = await fetch("/api/action", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action, code, ...payload }),
-    });
-    if (!response.ok) return false;
-    const result = await response.json();
-    return Boolean(result.success);
-  } catch {
-    return false;
-  }
+  void action;
+  void code;
+  void payload;
+  return false;
 }
 
 if (boothSyncChannel) {
@@ -1976,13 +1969,13 @@ async function syncPendingTransactions() {
   const pending = await pendingOfflineTransactions().catch(() => []);
   for (const transaction of pending) {
     try {
-      const response = await fetch("/api/sync-transactions", {
+      const response = await fetch("/api/supabase", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Idempotency-Key": transaction.idempotencyKey || transaction.localId,
         },
-        body: JSON.stringify(transaction),
+        body: JSON.stringify({ action: "sync-transaction", transaction }),
       });
       if (!response.ok) throw new Error(`Sync gagal: ${response.status}`);
       await updateOfflineTransaction(transaction.localId, {
@@ -2010,62 +2003,64 @@ async function postCloudJson(url, payload) {
   return response.json();
 }
 
+async function postSupabaseAction(action, payload = {}) {
+  return postCloudJson("/api/supabase", { action, ...payload });
+}
+
 async function syncHistoryToCloud() {
   if (!navigator.onLine) return;
   for (const transaction of getHistory()) {
-    await postCloudJson("/api/sync-transactions", transaction);
+    await postSupabaseAction("sync-transaction", { transaction });
   }
 }
 
 async function syncCashflowToCloud() {
   if (!navigator.onLine) return;
   const expenses = getCashflowExpenses();
-  if (expenses.length) await postCloudJson("/api/sync-cashflow", expenses);
+  if (expenses.length) await postSupabaseAction("sync-cashflow", { expenses });
 }
 
 async function syncInventoryToCloud() {
   if (!navigator.onLine) return;
   const inventory = getInventory();
-  if (Object.keys(inventory).length) await postCloudJson("/api/sync-inventory", { inventory });
+  if (Object.keys(inventory).length) await postSupabaseAction("sync-inventory", { inventory });
 }
 
 async function syncEmployeesToCloud() {
   if (!navigator.onLine) return;
   const employees = getEmployeeRoster();
-  if (employees.length) await postCloudJson("/api/sync-employees", { employees });
+  if (employees.length) await postSupabaseAction("sync-employees", { employees });
 }
 
 async function deleteEmployeeInCloud(name) {
   if (!navigator.onLine) return false;
-  await postCloudJson("/api/delete-employee", { name });
+  await postSupabaseAction("delete-employee", { name });
   return true;
 }
 
 async function deleteInventoryInCloud(id) {
   if (!navigator.onLine) return false;
-  await postCloudJson("/api/delete-inventory", { id });
+  await postSupabaseAction("delete-inventory", { id });
   return true;
 }
 
 async function deleteCashflowInCloud(id) {
   if (!navigator.onLine) return false;
-  await postCloudJson("/api/delete-cashflow", { id });
+  await postSupabaseAction("delete-cashflow", { id });
   return true;
 }
 
 async function syncSettingsToCloud({ force = false } = {}) {
   if (!navigator.onLine || !isLoggedIn()) return false;
   if (!force && !hasDirtySettings()) return false;
-  await postCloudJson("/api/sync-settings", { settings: getSettingsPayload() });
+  await postSupabaseAction("sync-settings", { settings: getSettingsPayload() });
   clearSettingsDirty();
   return true;
 }
 
 async function pullSettingsFromSupabase({ render = false } = {}) {
   if (!navigator.onLine) return false;
-  const response = await fetch("/api/get-settings", { cache: "no-store" });
-  if (!response.ok) throw new Error(`Pull setting gagal: ${response.status}`);
-  const result = await response.json();
+  const result = await postSupabaseAction("get-settings");
   if (!result?.success) throw new Error(result?.error || "Pull setting gagal.");
   if (result.found && !hasDirtySettings()) {
     applyCloudSettings(result.settings);
@@ -2078,9 +2073,7 @@ async function pullSettingsFromSupabase({ render = false } = {}) {
 
 async function pullTransactionsFromSupabase({ render = true } = {}) {
   if (!navigator.onLine) return false;
-  const response = await fetch("/api/get-transactions", { cache: "no-store" });
-  if (!response.ok) throw new Error(`Pull transaksi gagal: ${response.status}`);
-  const result = await response.json();
+  const result = await postSupabaseAction("get-transactions");
   if (!result?.success || !Array.isArray(result.transactions)) {
     throw new Error(result?.error || "Pull transaksi gagal.");
   }
@@ -2095,7 +2088,7 @@ async function pullTransactionsFromSupabase({ render = true } = {}) {
 }
 
 async function deleteTransactionInSupabase(id) {
-  await postCloudJson("/api/delete-transaction", { id });
+  await postSupabaseAction("delete-transaction", { id });
 }
 
 async function processPendingDeletes() {
@@ -2116,9 +2109,7 @@ async function processPendingDeletes() {
 
 async function loadCloudData() {
   if (!navigator.onLine) return false;
-  const response = await fetch("/api/bootstrap-data", { cache: "no-store" });
-  if (!response.ok) throw new Error(`Load data cloud gagal: ${response.status}`);
-  const data = await response.json();
+  const data = await postSupabaseAction("bootstrap-data");
   if (!data?.success) throw new Error(data?.error || "Load data cloud gagal.");
 
   if (Array.isArray(data.history)) writeJson(storageKeys.history, data.history.slice(0, 300));
@@ -2166,7 +2157,7 @@ async function syncCloudData({ refresh = true } = {}) {
 
 async function updateDevicePresence() {
   if (!navigator.onLine || !isLoggedIn()) return;
-  const result = await postCloudJson("/api/device-presence", {
+  const result = await postSupabaseAction("device-presence", {
     deviceId: ensureDeviceId(),
     employee: activeEmployeeName(),
   });
@@ -2182,7 +2173,7 @@ async function updateDevicePresence() {
 
 async function clearDevicePresence() {
   if (!navigator.onLine) return;
-  await postCloudJson("/api/device-presence", {
+  await postSupabaseAction("device-presence", {
     deviceId: ensureDeviceId(),
     employee: activeEmployeeName(),
     logout: true,
