@@ -638,7 +638,9 @@ h3 { font-size: 16px; font-weight: 700; }
   font-size: 9.5px;
   font-weight: 800;
   text-align: center;
-  line-height: 1.1;
+  line-height: 1;
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
 }
 
 .item-image {
@@ -1290,6 +1292,19 @@ input:focus, select:focus {
   transform: translateY(-1px);
 }
 .menu-row span, .bestseller-row span, .stock-row span { display: block; margin-top: 3px; color: var(--muted); font-size: 11.5px; overflow-wrap: anywhere; }
+
+.menu-card .item-art,
+.menu-row .item-art,
+.bestseller-row .item-art,
+.stock-row .item-art {
+  display: grid;
+  place-items: center;
+  margin-top: 0;
+  color: #fff;
+  font-size: 9.5px;
+  line-height: 1;
+  text-align: center;
+}
 
 .stock-row.stock-good {
   border-color: rgba(47, 122, 70, 0.34);
