@@ -55,6 +55,8 @@ const state = {
   boothPhotos: [],
   boothStream: null,
   activeCashier: { online: false, employee: "" },
+  pendingEmployeeDelete: "",
+  pendingSyncCount: 0,
   printerDevice: null,
   printerCharacteristic: null,
 };
@@ -117,9 +119,16 @@ const els = {
   activeEmployeeCard: document.querySelector("#activeEmployeeCard"),
   activeEmployeeHeader: document.querySelector("#activeEmployeeHeader"),
   employeeName: document.querySelector("#employeeName"),
+  employeeStatusBadge: document.querySelector("#employeeStatusBadge"),
+  employeeActiveNote: document.querySelector("#employeeActiveNote"),
   employeeAddForm: document.querySelector("#employeeAddForm"),
   employeeNewName: document.querySelector("#employeeNewName"),
   employeeList: document.querySelector("#employeeList"),
+  employeeDeleteModal: document.querySelector("#employeeDeleteModal"),
+  employeeDeleteForm: document.querySelector("#employeeDeleteForm"),
+  employeeDeleteName: document.querySelector("#employeeDeleteName"),
+  cancelEmployeeDelete: document.querySelector("#cancelEmployeeDelete"),
+  employeeDeleteCancelBtn: document.querySelector("#employeeDeleteCancelBtn"),
   logoutBtn: document.querySelector("#logoutBtn"),
   fullscreenToggle: document.querySelector("#fullscreenToggle"),
   printerToggle: document.querySelector("#printerToggle"),
@@ -356,19 +365,44 @@ function isCashier() {
 
 function renderEmployeeControls() {
   const roster = getEmployeeRoster();
-  const active = isOwner() ? "Owner" : roster.includes(activeEmployeeName()) ? activeEmployeeName() : roster[0];
+  const active = roster.includes(activeEmployeeName()) ? activeEmployeeName() : roster[0];
+  const owner = isLoggedIn() && isOwner();
+  const displayName = owner ? state.activeCashier.employee || "Belum ada kasir aktif" : active;
+  const badgeLabel = owner
+    ? state.activeCashier.online
+      ? "Online"
+      : "Offline"
+    : !navigator.onLine || state.pendingSyncCount
+      ? "Sync pending"
+      : "Aktif";
   if (!isOwner()) localStorage.setItem(storageKeys.employee, active);
-  if (els.employeeName) els.employeeName.value = active;
-  if (els.activeEmployeeHeader) els.activeEmployeeHeader.textContent = active;
+  if (els.employeeName) els.employeeName.textContent = displayName;
+  if (els.employeeStatusBadge) {
+    els.employeeStatusBadge.textContent = badgeLabel;
+    els.employeeStatusBadge.dataset.status = owner
+      ? state.activeCashier.online
+        ? "online"
+        : "offline"
+      : !navigator.onLine || state.pendingSyncCount
+        ? "pending"
+        : "active";
+  }
+  if (els.employeeActiveNote) {
+    els.employeeActiveNote.textContent = owner
+      ? "Status kasir aktif hanya dipantau oleh akun owner."
+      : "Transaksi berikutnya akan memakai nama petugas aktif ini.";
+  }
   if (els.employeeList) {
     els.employeeList.innerHTML = roster
       .map((name) => {
         const safeName = escapeHtml(name);
         const encodedName = encodeURIComponent(name);
+        const rowActive = owner ? state.activeCashier.online && state.activeCashier.employee === name : name === active;
         return `
-          <article class="employee-list-row ${name === active ? "active" : ""}">
+          <article class="employee-list-row ${rowActive ? "active" : ""}">
             <span>${safeName}</span>
             <div>
+              <small class="employee-row-status ${rowActive ? "active" : ""}">${rowActive ? "Aktif" : "Tidak aktif"}</small>
               <button class="secondary-button compact danger-text" data-delete-employee="${encodedName}" type="button" ${roster.length <= 1 ? "disabled" : ""}>Hapus</button>
             </div>
           </article>
@@ -494,21 +528,14 @@ function updateAuthShift(shift) {
 function updateEmployeeHeaderState(now = new Date()) {
   if (!els.activeEmployeeCard) return;
   const active = isLoggedIn() && isCashier() && isShiftOperating(now);
+  els.activeEmployeeCard.hidden = false;
   els.activeEmployeeCard.classList.toggle("shift-active", active);
   els.activeEmployeeCard.classList.toggle("owner-mode", isLoggedIn() && isOwner());
-  els.activeEmployeeCard.classList.toggle("cashier-online", isLoggedIn() && isOwner() && state.activeCashier.online);
-  els.activeEmployeeCard.classList.toggle("cashier-offline", isLoggedIn() && isOwner() && !state.activeCashier.online);
-  if (els.activeEmployeeHeader) {
-    els.activeEmployeeHeader.textContent = isOwner()
-      ? state.activeCashier.online
-        ? `Owner · ${state.activeCashier.employee || "Kasir"}`
-        : "Owner"
-      : activeEmployeeName();
-  }
+  els.activeEmployeeCard.classList.toggle("cashier-online", false);
+  els.activeEmployeeCard.classList.toggle("cashier-offline", false);
+  if (els.activeEmployeeHeader) els.activeEmployeeHeader.textContent = activeEmployeeName();
   els.activeEmployeeCard.title = isOwner()
-    ? state.activeCashier.online
-      ? `Kasir aktif: ${state.activeCashier.employee || "Kasir"}`
-      : "Tidak ada kasir aktif"
+    ? "Owner"
     : active
       ? `${currentShiftName(now)} aktif`
       : "Di luar jam shift";
@@ -1257,6 +1284,41 @@ function closeStockEditModal() {
     delete els.stockEditForm.dataset.originalStock;
     delete els.stockEditForm.dataset.unit;
   }
+}
+
+function openEmployeeDeleteModal(name) {
+  if (!isOwner()) {
+    toast("Hapus karyawan hanya untuk Owner.");
+    return;
+  }
+  state.pendingEmployeeDelete = name;
+  if (els.employeeDeleteName) els.employeeDeleteName.textContent = name;
+  els.employeeDeleteModal?.classList.add("open");
+  els.employeeDeleteModal?.setAttribute("aria-hidden", "false");
+}
+
+function closeEmployeeDeleteModal() {
+  state.pendingEmployeeDelete = "";
+  els.employeeDeleteModal?.classList.remove("open");
+  els.employeeDeleteModal?.setAttribute("aria-hidden", "true");
+}
+
+function confirmEmployeeDelete() {
+  const name = state.pendingEmployeeDelete;
+  if (!name) return;
+  const roster = saveEmployeeRoster(getEmployeeRoster().filter((entry) => entry !== name));
+  const fallback = roster[0] || "Admin";
+  if (localStorage.getItem(storageKeys.employee) === name) {
+    localStorage.setItem(storageKeys.employee, fallback);
+    const auth = readJson(storageKeys.auth, null);
+    if (auth?.loggedIn && auth.role !== "owner") writeJson(storageKeys.auth, { ...auth, employee: fallback });
+  }
+  closeEmployeeDeleteModal();
+  renderEmployeeControls();
+  deleteEmployeeInCloud(name)
+    .then(() => syncEmployeesToCloud())
+    .catch(() => syncEmployeesToCloud().catch(() => null));
+  toast(`${name} dihapus dari daftar karyawan.`);
 }
 
 function setPriceListOpen(open) {
@@ -2162,6 +2224,7 @@ async function renderPendingSync() {
   } catch {
     pending = [];
   }
+  state.pendingSyncCount = pending.length;
 
   const online = navigator.onLine;
   if (els.connectionStatus) {
@@ -2169,6 +2232,7 @@ async function renderPendingSync() {
     els.connectionStatus.dataset.status = online ? (pending.length ? "pending" : "online") : "offline";
   }
   if (els.pendingSyncCount) els.pendingSyncCount.textContent = `${pending.length} pending`;
+  renderEmployeeControls();
   if (els.pendingSyncList) {
     els.pendingSyncList.innerHTML = pending.length
       ? pending
@@ -2418,6 +2482,7 @@ async function refreshActiveCashierPresence() {
   } catch (error) {
     state.activeCashier = { online: false, employee: "" };
   }
+  renderEmployeeControls();
   updateEmployeeHeaderState();
 }
 
@@ -3298,18 +3363,17 @@ els.employeeList?.addEventListener("click", (event) => {
       return;
     }
     const name = decodeURIComponent(deleteButton.dataset.deleteEmployee);
-    const roster = saveEmployeeRoster(getEmployeeRoster().filter((entry) => entry !== name));
-    if (activeEmployeeName() === name) {
-      localStorage.setItem(storageKeys.employee, roster[0]);
-      const auth = readJson(storageKeys.auth, null);
-      if (auth?.loggedIn) writeJson(storageKeys.auth, { ...auth, employee: roster[0] });
-    }
-    renderEmployeeControls();
-    deleteEmployeeInCloud(name)
-      .then(() => syncEmployeesToCloud())
-      .catch(() => syncEmployeesToCloud().catch(() => null));
-    toast(`${name} dihapus dari daftar karyawan.`);
+    openEmployeeDeleteModal(name);
   }
+});
+els.employeeDeleteForm?.addEventListener("submit", (event) => {
+  event.preventDefault();
+  confirmEmployeeDelete();
+});
+els.cancelEmployeeDelete?.addEventListener("click", closeEmployeeDeleteModal);
+els.employeeDeleteCancelBtn?.addEventListener("click", closeEmployeeDeleteModal);
+els.employeeDeleteModal?.addEventListener("click", (event) => {
+  if (event.target === els.employeeDeleteModal) closeEmployeeDeleteModal();
 });
 els.logoutBtn.addEventListener("click", logout);
 els.testLogoPrint?.addEventListener("click", testLogoPrint);

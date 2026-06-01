@@ -172,6 +172,28 @@
       </form>
     </section>
 
+    <section class="order-modal employee-delete-modal" id="employeeDeleteModal" aria-label="Konfirmasi hapus karyawan" aria-hidden="true">
+      <form class="order-card confirm-card" id="employeeDeleteForm">
+        <div class="modal-head">
+          <div>
+            <p class="eyebrow">Karyawan</p>
+            <h2>Hapus Karyawan?</h2>
+          </div>
+          <button class="icon-button modal-close" id="cancelEmployeeDelete" type="button" title="Batal hapus">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12" /><path d="M18 6 6 18" /></svg>
+          </button>
+        </div>
+        <div class="confirm-body">
+          <p>Apakah kamu yakin ingin menghapus karyawan ini?</p>
+          <strong id="employeeDeleteName">-</strong>
+        </div>
+        <div class="modal-actions">
+          <button class="secondary-button" id="employeeDeleteCancelBtn" type="button">Batal</button>
+          <button class="primary-button danger-button" type="submit">Hapus</button>
+        </div>
+      </form>
+    </section>
+
     <div class="app-shell">
       <aside class="sidebar" aria-label="Navigasi kasir">
         <div class="brand-block">
@@ -651,10 +673,14 @@
                   <h3>Pengaturan Petugas</h3>
                 </div>
               </div>
-              <label>
-                Petugas aktif
-                <input id="employeeName" type="text" value="Admin" readonly />
-              </label>
+              <div class="employee-active-box">
+                <div>
+                  <span>Petugas aktif</span>
+                  <strong id="employeeName">Admin</strong>
+                </div>
+                <span class="employee-status-badge" id="employeeStatusBadge">Aktif</span>
+              </div>
+              <p class="employee-active-note" id="employeeActiveNote">Transaksi berikutnya akan memakai nama petugas aktif ini.</p>
               <form class="employee-add-form" id="employeeAddForm">
                 <label>
                   Tambah karyawan

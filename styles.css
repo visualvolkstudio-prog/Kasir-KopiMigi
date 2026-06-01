@@ -333,11 +333,7 @@ h3 { font-size: 16px; font-weight: 700; }
 
 .active-employee-card::before {
   content: "";
-  width: 8px;
-  height: 8px;
-  border-radius: 999px;
-  background: #c9d0df;
-  flex: 0 0 auto;
+  display: none;
 }
 
 .active-employee-card.shift-active {
@@ -1943,6 +1939,75 @@ body.locked .login-screen { display: grid; }
   align-items: end;
 }
 
+.employee-active-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px;
+  background: var(--soft);
+}
+
+.employee-active-box span,
+.employee-active-note {
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+.employee-active-box strong {
+  display: block;
+  margin-top: 2px;
+  font-size: 17px;
+  overflow-wrap: anywhere;
+}
+
+.employee-active-note {
+  margin: -2px 0 0;
+}
+
+.employee-status-badge,
+.employee-row-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px;
+  padding: 5px 8px;
+  background: #eef2f8;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.employee-status-badge::before,
+.employee-row-status::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.employee-status-badge[data-status="active"],
+.employee-status-badge[data-status="online"],
+.employee-row-status.active {
+  background: #f1fbf4;
+  color: #2f7a46;
+}
+
+.employee-status-badge[data-status="pending"] {
+  background: var(--amber-soft);
+  color: var(--amber);
+}
+
+.employee-status-badge[data-status="offline"] {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
 .employee-list {
   display: grid;
   gap: 8px;
@@ -1972,8 +2037,50 @@ body.locked .login-screen { display: grid; }
 
 .employee-list-row div {
   display: flex;
+  align-items: center;
   gap: 6px;
   flex-shrink: 0;
+}
+
+.confirm-card {
+  width: min(420px, calc(100vw - 24px));
+  min-height: 0;
+  animation: confirmModalIn 0.16s ease both;
+}
+
+.confirm-body {
+  display: grid;
+  gap: 10px;
+  padding: 18px 22px;
+}
+
+.confirm-body p {
+  margin: 0;
+  color: var(--muted);
+  font-weight: 650;
+}
+
+.confirm-body strong {
+  display: block;
+  padding: 12px;
+  border-radius: 9px;
+  background: var(--soft);
+  overflow-wrap: anywhere;
+}
+
+.danger-button {
+  background: var(--danger);
+  box-shadow: 0 2px 8px rgba(184, 64, 64, 0.24);
+}
+
+.danger-button:hover {
+  background: #9f3636;
+  box-shadow: 0 4px 14px rgba(184, 64, 64, 0.3);
+}
+
+@keyframes confirmModalIn {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 .fullscreen-toggle {
