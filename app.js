@@ -1136,7 +1136,7 @@ function renderInventory() {
               <span>${record.unit || "unit"}${record.buyPrice ? ` · ${money(record.buyPrice)}/${record.unit || "unit"}` : ""} · ${status.label} · update ${new Date(record.updatedAt || Date.now()).toLocaleDateString("id-ID")}</span>
             </div>
           </div>
-          <div style="display:flex;align-items:center;gap:12px;">
+          <div class="stock-row-actions">
             <strong>${stock.toLocaleString("id-ID")} ${record.unit || ""}</strong>
             <button class="secondary-button compact" data-edit-stock="${id}" type="button">Edit</button>
             <button class="secondary-button compact danger-text" data-delete-stock="${id}" type="button">Hapus</button>

@@ -860,7 +860,16 @@ input:focus, select:focus {
 }
 
 .inventory-grid {
-  grid-template-columns: minmax(280px, 380px) repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(280px, 380px) minmax(0, 1fr);
+  grid-auto-rows: min-content;
+}
+
+.inventory-grid > :first-child {
+  grid-row: 1 / span 2;
+}
+
+.inventory-grid > * {
+  min-width: 0;
 }
 
 .menu-table, .bestseller-list { display: grid; gap: 7px; margin-top: 12px; }
@@ -922,6 +931,7 @@ input:focus, select:focus {
 .recipe-summary-main span { white-space: normal; }
 
 .stock-table { display: grid; gap: 7px; margin-top: 12px; }
+.compact-stock-list { gap: 10px; }
 .purchase-history { margin-top: 14px; }
 
 .stock-chart-list {
@@ -931,7 +941,7 @@ input:focus, select:focus {
 
 .stock-chart-row {
   display: grid;
-  grid-template-columns: minmax(120px, 0.9fr) minmax(0, 1.4fr) minmax(86px, auto);
+  grid-template-columns: minmax(150px, 0.9fr) minmax(120px, 1.4fr) minmax(84px, auto);
   align-items: center;
   gap: 12px;
   padding: 12px 13px;
@@ -982,6 +992,53 @@ input:focus, select:focus {
 .stock-chart-value {
   text-align: right;
   white-space: nowrap;
+}
+
+.stock-row-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.stock-row-actions > strong {
+  white-space: nowrap;
+}
+
+#stockTable .stock-row {
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+}
+
+#stockTable .menu-row-main {
+  align-items: flex-start;
+}
+
+#stockTable .menu-row-main > div {
+  min-width: 0;
+}
+
+#stockTable .menu-row-main strong,
+#stockTable .menu-row-main span {
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+
+#stockTable .stock-row-actions {
+  width: 100%;
+  justify-content: space-between;
+  padding-top: 9px;
+  border-top: 1px solid rgba(32, 44, 63, 0.08);
+}
+
+#stockTable .stock-row-actions > strong {
+  padding: 7px 9px;
+  border-radius: 8px;
+  background: rgba(49, 92, 159, 0.1);
+  color: var(--accent-text);
 }
 
 .menu-row, .bestseller-row, .stock-row {
@@ -1046,6 +1103,14 @@ input:focus, select:focus {
 
   .stock-chart-value {
     text-align: left;
+  }
+
+  .stock-row-actions {
+    justify-content: flex-start;
+  }
+
+  #stockTable .stock-row-actions {
+    justify-content: flex-start;
   }
 }
 
@@ -1810,11 +1875,18 @@ body.locked .login-screen { display: grid; }
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .inventory-grid {
+    grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
+  }
+
+  .inventory-grid > :first-child {
+    grid-row: 1 / span 2;
+  }
+
   .pos-grid {
     grid-template-columns: minmax(0, 1fr) minmax(280px, 320px);
   }
 
-  .inventory-grid > :nth-child(3),
   .management-grid > :nth-child(3),
   .analytics-grid > :nth-child(3),
   .evaluation-grid > :nth-child(3),
@@ -1899,6 +1971,10 @@ body.locked .login-screen { display: grid; }
   .daily-sales-grid,
   .customer-row,
   .metric-grid { grid-template-columns: 1fr; }
+
+  .inventory-grid > :first-child {
+    grid-row: auto;
+  }
 
   .checkout-panel { position: static; }
   .order-modal-grid { grid-template-columns: 1fr; min-height: auto; }
