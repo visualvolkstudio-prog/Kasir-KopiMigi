@@ -131,6 +131,47 @@
       </form>
     </section>
 
+    <section class="order-modal stock-edit-modal" id="stockEditModal" aria-label="Edit stock aktif" aria-hidden="true">
+      <form class="order-card stock-edit-card" id="stockEditForm">
+        <div class="modal-head">
+          <div>
+            <p class="eyebrow">Stock aktif</p>
+            <h2>Edit Stock Bahan</h2>
+          </div>
+          <button class="icon-button modal-close" id="cancelStockEdit" type="button" title="Tutup edit stock">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12" /><path d="M18 6 6 18" /></svg>
+          </button>
+        </div>
+        <div class="stock-edit-body">
+          <div class="stock-edit-meta">
+            <span>Nama bahan</span>
+            <strong id="stockEditName">-</strong>
+          </div>
+          <div class="stock-edit-meta">
+            <span>Satuan</span>
+            <strong id="stockEditUnit">-</strong>
+          </div>
+          <div class="stock-edit-meta stock-edit-current">
+            <span>Stock aktif saat ini</span>
+            <strong id="stockEditCurrent">0</strong>
+          </div>
+          <label class="stock-slider-field">
+            Atur stock aktif
+            <input id="stockEditSlider" type="range" min="0" max="1000" step="0.01" value="0" />
+          </label>
+          <label>
+            Input angka manual
+            <input id="stockEditInput" type="number" min="0" step="0.01" value="0" />
+          </label>
+          <div class="stock-edit-summary" id="stockEditSummary">Belum ada perubahan.</div>
+        </div>
+        <div class="modal-actions">
+          <button class="secondary-button" id="stockEditCancelBtn" type="button">Batal</button>
+          <button class="primary-button" type="submit">Konfirmasi Update Stock</button>
+        </div>
+      </form>
+    </section>
+
     <div class="app-shell">
       <aside class="sidebar" aria-label="Navigasi kasir">
         <div class="brand-block">
@@ -375,7 +416,7 @@
               <div class="section-heading">
                 <div>
                   <p class="eyebrow">Daftar Harga Bahan</p>
-                  <h3>Set Harga & Stok Masuk</h3>
+                  <h3>Set Harga Bahan Baku</h3>
                 </div>
               </div>
               <form id="purchaseForm" class="stack-form">
@@ -385,7 +426,7 @@
                 </label>
                 <div class="order-field-grid">
                   <label>
-                    Jumlah
+                    Jumlah acuan harga
                     <input id="purchaseQty" type="number" min="0.01" step="0.01" placeholder="1000" required />
                   </label>
                   <label>
@@ -398,7 +439,7 @@
                   </label>
                 </div>
                 <label>
-                  Harga total
+                  Harga total acuan
                   <input id="purchaseCost" type="text" inputmode="numeric" placeholder="Rp 100.000" required />
                 </label>
                 <input id="purchaseNote" type="hidden" />

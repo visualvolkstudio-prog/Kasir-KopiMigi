@@ -1019,13 +1019,16 @@ input:focus, select:focus {
   border-radius: 9px;
   background: #fff;
   min-width: 0;
+  cursor: pointer;
   transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
 }
 
-.stock-chart-row:hover {
+.stock-chart-row:hover,
+.stock-chart-row:focus-visible {
   border-color: rgba(49, 92, 159, 0.22);
   box-shadow: 0 8px 18px rgba(31, 45, 68, 0.06);
   transform: translateY(-1px);
+  outline: none;
 }
 
 .stock-chart-copy,
@@ -1800,6 +1803,7 @@ body.locked .login-screen { display: grid; }
 
 .order-modal { z-index: 80; background: rgba(18,20,36,0.74); }
 .order-modal.open { display: grid; }
+.stock-edit-modal { z-index: 86; }
 
 .login-card {
   width: min(380px, 100%);
@@ -1898,6 +1902,11 @@ body.locked .login-screen { display: grid; }
 
 .order-card h2 { font-size: 27px; }
 
+.stock-edit-card {
+  width: min(520px, calc(100vw - 24px));
+  min-height: 0;
+}
+
 .modal-head {
   display: flex;
   justify-content: space-between;
@@ -1928,6 +1937,55 @@ body.locked .login-screen { display: grid; }
 .order-payment-pane { border-left: 1px solid var(--line); background: var(--soft); }
 .modal-section-title h3, .modal-section-title p { margin: 0; }
 .modal-section-title h3 { font-size: 18px; }
+
+.stock-edit-body {
+  display: grid;
+  gap: 13px;
+  padding: 18px;
+}
+
+.stock-edit-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--soft);
+}
+
+.stock-edit-meta span {
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 750;
+}
+
+.stock-edit-meta strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
+.stock-edit-current {
+  background: rgba(49, 92, 159, 0.08);
+  border-color: rgba(49, 92, 159, 0.2);
+}
+
+.stock-slider-field input[type="range"] {
+  width: 100%;
+  padding: 0;
+  accent-color: var(--accent);
+}
+
+.stock-edit-summary {
+  padding: 11px 12px;
+  border-radius: 9px;
+  background: #f7f8fb;
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 750;
+}
 
 /* ── Toast ───────────────────────────────────── */
 .toast {

@@ -95,6 +95,16 @@ const els = {
   orderModal: document.querySelector("#orderModal"),
   orderForm: document.querySelector("#orderForm"),
   modalOrderList: document.querySelector("#modalOrderList"),
+  stockEditModal: document.querySelector("#stockEditModal"),
+  stockEditForm: document.querySelector("#stockEditForm"),
+  cancelStockEdit: document.querySelector("#cancelStockEdit"),
+  stockEditCancelBtn: document.querySelector("#stockEditCancelBtn"),
+  stockEditName: document.querySelector("#stockEditName"),
+  stockEditUnit: document.querySelector("#stockEditUnit"),
+  stockEditCurrent: document.querySelector("#stockEditCurrent"),
+  stockEditSlider: document.querySelector("#stockEditSlider"),
+  stockEditInput: document.querySelector("#stockEditInput"),
+  stockEditSummary: document.querySelector("#stockEditSummary"),
   billOrderBtn: document.querySelector("#billOrderBtn"),
   orderCustomerName: document.querySelector("#orderCustomerName"),
   orderTableNumber: document.querySelector("#orderTableNumber"),
@@ -1143,6 +1153,91 @@ function stockChartPercent(record) {
   return Math.min(100, Math.round((stock / target) * 100));
 }
 
+function stockEditStep(unit) {
+  return unit === "pcs" ? 1 : 0.01;
+}
+
+function stockEditMax(stock, unit) {
+  const base = unit === "pcs" ? 20 : 1000;
+  return Math.max(base, Math.ceil(stock * 2 || 0), Math.ceil(stock + base));
+}
+
+function formatStockValue(value, unit = "") {
+  return `${Number(value || 0).toLocaleString("id-ID", { maximumFractionDigits: 2 })}${unit ? ` ${unit}` : ""}`;
+}
+
+function updateStockEditSummary() {
+  if (!els.stockEditForm || !els.stockEditSummary) return;
+  const original = Number(els.stockEditForm.dataset.originalStock || 0);
+  const unit = els.stockEditForm.dataset.unit || "";
+  const next = Number(els.stockEditInput?.value || 0);
+  const diff = next - original;
+  if (!Number.isFinite(next)) {
+    els.stockEditSummary.textContent = "Masukkan angka stock yang valid.";
+    return;
+  }
+  if (Math.abs(diff) < 0.0001) {
+    els.stockEditSummary.textContent = "Belum ada perubahan.";
+    return;
+  }
+  const direction = diff > 0 ? "Naik" : "Turun";
+  els.stockEditSummary.textContent = `${direction} ${formatStockValue(Math.abs(diff), unit)} menjadi ${formatStockValue(next, unit)}.`;
+}
+
+function syncStockEditControls(source) {
+  if (!els.stockEditSlider || !els.stockEditInput) return;
+  const sourceEl = source === "slider" ? els.stockEditSlider : els.stockEditInput;
+  const targetEl = source === "slider" ? els.stockEditInput : els.stockEditSlider;
+  const max = Number(els.stockEditSlider.max || 0);
+  const value = Math.max(0, Number(sourceEl.value || 0));
+  if (source === "input" && value > max) els.stockEditSlider.max = String(stockEditMax(value, els.stockEditForm?.dataset.unit || ""));
+  targetEl.value = String(value);
+  updateStockEditSummary();
+}
+
+function openStockEditModal(id) {
+  if (!isOwner()) {
+    toast("Edit stock aktif hanya untuk Owner.");
+    return;
+  }
+  const record = getInventory()[id];
+  if (!record) return;
+  const stock = Number(record.stock || 0);
+  const unit = record.unit || "";
+  const max = stockEditMax(stock, unit);
+  const step = stockEditStep(unit);
+  els.stockEditForm.dataset.stockId = id;
+  els.stockEditForm.dataset.originalStock = String(stock);
+  els.stockEditForm.dataset.unit = unit;
+  if (els.stockEditName) els.stockEditName.textContent = record.name;
+  if (els.stockEditUnit) els.stockEditUnit.textContent = unit || "unit";
+  if (els.stockEditCurrent) els.stockEditCurrent.textContent = formatStockValue(stock, unit);
+  if (els.stockEditSlider) {
+    els.stockEditSlider.min = "0";
+    els.stockEditSlider.max = String(max);
+    els.stockEditSlider.step = String(step);
+    els.stockEditSlider.value = String(stock);
+  }
+  if (els.stockEditInput) {
+    els.stockEditInput.min = "0";
+    els.stockEditInput.step = String(step);
+    els.stockEditInput.value = String(stock);
+  }
+  updateStockEditSummary();
+  els.stockEditModal?.classList.add("open");
+  els.stockEditModal?.setAttribute("aria-hidden", "false");
+}
+
+function closeStockEditModal() {
+  els.stockEditModal?.classList.remove("open");
+  els.stockEditModal?.setAttribute("aria-hidden", "true");
+  if (els.stockEditForm) {
+    delete els.stockEditForm.dataset.stockId;
+    delete els.stockEditForm.dataset.originalStock;
+    delete els.stockEditForm.dataset.unit;
+  }
+}
+
 function setPriceListOpen(open) {
   if (!els.priceListToggle || !els.priceListContent) return;
   els.priceListToggle.setAttribute("aria-expanded", open ? "true" : "false");
@@ -1167,7 +1262,7 @@ function renderInventory() {
             const status = stockStatus(record);
             const percent = stockChartPercent(record);
             return `
-            <article class="stock-chart-row stock-${status.tone}">
+            <article class="stock-chart-row stock-${status.tone}" data-edit-active-stock="${id}" tabindex="0" role="button" aria-label="Edit stock aktif ${record.name}">
               <div class="stock-chart-copy">
                 <strong>${record.name}</strong>
                 <span>Sisa stok aktif · ${status.label}</span>
@@ -1200,7 +1295,7 @@ function renderInventory() {
           <div class="stock-row-actions">
             ${
               isOwner()
-                ? `<button class="secondary-button compact" data-edit-stock="${id}" type="button">Edit</button>
+                ? `<button class="secondary-button compact" data-edit-stock="${id}" type="button">Edit Harga</button>
                    <button class="secondary-button compact danger-text" data-delete-stock="${id}" type="button">Hapus</button>`
                 : ""
             }
@@ -2752,7 +2847,7 @@ function savePurchase(event) {
     ...current,
     name: itemName,
     unit,
-    stock: editingId ? qty : Number(current.stock || 0) + qty,
+    stock: Number(current.stock || 0),
     buyPrice: cost / qty,
     updatedAt: new Date().toISOString(),
   };
@@ -3192,6 +3287,50 @@ els.priceListToggle?.addEventListener("click", () => {
   const isOpen = els.priceListToggle.getAttribute("aria-expanded") === "true";
   setPriceListOpen(!isOpen);
 });
+els.stockAvailabilityList?.addEventListener("click", (event) => {
+  const stockCard = event.target.closest("[data-edit-active-stock]");
+  if (!stockCard) return;
+  openStockEditModal(stockCard.dataset.editActiveStock);
+});
+els.stockAvailabilityList?.addEventListener("keydown", (event) => {
+  if (!["Enter", " "].includes(event.key)) return;
+  const stockCard = event.target.closest("[data-edit-active-stock]");
+  if (!stockCard) return;
+  event.preventDefault();
+  openStockEditModal(stockCard.dataset.editActiveStock);
+});
+els.stockEditSlider?.addEventListener("input", () => syncStockEditControls("slider"));
+els.stockEditInput?.addEventListener("input", () => syncStockEditControls("input"));
+els.stockEditForm?.addEventListener("submit", (event) => {
+  event.preventDefault();
+  if (!isOwner()) {
+    toast("Edit stock aktif hanya untuk Owner.");
+    return;
+  }
+  const id = els.stockEditForm.dataset.stockId;
+  const inventory = getInventory();
+  const record = inventory[id];
+  const nextStock = Number(els.stockEditInput?.value || 0);
+  if (!record || !Number.isFinite(nextStock) || nextStock < 0) {
+    toast("Stock aktif tidak valid.");
+    return;
+  }
+  inventory[id] = {
+    ...record,
+    stock: nextStock,
+    updatedAt: new Date().toISOString(),
+  };
+  saveInventory(inventory);
+  closeStockEditModal();
+  renderInventory();
+  syncInventoryToCloud().catch(() => null);
+  toast(`Stock aktif ${record.name} diperbarui.`);
+});
+els.cancelStockEdit?.addEventListener("click", closeStockEditModal);
+els.stockEditCancelBtn?.addEventListener("click", closeStockEditModal);
+els.stockEditModal?.addEventListener("click", (event) => {
+  if (event.target === els.stockEditModal) closeStockEditModal();
+});
 
 // ── Arus Kas: form pengeluaran ──────────────────────────────────────────────
 els.cashflowExpenseForm?.addEventListener("submit", (event) => {
@@ -3308,16 +3447,14 @@ els.stockTable?.addEventListener("click", (event) => {
     const inventory = getInventory();
     const record = inventory[id];
     if (!record) return;
-    const stock = Number(record.stock || 0);
-    const totalCost = Number(record.buyPrice || 0) * stock;
     els.purchaseMenuId.value = record.name;
-    els.purchaseQty.value = stock || "";
+    els.purchaseQty.value = 1;
     els.ingredientUnit.value = record.unit || "gram";
-    els.purchaseCost.value = totalCost ? money(totalCost) : "";
+    els.purchaseCost.value = record.buyPrice ? money(record.buyPrice) : "";
     els.purchaseForm.dataset.editingStockId = id;
     els.purchaseForm.querySelector("button[type=submit]").textContent = `Update Bahan: ${record.name}`;
     els.purchaseForm.scrollIntoView({ behavior: "smooth", block: "start" });
-    toast(`Edit ${record.name}: ubah jumlah tersedia, satuan, dan harga total.`);
+    toast(`Edit ${record.name}: ubah nama, satuan, dan harga per unit.`);
     return;
   }
 
