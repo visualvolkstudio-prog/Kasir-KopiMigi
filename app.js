@@ -424,6 +424,7 @@ async function login(event) {
 }
 
 function logout() {
+  clearDevicePresence().catch(() => null);
   localStorage.removeItem(storageKeys.auth);
   document.body.classList.add("locked");
   els.loginPassword.value = "";
@@ -2135,6 +2136,15 @@ async function updateDevicePresence() {
   localStorage.setItem(storageKeys.lastDeviceWarning, String(now));
   const employee = result.activeDevice?.employee || "petugas lain";
   window.alert(`Kasir juga sedang aktif di device lain oleh ${employee}. Pastikan hanya satu kasir yang mengambil transaksi utama.`);
+}
+
+async function clearDevicePresence() {
+  if (!navigator.onLine) return;
+  await postCloudJson("/api/device-presence", {
+    deviceId: ensureDeviceId(),
+    employee: activeEmployeeName(),
+    logout: true,
+  });
 }
 
 function updateConnectionStatus() {

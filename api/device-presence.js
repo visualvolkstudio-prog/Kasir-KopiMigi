@@ -20,6 +20,29 @@ module.exports = async function handler(req, res) {
       lastSeenAt &&
       Date.now() - lastSeenAt.getTime() < activeWindowMs;
 
+    if (req.body?.logout) {
+      if (active?.deviceId === deviceId) {
+        await supabaseFetch("app_settings?on_conflict=key", {
+          method: "POST",
+          prefer: "resolution=merge-duplicates,return=representation",
+          body: [
+            {
+              key: "active_device",
+              value: {
+                deviceId: "",
+                employee: "",
+                userAgent: "",
+                lastSeenAt: "1970-01-01T00:00:00.000Z",
+              },
+              updated_at: toIso(),
+            },
+          ],
+        });
+      }
+
+      return sendJson(res, 200, { success: true, cleared: active?.deviceId === deviceId });
+    }
+
     if (req.body?.checkOnly) {
       return sendJson(res, 200, {
         success: true,
