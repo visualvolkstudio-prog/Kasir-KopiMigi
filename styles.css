@@ -234,6 +234,8 @@ h3 { font-size: 16px; font-weight: 700; }
   background: rgba(255, 255, 255, 0.08);
 }
 
+.role-cashier .shift-actions { display: none; }
+
 /* ── Workspace ───────────────────────────────── */
 .workspace {
   min-width: 0;
@@ -1653,6 +1655,42 @@ input:focus, select:focus {
 
 .order-list .history-card {
   align-items: center;
+}
+
+.skipped-orders-panel {
+  margin-bottom: 14px;
+  padding: 14px 16px;
+}
+
+.skipped-orders-list {
+  display: grid;
+  gap: 8px;
+}
+
+.skipped-order-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.skipped-order-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.skipped-order-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 5px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--soft);
+  color: var(--ink);
+  font-size: 11.5px;
+  font-weight: 800;
 }
 
 /* ── History ─────────────────────────────────── */

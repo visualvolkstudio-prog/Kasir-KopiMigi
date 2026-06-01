@@ -30,8 +30,11 @@
         </label>
         <div class="login-session-grid">
           <label>
-            Shift otomatis
-            <input id="loginShift" type="text" value="Shift 1" readonly />
+            Shift aktif
+            <select id="loginShift">
+              <option value="Shift 1">Shift 1</option>
+              <option value="Shift 2">Shift 2</option>
+            </select>
           </label>
           <label>
             Karyawan
@@ -39,7 +42,7 @@
           </label>
         </div>
         <button class="primary-button full-button" type="submit">Masuk</button>
-        <p class="login-hint" id="loginHint">Shift mengikuti jam transaksi.</p>
+        <p class="login-hint" id="loginHint">Pilih shift aktif sebelum masuk.</p>
       </form>
     </section>
 
@@ -397,6 +400,15 @@
             </div>
             <input class="order-date-filter" id="paidOrderDate" type="date" hidden />
           </div>
+          <section class="history-panel skipped-orders-panel">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">Monitoring</p>
+                <h3>Nomor Order Hilang</h3>
+              </div>
+            </div>
+            <div class="skipped-orders-list" id="skippedOrdersList"></div>
+          </section>
           <div class="history-list order-list" id="orderList"></div>
           <section class="history-panel pending-sync-panel">
             <div class="section-heading">
