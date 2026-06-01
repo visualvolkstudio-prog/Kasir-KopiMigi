@@ -1258,7 +1258,7 @@ function renderInventory() {
   if (els.stockAvailabilityList) {
     els.stockAvailabilityList.innerHTML = inventoryRows.length
       ? inventoryRows
-          .map(([, record]) => {
+          .map(([id, record]) => {
             const status = stockStatus(record);
             const percent = stockChartPercent(record);
             return `
