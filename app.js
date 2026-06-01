@@ -54,6 +54,7 @@ const state = {
   pendingBoothCode: "",
   boothPhotos: [],
   boothStream: null,
+  activeCashier: { online: false, employee: "" },
   printerDevice: null,
   printerCharacteristic: null,
 };
@@ -457,6 +458,7 @@ async function login(event) {
     setActiveView("pos");
     toast(role === "owner" ? "Masuk sebagai Owner." : `Masuk sebagai ${employee} · ${shift}.`);
     if (role === "cashier") updateDevicePresence().catch(() => null);
+    if (role === "owner") refreshActiveCashierPresence().catch(() => null);
     syncCloudData();
     return;
   }
@@ -494,7 +496,22 @@ function updateEmployeeHeaderState(now = new Date()) {
   const active = isLoggedIn() && isCashier() && isShiftOperating(now);
   els.activeEmployeeCard.classList.toggle("shift-active", active);
   els.activeEmployeeCard.classList.toggle("owner-mode", isLoggedIn() && isOwner());
-  els.activeEmployeeCard.title = isOwner() ? "Owner Mode" : active ? `${currentShiftName(now)} aktif` : "Di luar jam shift";
+  els.activeEmployeeCard.classList.toggle("cashier-online", isLoggedIn() && isOwner() && state.activeCashier.online);
+  els.activeEmployeeCard.classList.toggle("cashier-offline", isLoggedIn() && isOwner() && !state.activeCashier.online);
+  if (els.activeEmployeeHeader) {
+    els.activeEmployeeHeader.textContent = isOwner()
+      ? state.activeCashier.online
+        ? state.activeCashier.employee || "Kasir"
+        : "Tidak ada"
+      : activeEmployeeName();
+  }
+  els.activeEmployeeCard.title = isOwner()
+    ? state.activeCashier.online
+      ? `Kasir aktif: ${state.activeCashier.employee || "Kasir"}`
+      : "Tidak ada kasir aktif"
+    : active
+      ? `${currentShiftName(now)} aktif`
+      : "Di luar jam shift";
 }
 
 function applyAccessControls() {
@@ -548,7 +565,6 @@ function updateClock() {
   els.clockLabel.textContent = now.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
   if (els.loginShift) els.loginShift.value = shiftScheduleText(now);
   if (els.orderShift) els.orderShift.value = currentShiftName(now);
-  if (els.activeEmployeeHeader) els.activeEmployeeHeader.textContent = activeEmployeeName();
   if (isLoggedIn() && isCashier()) updateAuthShift(currentShiftName(now));
   updateEmployeeHeaderState(now);
   runShiftScheduleChecks(now);
@@ -2387,6 +2403,24 @@ async function updateDevicePresence() {
   window.alert(`Kasir juga sedang aktif di device lain oleh ${employee}. Pastikan hanya satu kasir yang mengambil transaksi utama.`);
 }
 
+async function refreshActiveCashierPresence() {
+  if (!navigator.onLine || !isLoggedIn() || !isOwner()) {
+    state.activeCashier = { online: false, employee: "" };
+    updateEmployeeHeaderState();
+    return;
+  }
+  try {
+    const result = await checkOtherActiveDevice("Owner");
+    state.activeCashier = {
+      online: Boolean(result?.otherActive && result.activeDevice?.employee),
+      employee: result?.activeDevice?.employee || "",
+    };
+  } catch (error) {
+    state.activeCashier = { online: false, employee: "" };
+  }
+  updateEmployeeHeaderState();
+}
+
 async function clearDevicePresence() {
   if (!navigator.onLine) return;
   await postSupabaseAction("device-presence", {
@@ -2405,6 +2439,7 @@ function updateConnectionStatus() {
       .catch(() => null);
     syncCloudData({ refresh: false });
     updateDevicePresence().catch(() => null);
+    refreshActiveCashierPresence().catch(() => null);
   }
 }
 
@@ -3574,10 +3609,12 @@ initAuth();
 updateClock();
 setInterval(updateClock, 1000);
 setInterval(() => updateDevicePresence().catch(() => null), 30000);
+setInterval(() => refreshActiveCashierPresence().catch(() => null), 30000);
 restoreActiveView();
 applyAccessControls();
 renderAll();
 updateConnectionStatus();
 if (navigator.onLine) pullTransactionsFromSupabase({ render: true }).catch(() => null);
 if (navigator.onLine) pullSettingsFromSupabase({ render: true }).catch(() => null);
+if (navigator.onLine) refreshActiveCashierPresence().catch(() => null);
 if (isLoggedIn()) syncCloudData();
