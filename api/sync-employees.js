@@ -25,12 +25,8 @@ module.exports = async function handler(req, res) {
     await Promise.all(
       inactiveRows.map((row) =>
         supabaseFetch(`employees?name=eq.${encodeURIComponent(row.name)}`, {
-          method: "PATCH",
+          method: "DELETE",
           prefer: "return=minimal",
-          body: {
-            active: false,
-            updated_at: toIso(),
-          },
         }),
       ),
     );

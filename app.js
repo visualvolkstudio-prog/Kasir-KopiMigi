@@ -2035,6 +2035,24 @@ async function syncEmployeesToCloud() {
   if (employees.length) await postCloudJson("/api/sync-employees", { employees });
 }
 
+async function deleteEmployeeInCloud(name) {
+  if (!navigator.onLine) return false;
+  await postCloudJson("/api/delete-employee", { name });
+  return true;
+}
+
+async function deleteInventoryInCloud(id) {
+  if (!navigator.onLine) return false;
+  await postCloudJson("/api/delete-inventory", { id });
+  return true;
+}
+
+async function deleteCashflowInCloud(id) {
+  if (!navigator.onLine) return false;
+  await postCloudJson("/api/delete-cashflow", { id });
+  return true;
+}
+
 async function syncSettingsToCloud({ force = false } = {}) {
   if (!navigator.onLine || !isLoggedIn()) return false;
   if (!force && !hasDirtySettings()) return false;
@@ -3040,7 +3058,9 @@ els.employeeList?.addEventListener("click", (event) => {
       if (auth?.loggedIn) writeJson(storageKeys.auth, { ...auth, employee: roster[0] });
     }
     renderEmployeeControls();
-    syncEmployeesToCloud().catch(() => null);
+    deleteEmployeeInCloud(name)
+      .then(() => syncEmployeesToCloud())
+      .catch(() => syncEmployeesToCloud().catch(() => null));
     toast(`${name} dihapus dari daftar karyawan.`);
   }
 });
@@ -3142,6 +3162,7 @@ els.cashflowList?.addEventListener("click", (event) => {
   const expenses = getCashflowExpenses().filter((entry) => entry.id !== id);
   writeJson(storageKeys.cashflowExpenses, expenses);
   renderCashflow();
+  deleteCashflowInCloud(id).catch(() => syncCashflowToCloud().catch(() => null));
   toast("Pengeluaran dihapus.");
 });
 
@@ -3178,7 +3199,7 @@ els.stockTable?.addEventListener("click", (event) => {
     renderInventory();
     renderCashflow();
     syncCfExpenseNoteField();
-    syncInventoryToCloud().catch(() => null);
+    deleteInventoryInCloud(id).catch(() => syncInventoryToCloud().catch(() => null));
     toast(`Bahan "${name}" dihapus dari stok.`);
   }
 });
