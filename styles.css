@@ -311,6 +311,12 @@ h3 { font-size: 16px; font-weight: 700; }
   color: var(--ink);
 }
 
+.active-employee-card.shift-active {
+  border-color: rgba(47, 122, 70, 0.28);
+  background: #f1fbf4;
+  color: #2f7a46;
+}
+
 .active-employee-card strong {
   font-size: 13px;
   line-height: 1.1;

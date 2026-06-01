@@ -103,6 +103,7 @@ const els = {
   cancelOrderModal: document.querySelector("#cancelOrderModal"),
   todayLabel: document.querySelector("#todayLabel"),
   clockLabel: document.querySelector("#clockLabel"),
+  activeEmployeeCard: document.querySelector("#activeEmployeeCard"),
   activeEmployeeHeader: document.querySelector("#activeEmployeeHeader"),
   employeeName: document.querySelector("#employeeName"),
   employeeAddForm: document.querySelector("#employeeAddForm"),
@@ -259,6 +260,12 @@ function shiftScheduleText(value = new Date()) {
   return `${shift} · ${shift === "Shift 1" ? "10.00-17.00" : "17.00-22.00"}`;
 }
 
+function isShiftOperating(value = new Date()) {
+  const date = value instanceof Date ? value : new Date(value);
+  const hour = date.getHours();
+  return hour >= 10 && hour < 22;
+}
+
 function orderSequenceFromId(id, prefix) {
   const match = String(id || "").match(new RegExp(`^${prefix}-(\\d+)(?:-O)?$`));
   return match ? Number(match[1]) : 0;
@@ -411,6 +418,7 @@ async function login(event) {
     renderEmployeeControls();
     document.body.classList.remove("locked");
     els.loginPassword.value = "";
+    setActiveView("pos");
     toast(`Masuk sebagai ${employee} · ${shift}.`);
     updateDevicePresence().catch(() => null);
     syncCloudData();
@@ -437,6 +445,20 @@ function isLoggedIn() {
   return Boolean(readJson(storageKeys.auth, null)?.loggedIn);
 }
 
+function updateAuthShift(shift) {
+  const auth = readJson(storageKeys.auth, null);
+  if (!auth?.loggedIn || auth.shift === shift) return false;
+  writeJson(storageKeys.auth, { ...auth, shift, shiftedAt: new Date().toISOString() });
+  return true;
+}
+
+function updateEmployeeHeaderState(now = new Date()) {
+  if (!els.activeEmployeeCard) return;
+  const active = isLoggedIn() && isShiftOperating(now);
+  els.activeEmployeeCard.classList.toggle("shift-active", active);
+  els.activeEmployeeCard.title = active ? `${currentShiftName(now)} aktif` : "Di luar jam shift";
+}
+
 function markShiftActionOnce(action, date = new Date()) {
   const key = `${dateKey(date)}:${action}`;
   const actions = readJson(storageKeys.shiftActions, {});
@@ -460,8 +482,8 @@ function runShiftScheduleChecks(now = new Date()) {
   if (!isLoggedIn()) return;
 
   if (hour === 17 && markShiftActionOnce("shift-1-close", now)) {
-    logout();
-    setTimeout(() => window.alert("17.00: Shift 1 ditutup. Lakukan serah terima uang sebelum login lagi."), 0);
+    updateAuthShift("Shift 2");
+    setTimeout(() => window.alert("17.00: Shift 1 ditutup. Akun kasir otomatis pindah ke Shift 2."), 0);
   }
 
   if (hour === 22 && markShiftActionOnce("shift-2-close", now)) {
@@ -477,6 +499,8 @@ function updateClock() {
   if (els.loginShift) els.loginShift.value = shiftScheduleText(now);
   if (els.orderShift) els.orderShift.value = currentShiftName(now);
   if (els.activeEmployeeHeader) els.activeEmployeeHeader.textContent = activeEmployeeName();
+  if (isLoggedIn()) updateAuthShift(currentShiftName(now));
+  updateEmployeeHeaderState(now);
   runShiftScheduleChecks(now);
 }
 

@@ -2,9 +2,8 @@ const { allowCors, sendJson, supabaseFetch, toIso } = require("./_supabase");
 
 function collectRows(body) {
   const names = Array.isArray(body?.employees) ? body.employees : [];
-  return names
-    .map((name) => String(name || "").trim())
-    .filter(Boolean)
+  const uniqueNames = [...new Set(names.map((name) => String(name || "").trim()).filter(Boolean))];
+  return uniqueNames
     .map((name) => ({
       name,
       active: true,
@@ -19,6 +18,22 @@ module.exports = async function handler(req, res) {
   try {
     const rows = collectRows(req.body);
     if (!rows.length) return sendJson(res, 400, { error: "Minimal satu nama karyawan wajib ada." });
+    const activeNames = new Set(rows.map((row) => row.name));
+    const existing = await supabaseFetch("employees?select=name");
+    const inactiveRows = Array.isArray(existing) ? existing.filter((row) => row.name && !activeNames.has(row.name)) : [];
+
+    await Promise.all(
+      inactiveRows.map((row) =>
+        supabaseFetch(`employees?name=eq.${encodeURIComponent(row.name)}`, {
+          method: "PATCH",
+          prefer: "return=minimal",
+          body: {
+            active: false,
+            updated_at: toIso(),
+          },
+        }),
+      ),
+    );
 
     await supabaseFetch("employees?on_conflict=name", {
       method: "POST",
