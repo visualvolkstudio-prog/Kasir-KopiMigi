@@ -30,7 +30,6 @@ const storageKeys = {
   activeView: "kasir-migi-active-view",
   shiftActions: "kasir-migi-shift-actions",
   shiftAssignments: "kasir-migi-shift-assignments",
-  canceledOrders: "kasir-migi-canceled-orders",
   settingsDirty: "kasir-migi-settings-dirty",
   deviceId: "kasir-migi-device-id",
   lastDeviceWarning: "kasir-migi-last-device-warning",
@@ -196,7 +195,6 @@ const els = {
   unpaidOrderCount: document.querySelector("#unpaidOrderCount"),
   paidOrderCount: document.querySelector("#paidOrderCount"),
   paidOrderDate: document.querySelector("#paidOrderDate"),
-  skippedOrdersList: document.querySelector("#skippedOrdersList"),
   connectionStatus: document.querySelector("#connectionStatus"),
   pendingSyncCount: document.querySelector("#pendingSyncCount"),
   manualSyncBtn: document.querySelector("#manualSyncBtn"),
@@ -1002,17 +1000,6 @@ function queuePendingDelete(type, id) {
   if (deletes.some((entry) => entry.type === type && entry.id === id)) return;
   deletes.push({ type, id, createdAt: new Date().toISOString() });
   savePendingDeletes(deletes);
-}
-
-function getCanceledOrders() {
-  return readJson(storageKeys.canceledOrders, []);
-}
-
-function rememberCanceledOrder(id) {
-  if (!id) return;
-  const orders = getCanceledOrders().filter((entry) => entry.id !== id);
-  orders.unshift({ id, date: dateKey(), canceledAt: new Date().toISOString() });
-  writeJson(storageKeys.canceledOrders, orders.slice(0, 300));
 }
 
 function getBoothSessions() {
@@ -2651,7 +2638,6 @@ async function editPaidPayment(id) {
 
 async function deleteDraftOrder(id) {
   if (!id) return;
-  rememberCanceledOrder(id);
   saveOrderDrafts(getOrderDrafts().filter((entry) => entry.id !== id));
   if (navigator.onLine) {
     await deleteTransactionInSupabase(id).catch(() => queuePendingDelete("transaction", id));
@@ -2662,44 +2648,6 @@ async function deleteDraftOrder(id) {
   renderOrders();
   renderPendingSync();
   toast(navigator.onLine ? "Order belum dibayar dihapus." : "Order dihapus lokal. Akan sync saat online.");
-}
-
-async function renderSkippedOrders() {
-  if (!els.skippedOrdersList) return;
-  const today = els.paidOrderDate?.value || dateKey();
-  const date = new Date(`${today}T12:00:00`);
-  const prefix = dayOrderPrefix(date);
-  const entries = [...getHistory(), ...getOrderDrafts()].filter((entry) => dateKey(entry.createdAt) === today);
-  const numbers = entries.map((entry) => orderSequenceFromId(entry.id, prefix)).filter(Boolean);
-  const max = Math.max(0, ...numbers);
-  if (max <= 1) {
-    els.skippedOrdersList.innerHTML = `<div class="empty-state">Belum ada nomor order yang lompat.</div>`;
-    return;
-  }
-  const present = new Set(numbers);
-  const pending = await pendingOfflineTransactions().catch(() => []);
-  const pendingIds = new Set(pending.map((entry) => entry.id || entry.localId).filter(Boolean));
-  const canceledIds = new Set(getCanceledOrders().filter((entry) => entry.date === today).map((entry) => entry.id));
-  const missing = [];
-  for (let number = 1; number <= max; number += 1) {
-    if (present.has(number)) continue;
-    const id = `${prefix}-${String(number).padStart(3, "0")}`;
-    const onlineId = `${id}-O`;
-    const status = pendingIds.has(id) || pendingIds.has(onlineId)
-      ? "Pending Sync"
-      : canceledIds.has(id) || canceledIds.has(onlineId)
-        ? "Dibatalkan"
-        : "Tidak ditemukan";
-    missing.push({ id, status });
-  }
-  els.skippedOrdersList.innerHTML = missing.length
-    ? `
-      <p class="skipped-order-note">Nomor belum ditemukan / kemungkinan order dibatalkan, pending sync, atau gagal tersimpan.</p>
-      <div class="skipped-order-chips">
-        ${missing.map((entry) => `<span class="skipped-order-chip">${entry.id} · ${entry.status}</span>`).join("")}
-      </div>
-    `
-    : `<div class="empty-state">Belum ada nomor order yang lompat.</div>`;
 }
 
 function renderOrders() {
@@ -2715,7 +2663,6 @@ function renderOrders() {
   els.orderList.innerHTML = list.length
     ? list.slice(0, 80).map((transaction) => orderCard(transaction, state.orderStatus)).join("")
     : `<div class="empty-state">${state.orderStatus === "paid" ? "Belum ada order yang sudah dibayar." : "Belum ada order menunggu pembayaran."}</div>`;
-  renderSkippedOrders();
 }
 
 async function renderPendingSync() {
