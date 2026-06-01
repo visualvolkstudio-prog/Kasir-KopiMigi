@@ -1483,6 +1483,42 @@ input:focus, select:focus {
 .insight-card span { display: block; color: var(--muted); font-size: 11.5px; margin-top: 3px; }
 
 /* ── Payment ─────────────────────────────────── */
+.order-type-box,
+.discount-box {
+  display: grid;
+  gap: 9px;
+  border: 1.5px solid var(--line);
+  border-radius: 11px;
+  padding: 12px;
+  background: #fff;
+}
+
+.order-type-tabs,
+.payment-methods {
+  width: 100%;
+}
+
+.order-type-tabs button,
+.payment-methods button {
+  flex: 1;
+}
+
+.staff-drink-info {
+  margin: 0;
+  border-radius: 8px;
+  padding: 9px 10px;
+  background: var(--amber-soft);
+  color: var(--amber);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.discount-box[hidden],
+.staff-drink-info[hidden],
+.payment-methods[hidden] {
+  display: none !important;
+}
+
 .payment-box {
   display: grid;
   gap: 9px;
@@ -1493,8 +1529,6 @@ input:focus, select:focus {
 }
 
 .payment-box .segmented { background: var(--soft); }
-.payment-methods { width: 100%; }
-.payment-methods button { flex: 1; }
 
 #orderTableNumber[readonly],
 #orderShift[readonly] {

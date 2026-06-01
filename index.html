@@ -63,11 +63,20 @@
             <div class="modal-order-list" id="modalOrderList"></div>
             <div class="totals modal-totals">
               <div><span>Subtotal</span><strong id="subtotal">Rp0</strong></div>
+              <div id="discountLine" hidden><span>Diskon</span><strong id="discountTotal">-Rp0</strong></div>
               <div class="grand"><span>Total</span><strong id="grandTotal">Rp0</strong></div>
             </div>
           </section>
 
           <section class="order-payment-pane" aria-label="Detail pembayaran">
+            <div class="order-type-box">
+              <p class="eyebrow">Tipe transaksi</p>
+              <div class="segmented order-type-tabs" id="orderTypeTabs" role="tablist" aria-label="Tipe transaksi">
+                <button class="active" data-order-type="normal" type="button">Normal</button>
+                <button data-order-type="staff_drink" type="button">Staff Drink</button>
+              </div>
+              <p class="staff-drink-info" id="staffDrinkInfo" hidden>Staff Drink hanya bisa digunakan 1 kali per hari per karyawan.</p>
+            </div>
             <div class="order-field-grid">
               <label>
                 Nama customer
@@ -110,8 +119,29 @@
                 <button class="active" data-payment="Tunai" type="button">Tunai</button>
                 <button data-payment="QRIS" type="button">QRIS</button>
               </div>
+              <div class="discount-box" id="discountBox">
+                <p class="eyebrow">Custom Discount</p>
+                <div class="order-field-grid">
+                  <label>
+                    Tipe diskon
+                    <select id="discountType">
+                      <option value="none">Tanpa diskon</option>
+                      <option value="percent">Persen (%)</option>
+                      <option value="nominal">Nominal (Rp)</option>
+                    </select>
+                  </label>
+                  <label>
+                    Nilai
+                    <input id="discountValue" type="text" inputmode="numeric" placeholder="0" />
+                  </label>
+                </div>
+                <label>
+                  Catatan diskon
+                  <input id="discountNote" type="text" placeholder="Promo, owner approval, dll" />
+                </label>
+              </div>
               <label>
-                Dibayar
+                <span id="paidAmountLabel">Dibayar</span>
                 <input id="paidAmount" type="number" min="0" step="1000" placeholder="0" />
               </label>
               <div class="change-line">

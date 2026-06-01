@@ -409,6 +409,22 @@ async function devicePresence(body, req) {
     Date.now() - lastSeenAt.getTime() < activeWindowMs;
 
   if (body.logout) {
+    await supabaseFetch("app_settings?on_conflict=key", {
+      method: "POST",
+      prefer: "resolution=merge-duplicates,return=representation",
+      body: [
+        {
+          key: "logout_marker",
+          value: {
+            deviceId,
+            employee,
+            role: body.role || "",
+            at: toIso(),
+          },
+          updated_at: toIso(),
+        },
+      ],
+    });
     if (active?.deviceId === deviceId) {
       await supabaseFetch("app_settings?on_conflict=key", {
         method: "POST",
@@ -455,6 +471,12 @@ async function devicePresence(body, req) {
   };
 }
 
+async function getLogoutState() {
+  const rows = await supabaseFetch("app_settings?select=*&key=eq.logout_marker&limit=1");
+  const marker = Array.isArray(rows) ? rows[0]?.value : null;
+  return { status: 200, payload: { success: true, marker: marker || null } };
+}
+
 async function dispatch(body, req) {
   switch (body.action) {
     case "sync-transaction":
@@ -483,6 +505,8 @@ async function dispatch(body, req) {
       return deleteEmployee(body);
     case "device-presence":
       return devicePresence(body, req);
+    case "logout-state":
+      return getLogoutState();
     default:
       return { status: 400, payload: { success: false, error: "Action Supabase tidak dikenal." } };
   }

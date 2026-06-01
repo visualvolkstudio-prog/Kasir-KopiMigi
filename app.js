@@ -31,6 +31,8 @@ const storageKeys = {
   settingsDirty: "kasir-migi-settings-dirty",
   deviceId: "kasir-migi-device-id",
   lastDeviceWarning: "kasir-migi-last-device-warning",
+  logoutSignal: "kasir-migi-logout-signal",
+  lastRemoteLogout: "kasir-migi-last-remote-logout",
 };
 
 const boothPackagePhotoCounts = {
@@ -47,6 +49,10 @@ const state = {
   category: "Semua",
   search: "",
   payment: "Tunai",
+  orderType: "normal",
+  discountType: "none",
+  discountValue: 0,
+  discountNote: "",
   orderChannel: "Kasir",
   orderStatus: "unpaid",
   chartRange: "daily",
@@ -146,9 +152,18 @@ const els = {
   cartList: document.querySelector("#cartList"),
   cartTitle: document.querySelector("#cartTitle"),
   subtotal: document.querySelector("#subtotal"),
+  discountLine: document.querySelector("#discountLine"),
+  discountTotal: document.querySelector("#discountTotal"),
   grandTotal: document.querySelector("#grandTotal"),
   cartSubtotal: document.querySelector("#cartSubtotal"),
   cartGrandTotal: document.querySelector("#cartGrandTotal"),
+  orderTypeTabs: document.querySelector("#orderTypeTabs"),
+  staffDrinkInfo: document.querySelector("#staffDrinkInfo"),
+  discountBox: document.querySelector("#discountBox"),
+  discountType: document.querySelector("#discountType"),
+  discountValue: document.querySelector("#discountValue"),
+  discountNote: document.querySelector("#discountNote"),
+  paidAmountLabel: document.querySelector("#paidAmountLabel"),
   paidAmount: document.querySelector("#paidAmount"),
   changeDue: document.querySelector("#changeDue"),
   clearCart: document.querySelector("#clearCart"),
@@ -503,8 +518,22 @@ async function login(event) {
   els.loginPassword.focus();
 }
 
-function logout() {
-  if (isCashier()) clearDevicePresence().catch(() => null);
+async function recordLogoutSession(auth = getAuth()) {
+  if (!navigator.onLine || !auth?.loggedIn) return;
+  await postSupabaseAction("device-presence", {
+    deviceId: ensureDeviceId(),
+    employee: auth.employee || activeEmployeeName(),
+    role: auth.role || currentRole(),
+    logout: true,
+  });
+}
+
+function logout({ remote = false } = {}) {
+  const auth = getAuth();
+  if (!remote) {
+    recordLogoutSession(auth).catch(() => null);
+    localStorage.setItem(storageKeys.logoutSignal, JSON.stringify({ at: new Date().toISOString(), employee: auth?.employee || "", role: auth?.role || "" }));
+  }
   localStorage.removeItem(storageKeys.auth);
   document.body.classList.add("locked");
   els.loginPassword.value = "";
@@ -997,9 +1026,94 @@ function boothPhotoCount(packageName = els.boothPackage.value) {
   return boothPackagePhotoCounts[packageName] || 2;
 }
 
+function employeeIdFromName(name) {
+  return stableIdFromName(name || "Admin");
+}
+
+function activeEmployeeId() {
+  return employeeIdFromName(activeEmployeeName());
+}
+
+function normalizeDiscountValue(value = "") {
+  if (state.discountType === "nominal") return parseRupiah(value);
+  const number = Number(String(value || "0").replace(",", "."));
+  return Number.isFinite(number) ? Math.max(0, number) : 0;
+}
+
+function discountAmount(subtotal) {
+  if (state.orderType === "staff_drink" || state.discountType === "none") return 0;
+  const value = Number(state.discountValue || 0);
+  if (!Number.isFinite(value) || value <= 0) return 0;
+  const amount = state.discountType === "percent" ? subtotal * Math.min(value, 100) / 100 : value;
+  return Math.min(subtotal, Math.round(amount));
+}
+
 function totals() {
   const subtotal = state.cart.reduce((sum, item) => sum + item.price * item.qty, 0);
-  return { subtotal, grandTotal: subtotal };
+  const discountTotal = discountAmount(subtotal);
+  const staffDrink = state.orderType === "staff_drink";
+  return {
+    subtotal,
+    originalTotal: subtotal,
+    discountTotal: staffDrink ? 0 : discountTotal,
+    grandTotal: staffDrink ? 0 : Math.max(0, subtotal - discountTotal),
+  };
+}
+
+function isStaffDrinkTransaction(transaction) {
+  return transaction?.isStaffDrink === true || transaction?.orderType === "staff_drink";
+}
+
+function revenueTransactions(list) {
+  return (list || []).filter((transaction) => !isStaffDrinkTransaction(transaction));
+}
+
+function staffDrinkUsedToday(employee = activeEmployeeName(), date = dateKey()) {
+  const employeeId = employeeIdFromName(employee);
+  return getHistory().some((transaction) => (
+    transaction.isStaffDrink === true &&
+    transaction.staffDrinkDate === date &&
+    (transaction.employeeId === employeeId || transaction.employee === employee)
+  ));
+}
+
+function syncOrderTypeUi() {
+  const staffDrink = state.orderType === "staff_drink";
+  els.orderTypeTabs?.querySelectorAll("button[data-order-type]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.orderType === state.orderType);
+  });
+  if (els.staffDrinkInfo) els.staffDrinkInfo.hidden = !staffDrink;
+  if (els.discountBox) els.discountBox.hidden = staffDrink;
+  if (els.paymentMethods) els.paymentMethods.hidden = staffDrink;
+  if (staffDrink) state.payment = "Staff Drink";
+  else if (state.payment === "Staff Drink") state.payment = "Tunai";
+  if (els.paidAmount) {
+    const wasStaffInput = els.paidAmount.disabled;
+    els.paidAmount.value = staffDrink ? "0" : wasStaffInput && state.payment === "Tunai" ? "" : els.paidAmount.value;
+    els.paidAmount.disabled = staffDrink;
+    if (!staffDrink && state.payment !== "Tunai") els.paidAmount.value = totals().grandTotal;
+  }
+  if (els.paidAmountLabel) els.paidAmountLabel.textContent = staffDrink ? "Payment" : "Dibayar";
+  els.paymentMethods?.querySelectorAll("button[data-payment]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.payment === state.payment);
+  });
+  updateChange();
+}
+
+function resetOrderAdjustments() {
+  state.orderType = "normal";
+  state.discountType = "none";
+  state.discountValue = 0;
+  state.discountNote = "";
+  if (els.discountType) els.discountType.value = "none";
+  if (els.discountValue) els.discountValue.value = "";
+  if (els.discountNote) els.discountNote.value = "";
+  if (els.paidAmount) {
+    els.paidAmount.disabled = false;
+    els.paidAmount.value = "";
+  }
+  state.payment = "Tunai";
+  syncOrderTypeUi();
 }
 
 function renderCategories() {
@@ -1408,7 +1522,7 @@ function renderCashflow() {
   if (els.cfNetLabel) els.cfNetLabel.textContent = net >= 0 ? "surplus bulan ini" : "defisit bulan ini";
 
   const activeFilter = els.cfFilterTabs?.querySelector("button.active")?.dataset?.cfFilter || "all";
-  const salesList = getHistory()
+  const salesList = revenueTransactions(getHistory())
     .filter((entry) => entry.createdAt?.slice(0, 7) === month)
     .map((entry) => ({ type: "in", label: `Penjualan · ${entry.id}`, amount: entry.grandTotal, note: entry.customer, createdAt: entry.createdAt }));
   const expenseList = expenses.map((entry) => ({
@@ -1515,6 +1629,8 @@ function renderCart() {
 
   const total = totals();
   els.subtotal.textContent = money(total.subtotal);
+  if (els.discountLine) els.discountLine.hidden = !total.discountTotal;
+  if (els.discountTotal) els.discountTotal.textContent = `-${money(total.discountTotal)}`;
   els.grandTotal.textContent = money(total.grandTotal);
   els.cartSubtotal.textContent = money(total.subtotal);
   els.cartGrandTotal.textContent = money(total.grandTotal);
@@ -1522,13 +1638,14 @@ function renderCart() {
   els.checkoutBtn.innerHTML = state.cart.length
     ? `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg>Process Order`
     : `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg>Pilih Menu`;
-  updateChange();
+  syncOrderTypeUi();
 }
 
 function openOrderModal() {
   els.orderCustomerName.value = els.customerName.value || "Teman Migi";
   if (els.orderShift) els.orderShift.value = currentShiftName();
   els.orderTableNumber.value = state.activeDraftId || nextDailyOrderCode(new Date(), state.orderChannel);
+  syncOrderTypeUi();
   els.modalOrderList.innerHTML = state.cart.length
     ? state.cart
         .map(
@@ -1646,6 +1763,10 @@ async function startOrder(event) {
   event.preventDefault();
   if (!state.cart.length) return;
   if (!validateStockForCart()) return;
+  if (state.orderType === "staff_drink" && staffDrinkUsedToday()) {
+    window.alert(`Jatah kopi gratis untuk ${activeEmployeeName()} hari ini sudah digunakan.`);
+    return;
+  }
   els.customerName.value = els.orderCustomerName.value.trim();
   els.tableNumber.value = els.orderTableNumber.value.trim();
   closeOrderModal();
@@ -1678,6 +1799,7 @@ async function startOrder(event) {
   els.boothPackage.value = "classic";
   if (els.orderShift) els.orderShift.value = currentShiftName();
   setOrderChannel("Kasir");
+  resetOrderAdjustments();
   if (state.activeDraftId) {
     saveOrderDrafts(getOrderDrafts().filter((entry) => entry.id !== state.activeDraftId));
     state.activeDraftId = "";
@@ -1715,10 +1837,12 @@ function setOrderChannel(channel = "Kasir") {
 
 function currentTransaction(draft = false) {
   const total = totals();
-  const paid = parseRupiah(els.paidAmount.value);
+  const staffDrink = !draft && state.orderType === "staff_drink";
+  const paid = staffDrink ? 0 : parseRupiah(els.paidAmount.value);
   const now = new Date();
   const displayedOrderCode = els.orderTableNumber.value.trim();
   const generatedId = state.activeDraftId && !draft ? state.activeDraftId : displayedOrderCode || nextDailyOrderCode(now, state.orderChannel);
+  const orderType = staffDrink ? "staff_drink" : "normal";
   return {
     id: generatedId,
     createdAt: now.toISOString(),
@@ -1728,7 +1852,16 @@ function currentTransaction(draft = false) {
     channel: state.orderChannel || "Kasir",
     status: draft ? "unpaid" : "paid",
     employee: activeEmployeeName(),
-    payment: state.payment,
+    employeeId: activeEmployeeId(),
+    orderType,
+    isStaffDrink: staffDrink,
+    staffDrinkDate: staffDrink ? dateKey(now) : "",
+    discountType: orderType === "normal" ? state.discountType : undefined,
+    discountValue: orderType === "normal" ? Number(state.discountValue || 0) : 0,
+    discountTotal: orderType === "normal" ? total.discountTotal : 0,
+    discountNote: orderType === "normal" ? state.discountNote : "",
+    originalTotal: total.originalTotal,
+    payment: staffDrink ? "Staff Drink" : state.payment,
     boothPackage: hasPhotoboothCart() ? els.boothPackage.value : "none",
     boothPrintQuantity: photoboothOrderQty(),
     boothCode: "",
@@ -1835,19 +1968,25 @@ function receiptHtml(transaction, kind = "paid") {
       `,
     )
     .join("");
+  const staffDrink = isStaffDrinkTransaction(transaction);
+  const discountLine = !staffDrink && Number(transaction.discountTotal || 0) > 0
+    ? `<div class="receipt-line"><span>Diskon${transaction.discountNote ? ` (${transaction.discountNote})` : ""}</span><span>-${money(transaction.discountTotal)}</span></div>`
+    : "";
   const totalsBlock = kind === "bill"
     ? ""
     : `
     <div class="receipt-rule"></div>
+    ${staffDrink ? `<div class="receipt-line"><span>Harga asli</span><span>${money(transaction.originalTotal || transaction.subtotal || 0)}</span></div>` : discountLine}
     <div class="receipt-total"><span>Total</span><span>${money(transaction.grandTotal)}</span></div>
     <div class="receipt-line"><span>${transaction.payment}</span><span>${money(transaction.paid)}</span></div>
     <div class="receipt-line"><span>Kembali</span><span>${money(transaction.change)}</span></div>
+    ${staffDrink ? `<p>Catatan: Jatah 1 kopi per hari</p>` : ""}
     `;
 
   return `
     <img class="receipt-logo" src="/assets/logo-migi.png" alt="Logo Kopi Migi" />
     <h2>Kopi Migi</h2>
-    ${kind === "bill" ? "" : "<p>LUNAS</p>"}
+    ${kind === "bill" ? "" : staffDrink ? "<p>STAFF DRINK / JATAH KARYAWAN</p>" : "<p>LUNAS</p>"}
     <p>${transaction.id}</p>
     <p>${new Date(transaction.createdAt).toLocaleString("id-ID")}</p>
     <p>Kasir: ${transaction.employee}${transaction.shift ? ` (${transaction.shift})` : ""}</p>
@@ -1875,6 +2014,7 @@ async function printReceipt(transaction, kind = "paid") {
 
 function receiptText(transaction, kind = "paid") {
   const width = els.printerPaperSize.value === "80mm" ? 42 : 32;
+  const staffDrink = isStaffDrinkTransaction(transaction);
   const line = "-".repeat(width);
   const right = (label, value) => `${label}${String(value).padStart(Math.max(1, width - label.length), " ")}`;
   const itemLine = (label, value) => {
@@ -1891,7 +2031,7 @@ function receiptText(transaction, kind = "paid") {
 
   const rows = [
     center("Kopi Migi"),
-    ...(kind === "bill" ? [] : [center("STRUK LUNAS")]),
+    ...(kind === "bill" ? [] : [center(staffDrink ? "STAFF DRINK" : "STRUK LUNAS")]),
     line,
     transaction.id,
     new Date(transaction.createdAt).toLocaleString("id-ID"),
@@ -1910,9 +2050,15 @@ function receiptText(transaction, kind = "paid") {
 
   if (kind !== "bill") {
     rows.push(line);
+    if (staffDrink) rows.push(right("Harga asli", money(transaction.originalTotal || transaction.subtotal || 0)));
+    if (!staffDrink && Number(transaction.discountTotal || 0) > 0) {
+      rows.push(right("Diskon", `-${money(transaction.discountTotal)}`));
+      if (transaction.discountNote) rows.push(`Note: ${transaction.discountNote}`);
+    }
     rows.push(right("TOTAL", money(transaction.grandTotal)));
     rows.push(right(transaction.payment, money(transaction.paid)));
     rows.push(right("Kembali", money(transaction.change)));
+    if (staffDrink) rows.push("Jatah 1 kopi per hari");
   }
   if (transaction.boothCode) {
     rows.push(line);
@@ -2051,6 +2197,10 @@ function checkout() {
     toast("Keranjang masih kosong.");
     return;
   }
+  if (state.orderType === "staff_drink") {
+    toast("Staff Drink langsung checkout dan cetak struk, tidak memakai bill.");
+    return;
+  }
   if (!validateStockForCart()) return;
   openOrderModal();
 }
@@ -2066,6 +2216,7 @@ function clearActiveOrder({ silent = false } = {}) {
   els.orderTableNumber.value = "";
   if (els.orderShift) els.orderShift.value = currentShiftName();
   setOrderChannel("Kasir");
+  resetOrderAdjustments();
   state.activeDraftId = "";
   els.boothPackage.value = "classic";
   closeOrderModal();
@@ -2114,8 +2265,8 @@ function renderHistory() {
             (transaction) => `
               <article class="history-card">
                 <div>
-                  <strong>${transaction.id} · ${money(transaction.grandTotal)}</strong>
-                  <p>${new Date(transaction.createdAt).toLocaleString("id-ID")} · ${transaction.shift || "Shift 1"} · ${transaction.customer} · ${transaction.payment}${transaction.boothCode ? ` · Booth ${transaction.boothCode}` : ""}</p>
+                  <strong>${transaction.id} · ${money(transaction.grandTotal)}${isStaffDrinkTransaction(transaction) ? " · Staff Drink" : ""}</strong>
+                  <p>${new Date(transaction.createdAt).toLocaleString("id-ID")} · ${transaction.shift || "Shift 1"} · ${transaction.customer} · ${transaction.payment}${transaction.discountTotal ? ` · Diskon ${money(transaction.discountTotal)}` : ""}${transaction.boothCode ? ` · Booth ${transaction.boothCode}` : ""}</p>
                   <p>${transaction.items.map((item) => `${item.qty}x ${item.name}`).join(", ")}</p>
                 </div>
               </article>
@@ -2128,7 +2279,7 @@ function renderHistory() {
   const today = selectedDailyDate();
   const todayTransactions = getHistory().filter((entry) => dateKey(entry.createdAt) === today);
   const activeShift = currentShiftName();
-  const activeShiftTransactions = todayTransactions.filter((entry) => (entry.shift || "Shift 1") === activeShift);
+  const activeShiftTransactions = revenueTransactions(todayTransactions).filter((entry) => (entry.shift || "Shift 1") === activeShift);
   els.shiftTotal.textContent = money(activeShiftTransactions.reduce((sum, entry) => sum + entry.grandTotal, 0));
   els.shiftCount.textContent = `${activeShift} · ${activeShiftTransactions.length} transaksi`;
   renderDailySummary(todayTransactions, today);
@@ -2486,11 +2637,29 @@ async function refreshActiveCashierPresence() {
   updateEmployeeHeaderState();
 }
 
+async function checkRemoteLogout() {
+  const auth = getAuth();
+  if (!navigator.onLine || !auth?.loggedIn) return;
+  const result = await postSupabaseAction("logout-state");
+  const marker = result?.marker;
+  if (!marker?.at) return;
+  const markerTime = new Date(marker.at).getTime();
+  const authTime = new Date(auth.at || 0).getTime();
+  const lastSeen = Number(localStorage.getItem(storageKeys.lastRemoteLogout) || 0);
+  const sameSession = (!marker.role || marker.role === auth.role) && (!marker.employee || marker.employee === auth.employee);
+  if (!sameSession || !markerTime || markerTime <= authTime || markerTime <= lastSeen) return;
+  localStorage.setItem(storageKeys.lastRemoteLogout, String(markerTime));
+  recordLogoutSession(auth).catch(() => null);
+  logout({ remote: true });
+  toast("Sesi logout dari device lain.");
+}
+
 async function clearDevicePresence() {
   if (!navigator.onLine) return;
   await postSupabaseAction("device-presence", {
     deviceId: ensureDeviceId(),
     employee: activeEmployeeName(),
+    role: currentRole(),
     logout: true,
   });
 }
@@ -2505,6 +2674,7 @@ function updateConnectionStatus() {
     syncCloudData({ refresh: false });
     updateDevicePresence().catch(() => null);
     refreshActiveCashierPresence().catch(() => null);
+    checkRemoteLogout().catch(() => null);
   }
 }
 
@@ -2519,9 +2689,7 @@ function payDraftOrder(id) {
   els.orderTableNumber.value = draft.table === "-" ? "" : draft.table;
   if (els.orderShift) els.orderShift.value = draft.shift || currentShiftName(draft.createdAt);
   setOrderChannel(draft.channel || "Kasir");
-  state.payment = "Tunai";
-  els.paymentMethods.querySelectorAll("button").forEach((button) => button.classList.toggle("active", button.dataset.payment === "Tunai"));
-  els.paidAmount.value = "";
+  resetOrderAdjustments();
   renderCart();
   renderMenuGrid();
   openOrderModal();
@@ -2537,9 +2705,13 @@ function selectedDailyDate() {
 
 function dailyReportText(todayTransactions, reportDateValue = selectedDailyDate()) {
   const reportDate = new Date(`${reportDateValue}T12:00:00`).toLocaleDateString("id-ID", { weekday: "long", day: "2-digit", month: "long", year: "numeric" });
-  const revenue = todayTransactions.reduce((sum, entry) => sum + entry.grandTotal, 0);
-  const items = todayTransactions.reduce((sum, entry) => sum + entry.items.reduce((inner, item) => inner + item.qty, 0), 0);
-  const orderedItems = [...todayTransactions.reduce((map, entry) => {
+  const normalTransactions = revenueTransactions(todayTransactions);
+  const staffDrinks = todayTransactions.filter(isStaffDrinkTransaction);
+  const revenue = normalTransactions.reduce((sum, entry) => sum + entry.grandTotal, 0);
+  const items = normalTransactions.reduce((sum, entry) => sum + entry.items.reduce((inner, item) => inner + item.qty, 0), 0);
+  const discountTotal = normalTransactions.reduce((sum, entry) => sum + Number(entry.discountTotal || 0), 0);
+  const staffValue = staffDrinks.reduce((sum, entry) => sum + Number(entry.originalTotal || entry.subtotal || 0), 0);
+  const orderedItems = [...normalTransactions.reduce((map, entry) => {
     entry.items.forEach((item) => {
       const current = map.get(item.id) || { name: item.name, qty: 0, revenue: 0 };
       current.qty += item.qty;
@@ -2549,7 +2721,7 @@ function dailyReportText(todayTransactions, reportDateValue = selectedDailyDate(
     return map;
   }, new Map()).values()].sort((a, b) => b.qty - a.qty || b.revenue - a.revenue);
   const shiftLines = ["Shift 1", "Shift 2"].map((shift) => {
-    const transactions = todayTransactions.filter((entry) => (entry.shift || "Shift 1") === shift);
+    const transactions = normalTransactions.filter((entry) => (entry.shift || "Shift 1") === shift);
     const shiftRevenue = transactions.reduce((sum, entry) => sum + entry.grandTotal, 0);
     return `- ${shift}: ${money(shiftRevenue)} (${transactions.length} transaksi)`;
   });
@@ -2559,11 +2731,16 @@ function dailyReportText(todayTransactions, reportDateValue = selectedDailyDate(
     reportDate,
     "",
     `Total Penjualan: ${money(revenue)}`,
-    `Transaksi: ${todayTransactions.length}`,
+    `Transaksi Normal: ${normalTransactions.length}`,
     `Item terjual: ${items}`,
+    `Total Diskon: ${money(discountTotal)}`,
     "",
     "Rincian Shift:",
     ...shiftLines,
+    "",
+    "Konsumsi Karyawan:",
+    ...(staffDrinks.length ? staffDrinks.map((entry) => `- ${entry.employee}: ${entry.items.map((item) => `${item.qty}x ${item.name}`).join(", ")} (${money(entry.originalTotal || entry.subtotal || 0)})`) : ["- Belum ada Staff Drink"]),
+    `Nilai konsumsi: ${money(staffValue)}`,
     "",
     "Rincian Orderan:",
     ...(orderedItems.length ? orderedItems.map((item) => `- ${item.name}: ${item.qty} pcs (${money(item.revenue)})`) : ["- Belum ada order"]),
@@ -2572,14 +2749,18 @@ function dailyReportText(todayTransactions, reportDateValue = selectedDailyDate(
 
 function renderDailySummary(todayTransactions, reportDateValue = selectedDailyDate()) {
   if (!els.dailySummary) return;
-  const revenue = todayTransactions.reduce((sum, entry) => sum + entry.grandTotal, 0);
-  const items = todayTransactions.reduce((sum, entry) => sum + entry.items.reduce((inner, item) => inner + item.qty, 0), 0);
-  const paymentTotals = todayTransactions.reduce((map, entry) => {
+  const normalTransactions = revenueTransactions(todayTransactions);
+  const staffDrinks = todayTransactions.filter(isStaffDrinkTransaction);
+  const revenue = normalTransactions.reduce((sum, entry) => sum + entry.grandTotal, 0);
+  const items = normalTransactions.reduce((sum, entry) => sum + entry.items.reduce((inner, item) => inner + item.qty, 0), 0);
+  const discountTotal = normalTransactions.reduce((sum, entry) => sum + Number(entry.discountTotal || 0), 0);
+  const staffValue = staffDrinks.reduce((sum, entry) => sum + Number(entry.originalTotal || entry.subtotal || 0), 0);
+  const paymentTotals = normalTransactions.reduce((map, entry) => {
     map.set(entry.payment, (map.get(entry.payment) || 0) + entry.grandTotal);
     return map;
   }, new Map());
   const shiftTotals = ["Shift 1", "Shift 2"].map((shift) => {
-    const transactions = todayTransactions.filter((entry) => (entry.shift || "Shift 1") === shift);
+    const transactions = normalTransactions.filter((entry) => (entry.shift || "Shift 1") === shift);
     return {
       shift,
       revenue: transactions.reduce((sum, entry) => sum + entry.grandTotal, 0),
@@ -2587,7 +2768,7 @@ function renderDailySummary(todayTransactions, reportDateValue = selectedDailyDa
       items: transactions.reduce((sum, entry) => sum + entry.items.reduce((inner, item) => inner + item.qty, 0), 0),
     };
   });
-  const topItem = [...todayTransactions.reduce((map, entry) => {
+  const topItem = [...normalTransactions.reduce((map, entry) => {
     entry.items.forEach((item) => {
       const current = map.get(item.id) || { name: item.name, qty: 0 };
       current.qty += item.qty;
@@ -2598,9 +2779,11 @@ function renderDailySummary(todayTransactions, reportDateValue = selectedDailyDa
 
   els.dailySummary.innerHTML = `
     <article><span>Total penjualan</span><strong>${money(revenue)}</strong></article>
-    <article><span>Transaksi</span><strong>${todayTransactions.length}</strong></article>
+    <article><span>Transaksi normal</span><strong>${normalTransactions.length}</strong></article>
     <article><span>Item terjual</span><strong>${items}</strong></article>
     <article><span>Menu paling jalan</span><strong>${topItem ? `${topItem.name} (${topItem.qty})` : "-"}</strong></article>
+    <article><span>Total diskon</span><strong>${money(discountTotal)}</strong></article>
+    <article><span>Konsumsi karyawan</span><strong>${staffDrinks.length} staff drink</strong><small>${money(staffValue)}</small></article>
     <div class="shift-summary">
       ${shiftTotals
         .map(
@@ -2646,7 +2829,9 @@ function filteredMonthHistory() {
 }
 
 function renderAnalytics() {
-  const history = filteredMonthHistory();
+  const monthHistory = filteredMonthHistory();
+  const staffDrinks = monthHistory.filter(isStaffDrinkTransaction);
+  const history = revenueTransactions(monthHistory);
   const revenue = history.reduce((sum, entry) => sum + entry.grandTotal, 0);
   const uniqueDays = new Set(history.map((entry) => entry.createdAt.slice(0, 10))).size || 1;
   const itemCount = history.reduce((sum, entry) => sum + entry.items.reduce((inner, item) => inner + item.qty, 0), 0);
@@ -2680,7 +2865,7 @@ function renderAnalytics() {
     : `<div class="empty-state">Belum ada best seller di bulan ini.</div>`;
 
   renderRevenueChart(history);
-  renderInsights({ history, bestsellers, revenue, itemCount });
+  renderInsights({ history, bestsellers, revenue, itemCount, staffDrinks });
 }
 
 function renderRevenueChart(history) {
@@ -2703,9 +2888,9 @@ function renderRevenueChart(history) {
   const daysInMonth = new Date(year, monthIndex, 0).getDate();
   const range = state.chartRange;
   const source = range === "yearly"
-    ? getHistory().filter((entry) => entry.createdAt.slice(0, 4) === String(year))
+    ? revenueTransactions(getHistory()).filter((entry) => entry.createdAt.slice(0, 4) === String(year))
     : range === "monthly"
-      ? getHistory().filter((entry) => entry.createdAt.slice(0, 4) === String(year))
+      ? revenueTransactions(getHistory()).filter((entry) => entry.createdAt.slice(0, 4) === String(year))
       : history;
   const points = range === "yearly"
     ? Array.from({ length: 5 }, (_, index) => ({ label: String(year - 4 + index), total: 0 }))
@@ -2818,21 +3003,24 @@ function renderRevenueChart(history) {
   });
 }
 
-function renderInsights({ history, bestsellers, revenue, itemCount }) {
+function renderInsights({ history, bestsellers, revenue, itemCount, staffDrinks = [] }) {
   if (!els.insightList) return;
   const top = bestsellers[0];
   const avgTransaction = history.length ? Math.round(revenue / history.length) : 0;
   const boothCount = history.filter((entry) => entry.boothCode || entry.boothPackage !== "none").length;
   const activeDays = new Set(history.map((entry) => entry.createdAt.slice(0, 10))).size;
+  const staffValue = staffDrinks.reduce((sum, entry) => sum + Number(entry.originalTotal || entry.subtotal || 0), 0);
   const insights = top
     ? [
         { label: "Menu terkuat", value: top.name, detail: `${top.qty} terjual dengan omset ${money(top.revenue)}.` },
         { label: "Rata-rata transaksi", value: money(avgTransaction), detail: `${history.length} transaksi dari ${activeDays || 0} hari jualan.` },
         { label: "Kontribusi photobooth", value: `${boothCount} transaksi`, detail: boothCount ? "Kode akses otomatis dibuat saat checkout." : "Belum ada sesi photobooth di bulan ini." },
+        { label: "Konsumsi karyawan", value: `${staffDrinks.length} Staff Drink`, detail: `${money(staffValue)} nilai konsumsi, tidak masuk omzet.` },
       ]
     : [
         { label: "Belum ada data", value: "Mulai checkout", detail: "Best seller dan evaluasi akan muncul setelah ada transaksi." },
         { label: "Item terjual", value: String(itemCount), detail: "Jumlah item mengikuti semua transaksi bulan terpilih." },
+        { label: "Konsumsi karyawan", value: `${staffDrinks.length} Staff Drink`, detail: `${money(staffValue)} nilai konsumsi, tidak masuk omzet.` },
       ];
 
   els.insightList.innerHTML = insights
@@ -3239,6 +3427,7 @@ els.cartList.addEventListener("click", (event) => {
 els.paymentMethods.addEventListener("click", (event) => {
   const button = event.target.closest("button[data-payment]");
   if (!button) return;
+  if (state.orderType === "staff_drink") return;
   const previousPayment = state.payment;
   state.payment = button.dataset.payment;
   els.paymentMethods.querySelectorAll("button").forEach((entry) => entry.classList.toggle("active", entry === button));
@@ -3246,6 +3435,44 @@ els.paymentMethods.addEventListener("click", (event) => {
     els.paidAmount.value = state.payment === "Tunai" ? "" : totals().grandTotal;
   }
   updateChange();
+});
+
+els.orderTypeTabs?.addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-order-type]");
+  if (!button) return;
+  state.orderType = button.dataset.orderType || "normal";
+  if (state.orderType === "staff_drink") {
+    state.discountType = "none";
+    state.discountValue = 0;
+    state.discountNote = "";
+    if (els.discountType) els.discountType.value = "none";
+    if (els.discountValue) els.discountValue.value = "";
+    if (els.discountNote) els.discountNote.value = "";
+  }
+  renderCart();
+});
+
+els.discountType?.addEventListener("change", () => {
+  state.discountType = els.discountType.value || "none";
+  state.discountValue = 0;
+  if (els.discountValue) els.discountValue.value = "";
+  renderCart();
+});
+
+els.discountValue?.addEventListener("input", () => {
+  state.discountValue = normalizeDiscountValue(els.discountValue.value);
+  renderCart();
+});
+
+els.discountValue?.addEventListener("blur", () => {
+  if (state.discountType === "nominal") {
+    const value = normalizeDiscountValue(els.discountValue.value);
+    els.discountValue.value = value ? money(value) : "";
+  }
+});
+
+els.discountNote?.addEventListener("input", () => {
+  state.discountNote = els.discountNote.value.trim();
 });
 
 els.orderChannels?.addEventListener("click", (event) => {
@@ -3312,6 +3539,11 @@ els.manualSyncBtn?.addEventListener("click", syncPendingTransactions);
 els.manualSyncOrdersBtn?.addEventListener("click", syncPendingTransactions);
 window.addEventListener("online", updateConnectionStatus);
 window.addEventListener("offline", updateConnectionStatus);
+window.addEventListener("storage", (event) => {
+  if (event.key === storageKeys.logoutSignal && event.newValue && isLoggedIn()) {
+    logout({ remote: true });
+  }
+});
 
 els.menuSearch.addEventListener("input", (event) => {
   state.search = event.target.value;
@@ -3674,6 +3906,7 @@ updateClock();
 setInterval(updateClock, 1000);
 setInterval(() => updateDevicePresence().catch(() => null), 30000);
 setInterval(() => refreshActiveCashierPresence().catch(() => null), 30000);
+setInterval(() => checkRemoteLogout().catch(() => null), 30000);
 restoreActiveView();
 applyAccessControls();
 renderAll();
@@ -3681,4 +3914,5 @@ updateConnectionStatus();
 if (navigator.onLine) pullTransactionsFromSupabase({ render: true }).catch(() => null);
 if (navigator.onLine) pullSettingsFromSupabase({ render: true }).catch(() => null);
 if (navigator.onLine) refreshActiveCashierPresence().catch(() => null);
+if (navigator.onLine) checkRemoteLogout().catch(() => null);
 if (isLoggedIn()) syncCloudData();
