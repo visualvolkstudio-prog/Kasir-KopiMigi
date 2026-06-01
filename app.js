@@ -188,6 +188,8 @@ const els = {
   stockAvailabilityList: document.querySelector("#stockAvailabilityList"),
   stockAlert: document.querySelector("#stockAlert"),
   stockTable: document.querySelector("#stockTable"),
+  priceListToggle: document.querySelector("#priceListToggle"),
+  priceListContent: document.querySelector("#priceListContent"),
   syncTodayStockBtn: document.querySelector("#syncTodayStockBtn"),
   purchaseHistory: document.querySelector("#purchaseHistory"),
   recipeIngredientRows: document.querySelector("#recipeIngredientRows"),
@@ -1141,6 +1143,12 @@ function stockChartPercent(record) {
   return Math.min(100, Math.round((stock / target) * 100));
 }
 
+function setPriceListOpen(open) {
+  if (!els.priceListToggle || !els.priceListContent) return;
+  els.priceListToggle.setAttribute("aria-expanded", open ? "true" : "false");
+  els.priceListContent.classList.toggle("open", open);
+}
+
 function renderInventory() {
   if (!els.stockTable) return;
   const inventory = getInventory();
@@ -1162,7 +1170,7 @@ function renderInventory() {
             <article class="stock-chart-row stock-${status.tone}">
               <div class="stock-chart-copy">
                 <strong>${record.name}</strong>
-                <span>${status.label}${record.buyPrice ? ` · ${money(record.buyPrice)}/${record.unit || "unit"}` : ""}</span>
+                <span>Sisa stok aktif · ${status.label}</span>
               </div>
               <div class="stock-chart-meter" aria-label="${record.name} ${percent}%">
                 <span class="stock-chart-fill" style="width:${percent}%;min-width:${percent ? 6 : 0}px"></span>
@@ -1177,19 +1185,19 @@ function renderInventory() {
   els.stockTable.innerHTML = inventoryRows.length
     ? inventoryRows
         .map(([id, record]) => {
-          const stock = Number(record.stock || 0);
-          const status = stockStatus(record);
+          const unit = record.unit || "unit";
+          const price = record.buyPrice ? `${money(record.buyPrice)}/${unit}` : `Belum ada harga/${unit}`;
+          const updated = new Date(record.updatedAt || Date.now()).toLocaleDateString("id-ID");
           return `
-        <article class="stock-row stock-${status.tone}">
+        <article class="stock-row price-list-row">
           <div class="menu-row-main">
             <span class="menu-thumb item-art art-coffee"></span>
             <div>
               <strong>${record.name}</strong>
-              <span>${record.unit || "unit"}${record.buyPrice ? ` · ${money(record.buyPrice)}/${record.unit || "unit"}` : ""} · ${status.label} · update ${new Date(record.updatedAt || Date.now()).toLocaleDateString("id-ID")}</span>
+              <span>${price} · satuan ${unit} · update ${updated}</span>
             </div>
           </div>
           <div class="stock-row-actions">
-            <strong>${stock.toLocaleString("id-ID")} ${record.unit || ""}</strong>
             ${
               isOwner()
                 ? `<button class="secondary-button compact" data-edit-stock="${id}" type="button">Edit</button>
@@ -1201,7 +1209,7 @@ function renderInventory() {
       `;
         })
         .join("")
-    : `<div class="empty-state">Belum ada stock bahan baku.</div>`;
+    : `<div class="empty-state">Belum ada daftar harga bahan.</div>`;
 
 }
 
@@ -1264,7 +1272,7 @@ function syncCfExpenseNoteField() {
     const currentValue = els.cfExpenseNote.value;
     const options = items.length
       ? items.map(([id, item]) => `<option value="${id}">${item.name}</option>`).join("")
-      : `<option value="" disabled selected>Input bahan di Stock Bahan Baku dulu</option>`;
+      : `<option value="" disabled selected>Input bahan di Daftar Harga dulu</option>`;
 
     if (els.cfExpenseNote.tagName === "INPUT") {
       const select = document.createElement("select");
@@ -3180,6 +3188,10 @@ els.syncTodayStockBtn?.addEventListener("click", () => {
   if (!window.confirm("Sinkronkan stok dari transaksi hari ini yang belum pernah dipotong stoknya?")) return;
   syncTodayStockFromSales();
 });
+els.priceListToggle?.addEventListener("click", () => {
+  const isOpen = els.priceListToggle.getAttribute("aria-expanded") === "true";
+  setPriceListOpen(!isOpen);
+});
 
 // ── Arus Kas: form pengeluaran ──────────────────────────────────────────────
 els.cashflowExpenseForm?.addEventListener("submit", (event) => {
@@ -3211,7 +3223,7 @@ els.cashflowExpenseForm?.addEventListener("submit", (event) => {
     const qty = Number(els.cfExpenseQty?.value || 0);
     const unit = els.cfExpenseUnit?.value || ingredient?.unit || "gram";
     if (!ingredient || !ingredient.name || !unit || !Number.isFinite(qty) || qty <= 0) {
-      toast("Pilih bahan dari Stock Bahan Baku, lalu isi jumlah dan harga total.");
+      toast("Pilih bahan dari Daftar Harga, lalu isi jumlah dan harga total.");
       return;
     }
     note = `Beli ${ingredient.name}`;

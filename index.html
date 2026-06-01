@@ -374,8 +374,8 @@
             <section class="settings-panel">
               <div class="section-heading">
                 <div>
-                  <p class="eyebrow">Stock Bahan Baku</p>
-                  <h3>Set Harga Bahan Baku</h3>
+                  <p class="eyebrow">Daftar Harga Bahan</p>
+                  <h3>Set Harga & Stok Masuk</h3>
                 </div>
               </div>
               <form id="purchaseForm" class="stack-form">
@@ -409,23 +409,26 @@
             <section class="menu-table-panel">
               <div class="section-heading">
                 <div>
-                  <p class="eyebrow">Gudang</p>
-                  <h3>Ketersediaan Bahan Baku</h3>
-                </div>
-              </div>
-              <div class="stock-table compact-stock-list" id="stockAvailabilityList"></div>
-            </section>
-
-            <section class="menu-table-panel">
-              <div class="section-heading">
-                <div>
-                  <p class="eyebrow">Gudang</p>
-                  <h3>Stok Bahan</h3>
+                  <p class="eyebrow">Stok aktif</p>
+                  <h3>Grafik Stok Bahan</h3>
                 </div>
                 <button class="secondary-button compact owner-only" id="syncTodayStockBtn" type="button">Sinkron Stok Hari Ini</button>
               </div>
               <div class="stock-alert" id="stockAlert" hidden></div>
-              <div class="stock-table" id="stockTable"></div>
+              <div class="stock-table compact-stock-list" id="stockAvailabilityList"></div>
+            </section>
+
+            <section class="menu-table-panel price-list-panel">
+              <button class="price-list-toggle" id="priceListToggle" type="button" aria-expanded="false" aria-controls="priceListContent">
+                <span>
+                  <small>Gudang</small>
+                  <strong>Daftar Harga Bahan Baku</strong>
+                </span>
+                <span class="accordion-chevron" aria-hidden="true">v</span>
+              </button>
+              <div class="accordion-content" id="priceListContent">
+                <div class="stock-table" id="stockTable"></div>
+              </div>
             </section>
           </div>
         </section>
