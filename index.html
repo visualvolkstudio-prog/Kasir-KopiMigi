@@ -20,29 +20,26 @@
         <img src="assets/logo-paw.png" alt="Logo Migi" />
         <p class="eyebrow">Kasir Migi</p>
         <h2>Masuk Kasir</h2>
-        <label>
+        <label class="login-credential-field">
           Username
           <input id="loginUsername" type="text" autocomplete="username" placeholder="Username" required />
         </label>
-        <label>
+        <label class="login-credential-field">
           Password
           <input id="loginPassword" type="password" autocomplete="current-password" placeholder="Password" required />
         </label>
         <div class="login-session-grid">
           <label>
-            Shift aktif
-            <select id="loginShift">
-              <option value="Shift 1">Shift 1</option>
-              <option value="Shift 2">Shift 2</option>
-            </select>
+            Shift otomatis
+            <input id="loginShift" type="text" value="Shift 1" readonly />
           </label>
           <label>
             Karyawan
             <select id="loginEmployee"></select>
           </label>
         </div>
-        <button class="primary-button full-button" type="submit">Masuk</button>
-        <p class="login-hint" id="loginHint">Pilih shift aktif sebelum masuk.</p>
+        <button class="primary-button full-button" id="loginSubmitBtn" type="submit">Masuk</button>
+        <p class="login-hint" id="loginHint">Shift mengikuti jam operasional.</p>
       </form>
     </section>
 

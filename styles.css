@@ -972,6 +972,14 @@ input:focus, select:focus {
   grid-column: 1 / -1;
 }
 
+.role-cashier #view-stock .inventory-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.role-cashier #view-stock .menu-table-panel {
+  grid-column: 1 / -1;
+}
+
 .menu-table, .bestseller-list { display: grid; gap: 7px; margin-top: 12px; }
 
 .menu-category-group {
@@ -1121,7 +1129,7 @@ input:focus, select:focus {
 
 .stock-chart-row {
   display: grid;
-  grid-template-columns: minmax(140px, 0.9fr) minmax(130px, 1.4fr) minmax(96px, auto);
+  grid-template-columns: minmax(0, 1.05fr) minmax(96px, 1fr) max-content;
   align-items: center;
   gap: 12px;
   padding: 12px 13px;
@@ -1187,6 +1195,7 @@ input:focus, select:focus {
 .stock-chart-value {
   text-align: right;
   white-space: nowrap;
+  justify-self: end;
 }
 
 @media (min-width: 821px) and (max-width: 1180px) {
@@ -1198,6 +1207,7 @@ input:focus, select:focus {
   .stock-chart-value {
     text-align: left;
     white-space: normal;
+    justify-self: start;
   }
 
   .stock-chart-meter {
@@ -1403,6 +1413,7 @@ input:focus, select:focus {
 
   .stock-chart-value {
     text-align: left;
+    justify-self: start;
   }
 
   .stock-row-actions {
@@ -1545,6 +1556,11 @@ input:focus, select:focus {
 .order-type-tabs button,
 .payment-methods button {
   flex: 1;
+}
+
+.order-type-tabs button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 .staff-drink-info {
@@ -1756,6 +1772,29 @@ input:focus, select:focus {
 .history-card:hover { box-shadow: var(--shadow-sm); }
 .history-card p { margin: 3px 0 0; color: var(--muted); font-size: 12.5px; }
 .history-actions { display: flex; align-items: center; gap: 7px; }
+
+.payment-edit-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 36px;
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--soft);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.payment-edit-control select {
+  width: auto;
+  min-height: 28px;
+  padding: 3px 28px 3px 8px;
+  border-radius: 7px;
+  background-color: #fff;
+  font-size: 12px;
+}
 
 /* ── Photobooth ──────────────────────────────── */
 .photobooth-inline {
@@ -1992,6 +2031,8 @@ body.locked .login-screen { display: grid; }
 .login-card img { width: 48px; height: 48px; object-fit: contain; }
 .login-card h2 { font-size: 32px; margin-top: -2px; }
 .login-hint { margin: 0; color: var(--muted); font-size: 11.5px; font-weight: 600; }
+.login-card:not(.employee-step) .login-session-grid { display: none; }
+.login-card.employee-step .login-credential-field { display: none; }
 .login-session-grid {
   display: grid;
   grid-template-columns: 0.8fr 1.2fr;

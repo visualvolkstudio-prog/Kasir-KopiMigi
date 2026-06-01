@@ -67,6 +67,7 @@ const state = {
   activeCashier: { online: false, employee: "" },
   pendingEmployeeDelete: "",
   logoutAfterOrder: false,
+  pendingLogin: null,
   pendingSyncCount: 0,
   printerDevice: null,
   printerCharacteristic: null,
@@ -105,6 +106,7 @@ const els = {
   loginPassword: document.querySelector("#loginPassword"),
   loginShift: document.querySelector("#loginShift"),
   loginEmployee: document.querySelector("#loginEmployee"),
+  loginSubmitBtn: document.querySelector("#loginSubmitBtn"),
   loginHint: document.querySelector("#loginHint"),
   orderModal: document.querySelector("#orderModal"),
   orderForm: document.querySelector("#orderForm"),
@@ -303,7 +305,7 @@ function normalizeShift(value) {
 
 function getActiveShift() {
   const auth = getAuth();
-  return normalizeShift(auth?.shift || localStorage.getItem(storageKeys.activeShift) || "Shift 1");
+  return normalizeShift(auth?.shift || autoShiftName());
 }
 
 function currentShiftName() {
@@ -471,6 +473,16 @@ function createAuthSession({ employee, shift, role }) {
   };
 }
 
+function setLoginEmployeeStep(active) {
+  state.pendingLogin = active ? state.pendingLogin : null;
+  els.loginForm?.classList.toggle("employee-step", active);
+  if (els.loginSubmitBtn) els.loginSubmitBtn.textContent = active ? "Masuk Dashboard" : "Masuk";
+  if (els.loginHint) {
+    els.loginHint.style.color = "";
+    els.loginHint.textContent = active ? "Pilih karyawan yang bertugas, lalu masuk dashboard." : "Shift mengikuti jam operasional.";
+  }
+}
+
 function isOwner() {
   return currentRole() === "owner";
 }
@@ -481,7 +493,7 @@ function isCashier() {
 
 function renderEmployeeControls() {
   const roster = getEmployeeRoster();
-  const selectedLoginShift = normalizeShift(els.loginShift?.value || defaultLoginShift());
+  const selectedLoginShift = autoShiftName();
   const activeCandidate = roster.includes(activeEmployeeName()) ? activeEmployeeName() : roster[0];
   const active = isEmployeeUsedInOtherShift(activeCandidate, selectedLoginShift)
     ? roster.find((name) => !isEmployeeUsedInOtherShift(name, selectedLoginShift)) || activeCandidate
@@ -551,10 +563,12 @@ function initAuth() {
   renderEmployeeControls();
   if (auth?.loggedIn && isAuthExpired(auth)) {
     localStorage.removeItem(storageKeys.auth);
+    setLoginEmployeeStep(false);
     document.body.classList.add("locked");
     setTimeout(() => els.loginUsername?.focus(), 50);
     toast("Sesi login habis. Silakan masuk lagi.");
   } else if (!auth?.loggedIn) {
+    setLoginEmployeeStep(false);
     document.body.classList.add("locked");
     setTimeout(() => els.loginUsername?.focus(), 50);
   } else {
@@ -600,8 +614,55 @@ async function confirmLoginDevice(employee) {
   }
 }
 
+async function preloadEmployeesForLogin() {
+  if (!navigator.onLine) return false;
+  try {
+    const data = await postSupabaseAction("bootstrap-data");
+    if (Array.isArray(data?.employees) && data.employees.length) {
+      saveEmployeeRoster(data.employees);
+      return true;
+    }
+  } catch {}
+  return false;
+}
+
+async function finishLogin(role, employee, shift) {
+  if (role === "cashier" && isEmployeeUsedInOtherShift(employee, shift)) {
+    toast(`${employee} sudah bertugas di ${usedShiftForEmployee(employee)} hari ini. Pilih karyawan lain.`);
+    renderEmployeeControls();
+    return false;
+  }
+  const confirmed = role === "owner" ? true : await confirmLoginDevice(employee);
+  if (!confirmed) {
+    els.loginPassword.value = "";
+    toast("Login dibatalkan.");
+    return false;
+  }
+  if (role === "cashier") localStorage.setItem(storageKeys.employee, employee);
+  localStorage.setItem(storageKeys.activeShift, shift);
+  writeJson(storageKeys.auth, createAuthSession({ employee, shift, role }));
+  if (role === "cashier") registerShiftAssignment(employee, shift);
+  setLoginEmployeeStep(false);
+  renderEmployeeControls();
+  applyAccessControls();
+  document.body.classList.remove("locked");
+  els.loginPassword.value = "";
+  setActiveView("pos");
+  toast(role === "owner" ? "Masuk sebagai Owner." : `Masuk sebagai ${employee} · ${shift}.`);
+  if (role === "cashier") updateDevicePresence().catch(() => null);
+  if (role === "owner") refreshActiveCashierPresence().catch(() => null);
+  syncCloudData();
+  return true;
+}
+
 async function login(event) {
   event.preventDefault();
+  if (state.pendingLogin?.role === "cashier") {
+    const employee = els.loginEmployee?.value || getEmployeeRoster()[0] || "Admin";
+    await finishLogin("cashier", employee, autoShiftName());
+    return;
+  }
+
   const username = els.loginUsername.value.trim();
   const password = els.loginPassword.value;
   const isOwnerLogin = username === "gilfram" && password === "Generasimikagilang456";
@@ -609,35 +670,27 @@ async function login(event) {
 
   if (isOwnerLogin || isCashierLogin) {
     const role = isOwnerLogin ? "owner" : "cashier";
-    const employee = role === "owner" ? "Owner" : els.loginEmployee?.value || getEmployeeRoster()[0] || "Admin";
-    const shift = normalizeShift(els.loginShift?.value || defaultLoginShift());
-    if (role === "cashier" && isEmployeeUsedInOtherShift(employee, shift)) {
-      toast(`${employee} sudah bertugas di ${usedShiftForEmployee(employee)} hari ini. Pilih karyawan lain.`);
-      renderEmployeeControls();
+    const shift = autoShiftName();
+    if (role === "owner") {
+      await finishLogin("owner", "Owner", shift);
       return;
     }
-    const confirmed = role === "owner" ? true : await confirmLoginDevice(employee);
-    if (!confirmed) {
-      els.loginPassword.value = "";
-      toast("Login dibatalkan.");
-      return;
-    }
-    if (role === "cashier") localStorage.setItem(storageKeys.employee, employee);
-    localStorage.setItem(storageKeys.activeShift, shift);
-    writeJson(storageKeys.auth, createAuthSession({ employee, shift, role }));
-    if (role === "cashier") registerShiftAssignment(employee, shift);
+
+    els.loginSubmitBtn.disabled = true;
+    els.loginSubmitBtn.textContent = "Memuat karyawan...";
+    await preloadEmployeesForLogin();
+    state.pendingLogin = { role: "cashier", checkedAt: new Date().toISOString() };
     renderEmployeeControls();
-    applyAccessControls();
-    document.body.classList.remove("locked");
-    els.loginPassword.value = "";
-    setActiveView("pos");
-    toast(role === "owner" ? "Masuk sebagai Owner." : `Masuk sebagai ${employee} · ${shift}.`);
-    if (role === "cashier") updateDevicePresence().catch(() => null);
-    if (role === "owner") refreshActiveCashierPresence().catch(() => null);
-    syncCloudData();
+    setLoginEmployeeStep(true);
+    els.loginSubmitBtn.disabled = false;
+    if (!els.loginEmployee?.value) {
+      toast("Daftar karyawan belum tersedia. Tambahkan karyawan dari akun Owner.");
+      renderEmployeeControls();
+    }
     return;
   }
 
+  setLoginEmployeeStep(false);
   els.loginHint.textContent = "Username atau password salah.";
   els.loginHint.style.color = "var(--danger)";
   els.loginPassword.value = "";
@@ -661,6 +714,7 @@ function logout({ remote = false } = {}) {
     localStorage.setItem(storageKeys.logoutSignal, JSON.stringify({ at: new Date().toISOString(), employee: auth?.employee || "", role: auth?.role || "" }));
   }
   localStorage.removeItem(storageKeys.auth);
+  setLoginEmployeeStep(false);
   document.body.classList.add("locked");
   els.loginPassword.value = "";
   renderEmployeeControls();
@@ -818,7 +872,7 @@ function updateClock() {
     toast("Sesi login habis. Silakan masuk lagi.");
     return;
   }
-  if (els.loginShift && !isLoggedIn()) els.loginShift.value = normalizeShift(els.loginShift.value || defaultLoginShift());
+  if (els.loginShift && !isLoggedIn()) els.loginShift.value = autoShiftName(now);
   if (els.orderShift) els.orderShift.value = currentShiftName();
   updateEmployeeHeaderState(now);
   runShiftScheduleChecks(now);
@@ -1293,24 +1347,36 @@ function staffDrinkItemCount() {
 
 function syncOrderTypeUi() {
   const staffDrink = state.orderType === "staff_drink";
+  const staffDrinkAvailable = staffDrinkItemCount() === 1;
+  if (staffDrink && !staffDrinkAvailable) {
+    state.orderType = "normal";
+    state.payment = state.payment === "Staff Drink" ? "Tunai" : state.payment;
+  }
   els.orderTypeTabs?.querySelectorAll("button[data-order-type]").forEach((button) => {
+    if (button.dataset.orderType === "staff_drink") {
+      button.disabled = !staffDrinkAvailable;
+      button.title = staffDrinkAvailable ? "" : "Staff Drink hanya bisa dipilih untuk tepat 1 item.";
+    }
     button.classList.toggle("active", button.dataset.orderType === state.orderType);
   });
+  const staffDrinkActive = state.orderType === "staff_drink";
   if (els.staffDrinkInfo) {
-    els.staffDrinkInfo.hidden = !staffDrink;
-    els.staffDrinkInfo.textContent = "Staff Drink hanya bisa digunakan 1 kali per hari per karyawan dan maksimal 1 item.";
+    els.staffDrinkInfo.hidden = !staffDrinkActive && (staffDrinkAvailable || !state.cart.length);
+    els.staffDrinkInfo.textContent = staffDrinkAvailable
+      ? "Staff Drink hanya bisa digunakan 1 kali per hari per karyawan dan maksimal 1 item."
+      : "Staff Drink hanya bisa dipilih untuk tepat 1 item.";
   }
-  if (els.discountBox) els.discountBox.hidden = staffDrink;
-  if (els.paymentMethods) els.paymentMethods.hidden = staffDrink;
-  if (staffDrink) state.payment = "Staff Drink";
+  if (els.discountBox) els.discountBox.hidden = staffDrinkActive;
+  if (els.paymentMethods) els.paymentMethods.hidden = staffDrinkActive;
+  if (staffDrinkActive) state.payment = "Staff Drink";
   else if (state.payment === "Staff Drink") state.payment = "Tunai";
   if (els.paidAmount) {
     const wasStaffInput = els.paidAmount.disabled;
-    els.paidAmount.value = staffDrink ? "0" : wasStaffInput && state.payment === "Tunai" ? "" : els.paidAmount.value;
-    els.paidAmount.disabled = staffDrink;
-    if (!staffDrink && state.payment !== "Tunai") els.paidAmount.value = totals().grandTotal;
+    els.paidAmount.value = staffDrinkActive ? "0" : wasStaffInput && state.payment === "Tunai" ? "" : els.paidAmount.value;
+    els.paidAmount.disabled = staffDrinkActive;
+    if (!staffDrinkActive && state.payment !== "Tunai") els.paidAmount.value = totals().grandTotal;
   }
-  if (els.paidAmountLabel) els.paidAmountLabel.textContent = staffDrink ? "Payment" : "Dibayar";
+  if (els.paidAmountLabel) els.paidAmountLabel.textContent = staffDrinkActive ? "Payment" : "Dibayar";
   els.paymentMethods?.querySelectorAll("button[data-payment]").forEach((button) => {
     button.classList.toggle("active", button.dataset.payment === state.payment);
   });
@@ -2538,7 +2604,17 @@ function orderCard(transaction, kind) {
     : `
       <div class="history-actions">
         <button class="secondary-button compact" data-reprint-order="${transaction.id}" data-reprint-kind="paid" type="button">Cetak Ulang Struk</button>
-        <button class="secondary-button compact" data-edit-payment="${transaction.id}" type="button">Edit Pembayaran</button>
+        ${
+          isStaffDrinkTransaction(transaction)
+            ? ""
+            : `<label class="payment-edit-control">
+                <span>Pembayaran</span>
+                <select data-edit-payment="${transaction.id}">
+                  <option value="Tunai" ${transaction.payment === "Tunai" ? "selected" : ""}>Tunai</option>
+                  <option value="QRIS" ${transaction.payment === "QRIS" ? "selected" : ""}>QRIS</option>
+                </select>
+              </label>`
+        }
       </div>
     `;
 
@@ -2593,7 +2669,7 @@ async function deletePaidTransaction(id) {
   toast("Transaksi dihapus lokal. Akan sync saat online.");
 }
 
-async function editPaidPayment(id) {
+async function editPaidPayment(id, paymentValue) {
   const history = getHistory();
   const index = history.findIndex((entry) => entry.id === id);
   if (index === -1) {
@@ -2605,19 +2681,8 @@ async function editPaidPayment(id) {
     toast("Staff Drink tidak memakai metode pembayaran normal.");
     return;
   }
-  const methodInput = window.prompt("Metode pembayaran: Tunai atau QRIS", transaction.payment || "Tunai");
-  if (methodInput === null) return;
-  const payment = methodInput.trim().toUpperCase() === "QRIS" ? "QRIS" : "Tunai";
-  let paid = Number(transaction.grandTotal || 0);
-  if (payment === "Tunai") {
-    const paidInput = window.prompt("Nominal dibayar", money(transaction.paid || transaction.grandTotal));
-    if (paidInput === null) return;
-    paid = Math.max(0, parseRupiah(paidInput));
-    if (paid < Number(transaction.grandTotal || 0)) {
-      toast("Nominal tunai belum cukup.");
-      return;
-    }
-  }
+  const payment = paymentValue === "QRIS" ? "QRIS" : "Tunai";
+  const paid = payment === "Tunai" ? Math.max(Number(transaction.paid || 0), Number(transaction.grandTotal || 0)) : Number(transaction.grandTotal || 0);
   const next = {
     ...transaction,
     payment,
@@ -3828,7 +3893,6 @@ els.orderList?.addEventListener("click", (event) => {
   const editButton = event.target.closest("button[data-edit-draft]");
   const deleteButton = event.target.closest("button[data-delete-draft]");
   const reprintButton = event.target.closest("button[data-reprint-order]");
-  const editPaymentButton = event.target.closest("button[data-edit-payment]");
   const deleteTransactionButton = event.target.closest("button[data-delete-transaction]");
   if (payButton) {
     payDraftOrder(payButton.dataset.payDraft);
@@ -3842,10 +3906,6 @@ els.orderList?.addEventListener("click", (event) => {
     deletePaidTransaction(deleteTransactionButton.dataset.deleteTransaction);
     return;
   }
-  if (editPaymentButton) {
-    editPaidPayment(editPaymentButton.dataset.editPayment);
-    return;
-  }
   if (reprintButton) {
     reprintOrder(reprintButton.dataset.reprintOrder, reprintButton.dataset.reprintKind);
     return;
@@ -3853,6 +3913,12 @@ els.orderList?.addEventListener("click", (event) => {
   if (deleteButton) {
     deleteDraftOrder(deleteButton.dataset.deleteDraft);
   }
+});
+
+els.orderList?.addEventListener("change", (event) => {
+  const paymentSelect = event.target.closest("select[data-edit-payment]");
+  if (!paymentSelect) return;
+  editPaidPayment(paymentSelect.dataset.editPayment, paymentSelect.value);
 });
 
 els.pendingSyncList?.addEventListener("click", async (event) => {
@@ -4224,10 +4290,6 @@ els.downloadBooth?.addEventListener("click", downloadBooth);
 els.boothCustomer?.addEventListener("input", drawBoothCanvas);
 els.boothSessionPackage?.addEventListener("change", drawBoothCanvas);
 els.loginForm.addEventListener("submit", login);
-els.loginShift?.addEventListener("change", () => {
-  localStorage.setItem(storageKeys.activeShift, normalizeShift(els.loginShift.value));
-  renderEmployeeControls();
-});
 els.orderForm.addEventListener("submit", startOrder);
 els.cancelOrderModal.addEventListener("click", closeOrderModal);
 els.orderModal.addEventListener("click", (event) => {
