@@ -20,6 +20,7 @@ const storageKeys = {
   employee: "kasir-migi-employee",
   employees: "kasir-migi-employees",
   sessionShift: "kasir-migi-session-shift",
+  activeShift: "kasir-migi-active-shift",
   inventory: "kopishop-pos-inventory",
   purchases: "kopishop-pos-purchases",
   recipes: "kopishop-pos-recipes",
@@ -34,6 +35,8 @@ const storageKeys = {
   logoutSignal: "kasir-migi-logout-signal",
   lastRemoteLogout: "kasir-migi-last-remote-logout",
 };
+
+const sessionTtlMs = 10 * 60 * 60 * 1000;
 
 const boothPackagePhotoCounts = {
   single: 1,
@@ -177,6 +180,9 @@ const els = {
   latestBoothCode: document.querySelector("#latestBoothCode"),
   shiftTotal: document.querySelector("#shiftTotal"),
   shiftCount: document.querySelector("#shiftCount"),
+  activeShiftLabel: document.querySelector("#activeShiftLabel"),
+  closeShiftBtn: document.querySelector("#closeShiftBtn"),
+  switchShiftBtn: document.querySelector("#switchShiftBtn"),
   historyList: document.querySelector("#historyList"),
   dailySummary: document.querySelector("#dailySummary"),
   dailyReportText: document.querySelector("#dailyReportText"),
@@ -284,17 +290,26 @@ function isOnlineChannel(channel) {
   return ["GoFood", "GrabFood", "ShopeeFood"].includes(channel);
 }
 
-function currentShiftName(value = new Date()) {
-  return autoShiftName(value);
-}
-
 function autoShiftName(value = new Date()) {
   const date = value instanceof Date ? value : new Date(value);
   return date.getHours() >= 17 ? "Shift 2" : "Shift 1";
 }
 
+function normalizeShift(value) {
+  return value === "Shift 2" ? "Shift 2" : "Shift 1";
+}
+
+function getActiveShift() {
+  const auth = getAuth();
+  return normalizeShift(auth?.shift || localStorage.getItem(storageKeys.activeShift) || autoShiftName());
+}
+
+function currentShiftName() {
+  return getActiveShift();
+}
+
 function shiftScheduleText(value = new Date()) {
-  const shift = currentShiftName(value);
+  const shift = getActiveShift();
   return `${shift} · ${shift === "Shift 1" ? "10.00-17.00" : "17.00-22.00"}`;
 }
 
@@ -370,6 +385,25 @@ function currentRole() {
   return getAuth()?.role || "cashier";
 }
 
+function isAuthExpired(auth = getAuth(), now = Date.now()) {
+  if (!auth?.loggedIn) return false;
+  if (!auth.expiresAt) return true;
+  return new Date(auth.expiresAt).getTime() <= now;
+}
+
+function createAuthSession({ employee, shift, role }) {
+  const loginAt = new Date();
+  return {
+    loggedIn: true,
+    employee,
+    shift: normalizeShift(shift),
+    role,
+    at: loginAt.toISOString(),
+    loginAt: loginAt.toISOString(),
+    expiresAt: new Date(loginAt.getTime() + sessionTtlMs).toISOString(),
+  };
+}
+
 function isOwner() {
   return currentRole() === "owner";
 }
@@ -435,12 +469,17 @@ function renderEmployeeControls() {
 function initAuth() {
   const auth = getAuth();
   renderEmployeeControls();
-  if (!auth?.loggedIn) {
+  if (auth?.loggedIn && isAuthExpired(auth)) {
+    localStorage.removeItem(storageKeys.auth);
+    document.body.classList.add("locked");
+    setTimeout(() => els.loginUsername?.focus(), 50);
+    toast("Sesi login habis. Silakan masuk lagi.");
+  } else if (!auth?.loggedIn) {
     document.body.classList.add("locked");
     setTimeout(() => els.loginUsername?.focus(), 50);
   } else {
     if (auth.role !== "owner" && auth.employee) localStorage.setItem(storageKeys.employee, auth.employee);
-    localStorage.removeItem(storageKeys.sessionShift);
+    localStorage.setItem(storageKeys.activeShift, normalizeShift(auth.shift));
     renderEmployeeControls();
   }
   applyAccessControls();
@@ -497,9 +536,10 @@ async function login(event) {
       toast("Login dibatalkan.");
       return;
     }
-    const shift = currentShiftName();
+    const shift = getActiveShift();
     if (role === "cashier") localStorage.setItem(storageKeys.employee, employee);
-    writeJson(storageKeys.auth, { loggedIn: true, employee, shift, role, at: new Date().toISOString() });
+    localStorage.setItem(storageKeys.activeShift, shift);
+    writeJson(storageKeys.auth, createAuthSession({ employee, shift, role }));
     renderEmployeeControls();
     applyAccessControls();
     document.body.classList.remove("locked");
@@ -544,14 +584,53 @@ function logout({ remote = false } = {}) {
 }
 
 function isLoggedIn() {
-  return Boolean(getAuth()?.loggedIn);
+  const auth = getAuth();
+  if (!auth?.loggedIn) return false;
+  if (!isAuthExpired(auth)) return true;
+  localStorage.removeItem(storageKeys.auth);
+  document.body.classList.add("locked");
+  return false;
 }
 
 function updateAuthShift(shift) {
   const auth = getAuth();
-  if (!auth?.loggedIn || auth.role === "owner" || auth.shift === shift) return false;
-  writeJson(storageKeys.auth, { ...auth, shift, shiftedAt: new Date().toISOString() });
+  const nextShift = normalizeShift(shift);
+  localStorage.setItem(storageKeys.activeShift, nextShift);
+  if (!auth?.loggedIn || auth.shift === nextShift) return false;
+  writeJson(storageKeys.auth, { ...auth, shift: nextShift, shiftedAt: new Date().toISOString() });
   return true;
+}
+
+function shiftSummaryLines(shift = getActiveShift(), date = dateKey()) {
+  const transactions = getHistory().filter((entry) => dateKey(entry.createdAt) === date && (entry.shift || "Shift 1") === shift);
+  const normal = revenueTransactions(transactions);
+  const staffDrinks = transactions.filter(isStaffDrinkTransaction);
+  const tunai = normal.filter((entry) => entry.payment === "Tunai").reduce((sum, entry) => sum + Number(entry.grandTotal || 0), 0);
+  const qris = normal.filter((entry) => entry.payment === "QRIS").reduce((sum, entry) => sum + Number(entry.grandTotal || 0), 0);
+  const discount = normal.reduce((sum, entry) => sum + Number(entry.discountTotal || 0), 0);
+  return [
+    `Summary ${shift}`,
+    `Petugas: ${activeEmployeeName()}`,
+    `Total transaksi: ${normal.length}`,
+    `Tunai: ${money(tunai)}`,
+    `QRIS: ${money(qris)}`,
+    `Staff Drink: ${staffDrinks.length}`,
+    `Diskon: ${money(discount)}`,
+  ];
+}
+
+function closeActiveShift() {
+  window.alert(shiftSummaryLines().join("\n"));
+}
+
+function switchActiveShift() {
+  closeActiveShift();
+  const nextShift = getActiveShift() === "Shift 1" ? "Shift 2" : "Shift 1";
+  updateAuthShift(nextShift);
+  if (els.orderShift) els.orderShift.value = nextShift;
+  renderHistory();
+  updateEmployeeHeaderState();
+  toast(`${nextShift} sekarang aktif.`);
 }
 
 function updateEmployeeHeaderState(now = new Date()) {
@@ -566,7 +645,7 @@ function updateEmployeeHeaderState(now = new Date()) {
   els.activeEmployeeCard.title = isOwner()
     ? "Owner"
     : active
-      ? `${currentShiftName(now)} aktif`
+      ? `${currentShiftName()} aktif`
       : "Di luar jam shift";
 }
 
@@ -594,22 +673,22 @@ function markShiftActionOnce(action, date = new Date()) {
 function runShiftScheduleChecks(now = new Date()) {
   const hour = now.getHours();
   const minute = now.getMinutes();
-  if (minute !== 0) return;
-
-  if (hour === 14 && markShiftActionOnce("shift-2-arrival", now)) {
-    setTimeout(() => {
-      window.confirm("Shift 2 sudah hadir. Semua transaksi tetap masuk Shift 1 sampai 17.00. Lanjutkan kasir Shift 1?");
-    }, 0);
-  }
 
   if (!isLoggedIn() || !isCashier()) return;
 
-  if (hour === 17 && markShiftActionOnce("shift-1-close", now)) {
-    updateAuthShift("Shift 2");
-    setTimeout(() => window.alert("17.00: Shift 1 ditutup. Akun kasir otomatis pindah ke Shift 2."), 0);
+  if (hour === 16 && minute === 50 && markShiftActionOnce("shift-1-warning", now)) {
+    toast("Shift 1 hampir selesai. Siapkan tutup shift.");
   }
 
-  if (hour === 22 && markShiftActionOnce("shift-2-close", now)) {
+  if (hour === 17 && minute === 0 && markShiftActionOnce("shift-1-close", now)) {
+    setTimeout(() => window.alert("17.00: Tutup Shift 1 dan ganti ke Shift 2 dari tombol Ganti Shift."), 0);
+  }
+
+  if (hour === 21 && minute === 50 && markShiftActionOnce("shift-2-warning", now)) {
+    toast("Shift 2 hampir selesai. Siapkan laporan tutup toko.");
+  }
+
+  if (hour === 22 && minute === 0 && markShiftActionOnce("shift-2-close", now)) {
     logout();
     setTimeout(() => window.alert("22.00: Shift 2 ditutup. Laporan harian siap dicek."), 0);
   }
@@ -619,9 +698,13 @@ function updateClock() {
   const now = new Date();
   els.todayLabel.textContent = now.toLocaleDateString("id-ID", { weekday: "short", day: "2-digit", month: "short" });
   els.clockLabel.textContent = now.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
+  if (getAuth()?.loggedIn && isAuthExpired()) {
+    logout({ remote: true });
+    toast("Sesi login habis. Silakan masuk lagi.");
+    return;
+  }
   if (els.loginShift) els.loginShift.value = shiftScheduleText(now);
-  if (els.orderShift) els.orderShift.value = currentShiftName(now);
-  if (isLoggedIn() && isCashier()) updateAuthShift(currentShiftName(now));
+  if (els.orderShift) els.orderShift.value = currentShiftName();
   updateEmployeeHeaderState(now);
   runShiftScheduleChecks(now);
 }
@@ -639,6 +722,14 @@ function getMenuCategories() {
 
 function getHistory() {
   return readJson(storageKeys.history, []);
+}
+
+function patchLocalHistoryTransaction(id, patch) {
+  const history = getHistory();
+  const index = history.findIndex((entry) => entry.id === id);
+  if (index === -1) return;
+  history[index] = { ...history[index], ...patch };
+  writeJson(storageKeys.history, history.slice(0, 500));
 }
 
 function getInventory() {
@@ -659,6 +750,10 @@ function getOrderDrafts() {
 
 function saveOrderDrafts(drafts) {
   writeJson(storageKeys.orderDrafts, drafts);
+}
+
+function patchLocalOrderDraft(id, patch) {
+  saveOrderDrafts(getOrderDrafts().map((entry) => (entry.id === id ? { ...entry, ...patch } : entry)));
 }
 
 function openOfflineDb() {
@@ -1643,7 +1738,7 @@ function renderCart() {
   els.cartGrandTotal.textContent = money(total.grandTotal);
   els.checkoutBtn.disabled = !state.cart.length;
   els.checkoutBtn.innerHTML = state.cart.length
-    ? `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg>Process Order`
+    ? `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg>${state.activeDraftId ? "Update Bill" : "Process Order"}`
     : `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg>Pilih Menu`;
   syncOrderTypeUi();
 }
@@ -1800,8 +1895,15 @@ async function startOrder(event) {
     printStatus: "PRINT_PENDING",
   };
   await saveOfflineTransaction(offlineRecord).catch(() => null);
+  if (navigator.onLine) await syncPendingTransactions({ pull: false }).catch(() => null);
   const printed = await printReceipt(transaction, "paid");
-  await updateOfflineTransaction(transaction.id, { printStatus: printed ? "PRINTED" : "PRINT_FAILED" }).catch(() => null);
+  transaction.printStatus = printed ? "PRINTED" : "PRINT_FAILED";
+  patchLocalHistoryTransaction(transaction.id, { printStatus: transaction.printStatus });
+  await saveOfflineTransaction(
+    { ...transaction, localId: transaction.id, idempotencyKey: transaction.id },
+    { syncStatus: "PENDING_SYNC", printStatus: transaction.printStatus },
+  ).catch(() => null);
+  if (navigator.onLine) await syncPendingTransactions({ pull: false }).catch(() => null);
   state.cart = [];
   state.pendingBoothCode = "";
   els.paidAmount.value = "";
@@ -2259,8 +2361,16 @@ async function printBill() {
     syncStatus: "PENDING_SYNC",
     printStatus: "PRINT_PENDING",
   }).catch(() => null);
+  if (navigator.onLine) await syncPendingTransactions({ pull: false }).catch(() => null);
   const printed = await printReceipt(draft, "bill");
-  await updateOfflineTransaction(draft.id, { printStatus: printed ? "PRINTED" : "PRINT_FAILED" }).catch(() => null);
+  const printStatus = printed ? "PRINTED" : "PRINT_FAILED";
+  draft.printStatus = printStatus;
+  patchLocalOrderDraft(draft.id, { printStatus });
+  await saveOfflineTransaction(
+    { ...draft, localId: draft.id, idempotencyKey: draft.id },
+    { syncStatus: "PENDING_SYNC", printStatus },
+  ).catch(() => null);
+  if (navigator.onLine) await syncPendingTransactions({ pull: false }).catch(() => null);
   clearActiveOrder({ silent: true });
   renderOrders();
   renderPendingSync();
@@ -2291,6 +2401,7 @@ function renderHistory() {
   const todayTransactions = getHistory().filter((entry) => dateKey(entry.createdAt) === today);
   const activeShift = currentShiftName();
   const activeShiftTransactions = revenueTransactions(todayTransactions).filter((entry) => (entry.shift || "Shift 1") === activeShift);
+  if (els.activeShiftLabel) els.activeShiftLabel.textContent = `${activeShift} aktif`;
   els.shiftTotal.textContent = money(activeShiftTransactions.reduce((sum, entry) => sum + entry.grandTotal, 0));
   els.shiftCount.textContent = `${activeShift} · ${activeShiftTransactions.length} transaksi`;
   renderDailySummary(todayTransactions, today);
@@ -2302,6 +2413,8 @@ function orderCard(transaction, kind) {
     ? `
       <div class="history-actions">
         <button class="secondary-button compact" data-pay-draft="${transaction.id}" type="button">Bayar</button>
+        <button class="secondary-button compact" data-edit-draft="${transaction.id}" type="button">Tambah Menu</button>
+        <button class="secondary-button compact" data-reprint-order="${transaction.id}" data-reprint-kind="bill" type="button">Cetak Ulang Bill</button>
         <button class="secondary-button compact danger-text" data-delete-draft="${transaction.id}" type="button">Hapus</button>
       </div>
     `
@@ -2363,6 +2476,20 @@ async function deletePaidTransaction(id) {
   toast("Transaksi dihapus lokal. Akan sync saat online.");
 }
 
+async function deleteDraftOrder(id) {
+  if (!id) return;
+  saveOrderDrafts(getOrderDrafts().filter((entry) => entry.id !== id));
+  if (navigator.onLine) {
+    await deleteTransactionInSupabase(id).catch(() => queuePendingDelete("transaction", id));
+    await pullTransactionsFromSupabase({ render: false }).catch(() => null);
+  } else {
+    queuePendingDelete("transaction", id);
+  }
+  renderOrders();
+  renderPendingSync();
+  toast(navigator.onLine ? "Order belum dibayar dihapus." : "Order dihapus lokal. Akan sync saat online.");
+}
+
 function renderOrders() {
   if (!els.orderList) return;
   const unpaid = getOrderDrafts();
@@ -2418,7 +2545,7 @@ async function renderPendingSync() {
   }
 }
 
-async function syncPendingTransactions() {
+async function syncPendingTransactions({ pull = true } = {}) {
   if (!navigator.onLine) {
     renderPendingSync();
     return;
@@ -2448,7 +2575,7 @@ async function syncPendingTransactions() {
     }
   }
   renderPendingSync();
-  await pullTransactionsFromSupabase({ render: true });
+  if (pull) await pullTransactionsFromSupabase({ render: true });
 }
 
 async function postCloudJson(url, payload) {
@@ -2529,13 +2656,21 @@ async function pullSettingsFromSupabase({ render = false } = {}) {
   return true;
 }
 
+function cacheCloudTransactions(transactions = []) {
+  const list = Array.isArray(transactions) ? transactions : [];
+  const unpaid = list.filter((entry) => entry?.status === "unpaid");
+  const paid = list.filter((entry) => entry?.status !== "unpaid");
+  writeJson(storageKeys.history, paid.slice(0, 500));
+  saveOrderDrafts(unpaid.slice(0, 200));
+}
+
 async function pullTransactionsFromSupabase({ render = true } = {}) {
   if (!navigator.onLine) return false;
   const result = await postSupabaseAction("get-transactions");
   if (!result?.success || !Array.isArray(result.transactions)) {
     throw new Error(result?.error || "Pull transaksi gagal.");
   }
-  writeJson(storageKeys.history, result.transactions.slice(0, 500));
+  cacheCloudTransactions(result.transactions);
   if (render) {
     renderHistory();
     renderOrders();
@@ -2570,7 +2705,7 @@ async function loadCloudData() {
   const data = await postSupabaseAction("bootstrap-data");
   if (!data?.success) throw new Error(data?.error || "Load data cloud gagal.");
 
-  if (Array.isArray(data.history)) writeJson(storageKeys.history, data.history.slice(0, 300));
+  if (Array.isArray(data.history)) cacheCloudTransactions(data.history);
   if (Array.isArray(data.cashflowExpenses)) writeJson(storageKeys.cashflowExpenses, data.cashflowExpenses.slice(0, 500));
   if (data.inventory && typeof data.inventory === "object") saveInventory(data.inventory);
   if (Array.isArray(data.employees) && data.employees.length) saveEmployeeRoster(data.employees);
@@ -2592,7 +2727,6 @@ async function syncCloudData({ refresh = true } = {}) {
     await Promise.allSettled([
       processPendingDeletes(),
       syncPendingTransactions(),
-      syncHistoryToCloud(),
       syncCashflowToCloud(),
       syncInventoryToCloud(),
       syncEmployeesToCloud(),
@@ -2611,6 +2745,17 @@ async function syncCloudData({ refresh = true } = {}) {
     });
 
   return cloudSyncPromise;
+}
+
+async function refreshOnlineData({ render = true } = {}) {
+  if (!navigator.onLine || !isLoggedIn()) return false;
+  await processPendingDeletes().catch(() => null);
+  await syncPendingTransactions({ pull: false }).catch(() => null);
+  await loadCloudData().catch(() => null);
+  await pullTransactionsFromSupabase({ render: false }).catch(() => null);
+  await pullSettingsFromSupabase({ render: false }).catch(() => null);
+  if (render) renderAll();
+  return true;
 }
 
 async function updateDevicePresence() {
@@ -2678,10 +2823,7 @@ async function clearDevicePresence() {
 function updateConnectionStatus() {
   renderPendingSync();
   if (navigator.onLine) {
-    processPendingDeletes()
-      .then(() => syncPendingTransactions())
-      .then(() => pullTransactionsFromSupabase({ render: true }))
-      .catch(() => null);
+    refreshOnlineData({ render: true }).catch(() => null);
     syncCloudData({ refresh: false });
     updateDevicePresence().catch(() => null);
     refreshActiveCashierPresence().catch(() => null);
@@ -2689,9 +2831,9 @@ function updateConnectionStatus() {
   }
 }
 
-function payDraftOrder(id) {
+function loadDraftToCart(id) {
   const draft = getOrderDrafts().find((entry) => entry.id === id);
-  if (!draft) return;
+  if (!draft) return null;
   state.cart = draft.items.map((item) => ({ ...item }));
   state.activeDraftId = draft.id;
   els.customerName.value = draft.customer === "Walk-in" || draft.customer === "Teman Migi" ? "" : draft.customer;
@@ -2703,7 +2845,20 @@ function payDraftOrder(id) {
   resetOrderAdjustments();
   renderCart();
   renderMenuGrid();
+  return draft;
+}
+
+function payDraftOrder(id) {
+  const draft = loadDraftToCart(id);
+  if (!draft) return;
   openOrderModal();
+}
+
+function editDraftOrder(id) {
+  const draft = loadDraftToCart(id);
+  if (!draft) return;
+  setActiveView("pos");
+  toast("Order belum dibayar dimuat. Tambahkan menu lalu cetak bill baru.");
 }
 
 function selectedMonth() {
@@ -3510,11 +3665,16 @@ els.chartRangeTabs?.addEventListener("click", (event) => {
 
 els.orderList?.addEventListener("click", (event) => {
   const payButton = event.target.closest("button[data-pay-draft]");
+  const editButton = event.target.closest("button[data-edit-draft]");
   const deleteButton = event.target.closest("button[data-delete-draft]");
   const reprintButton = event.target.closest("button[data-reprint-order]");
   const deleteTransactionButton = event.target.closest("button[data-delete-transaction]");
   if (payButton) {
     payDraftOrder(payButton.dataset.payDraft);
+    return;
+  }
+  if (editButton) {
+    editDraftOrder(editButton.dataset.editDraft);
     return;
   }
   if (deleteTransactionButton) {
@@ -3526,9 +3686,7 @@ els.orderList?.addEventListener("click", (event) => {
     return;
   }
   if (deleteButton) {
-    saveOrderDrafts(getOrderDrafts().filter((entry) => entry.id !== deleteButton.dataset.deleteDraft));
-    renderOrders();
-    toast("Order belum dibayar dihapus.");
+    deleteDraftOrder(deleteButton.dataset.deleteDraft);
   }
 });
 
@@ -3546,8 +3704,10 @@ els.pendingSyncList?.addEventListener("click", async (event) => {
   renderPendingSync();
 });
 
-els.manualSyncBtn?.addEventListener("click", syncPendingTransactions);
-els.manualSyncOrdersBtn?.addEventListener("click", syncPendingTransactions);
+els.manualSyncBtn?.addEventListener("click", () => refreshOnlineData({ render: true }).catch(() => null));
+els.manualSyncOrdersBtn?.addEventListener("click", () => refreshOnlineData({ render: true }).catch(() => null));
+els.closeShiftBtn?.addEventListener("click", closeActiveShift);
+els.switchShiftBtn?.addEventListener("click", switchActiveShift);
 window.addEventListener("online", updateConnectionStatus);
 window.addEventListener("offline", updateConnectionStatus);
 window.addEventListener("storage", (event) => {
@@ -3918,6 +4078,12 @@ setInterval(updateClock, 1000);
 setInterval(() => updateDevicePresence().catch(() => null), 30000);
 setInterval(() => refreshActiveCashierPresence().catch(() => null), 30000);
 setInterval(() => checkRemoteLogout().catch(() => null), 30000);
+setInterval(() => {
+  if (document.visibilityState === "visible") refreshOnlineData({ render: true }).catch(() => null);
+}, 30000);
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") refreshOnlineData({ render: true }).catch(() => null);
+});
 restoreActiveView();
 applyAccessControls();
 renderAll();

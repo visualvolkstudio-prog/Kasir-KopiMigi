@@ -208,6 +208,32 @@ h3 { font-size: 16px; font-weight: 700; }
 .shift-card strong { font-size: 19px; font-weight: 800; color: #fff; letter-spacing: -0.02em; }
 .shift-card span { color: var(--sidebar-muted); font-size: 11px; }
 
+.shift-card .active-shift-pill {
+  width: fit-content;
+  margin: 3px 0;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(91, 127, 255, 0.16);
+  color: #dce6ff;
+  font-size: 10.5px;
+  font-weight: 800;
+}
+
+.shift-actions {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.shift-actions .compact {
+  min-height: 32px;
+  padding-inline: 9px;
+  color: #e9eefb;
+  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.08);
+}
+
 /* ── Workspace ───────────────────────────────── */
 .workspace {
   min-width: 0;
@@ -1159,6 +1185,22 @@ input:focus, select:focus {
 .stock-chart-value {
   text-align: right;
   white-space: nowrap;
+}
+
+@media (min-width: 821px) and (max-width: 1180px) {
+  .stock-chart-row {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
+  }
+
+  .stock-chart-value {
+    text-align: left;
+    white-space: normal;
+  }
+
+  .stock-chart-meter {
+    width: 100%;
+  }
 }
 
 .price-list-panel {
