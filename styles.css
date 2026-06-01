@@ -1119,7 +1119,7 @@ input:focus, select:focus {
 .recipe-summary-main span { white-space: normal; }
 
 .stock-table { display: grid; gap: 7px; margin-top: 12px; }
-.compact-stock-list { gap: 10px; }
+.compact-stock-list { gap: 9px; }
 .purchase-history { margin-top: 14px; }
 
 .stock-chart-list {
@@ -1129,10 +1129,10 @@ input:focus, select:focus {
 
 .stock-chart-row {
   display: grid;
-  grid-template-columns: minmax(0, 1.05fr) minmax(96px, 1fr) max-content;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 13px;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  align-items: start;
+  gap: 8px 14px;
+  padding: 13px 14px;
   border: 1px solid var(--line);
   border-radius: 9px;
   background: #fff;
@@ -1168,7 +1168,9 @@ input:focus, select:focus {
 }
 
 .stock-chart-meter {
-  height: 11px;
+  grid-column: 1 / -1;
+  width: 100%;
+  height: 10px;
   border-radius: 999px;
   background: #edf0f7;
   overflow: hidden;
@@ -1196,22 +1198,18 @@ input:focus, select:focus {
   text-align: right;
   white-space: nowrap;
   justify-self: end;
+  align-self: start;
+  font-size: 14px;
+  line-height: 1.2;
 }
 
 @media (min-width: 821px) and (max-width: 1180px) {
-  .stock-chart-row {
+  #view-stock .inventory-grid {
     grid-template-columns: minmax(0, 1fr);
-    align-items: stretch;
   }
 
-  .stock-chart-value {
-    text-align: left;
-    white-space: normal;
-    justify-self: start;
-  }
-
-  .stock-chart-meter {
-    width: 100%;
+  #view-stock .inventory-grid > * {
+    grid-column: 1 / -1;
   }
 }
 

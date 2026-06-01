@@ -187,6 +187,32 @@ function collectEmployeeRows(body) {
   }));
 }
 
+function employeeKey(name) {
+  return String(name || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+}
+
+async function getDeletedEmployeeRows() {
+  const rows = await supabaseFetch("app_settings?select=*&key=eq.deleted_employees&limit=1").catch(() => []);
+  const value = Array.isArray(rows) ? rows[0]?.value : null;
+  return Array.isArray(value) ? value : [];
+}
+
+async function saveDeletedEmployeeRows(rows) {
+  await supabaseFetch("app_settings?on_conflict=key", {
+    method: "POST",
+    prefer: "resolution=merge-duplicates,return=representation",
+    body: [{ key: "deleted_employees", value: rows.slice(0, 300), updated_at: toIso() }],
+  });
+}
+
+async function rememberDeletedEmployee(name) {
+  const key = employeeKey(name);
+  if (!key) return;
+  const rows = (await getDeletedEmployeeRows()).filter((entry) => (entry.key || employeeKey(entry.name)) !== key);
+  rows.unshift({ name, key, deleted_at: toIso() });
+  await saveDeletedEmployeeRows(rows);
+}
+
 async function syncTransaction(body) {
   const transaction = body.transaction || body;
   const row = mapTransaction(transaction);
@@ -312,7 +338,7 @@ async function syncCashflow(body) {
 
 async function syncInventory(body) {
   const rows = collectInventoryRows(body).filter((row) => row.id && row.name);
-  if (!rows.length) return { status: 400, payload: { success: false, error: "Inventory id dan name wajib ada." } };
+  if (!rows.length) return { status: 200, payload: { success: true, count: 0 } };
 
   await supabaseFetch("inventory?on_conflict=id", {
     method: "POST",
@@ -323,12 +349,14 @@ async function syncInventory(body) {
 }
 
 async function syncEmployees(body) {
-  const rows = collectEmployeeRows(body);
-  if (!rows.length) return { status: 400, payload: { success: false, error: "Minimal satu nama karyawan wajib ada." } };
+  const deleted = new Set((await getDeletedEmployeeRows()).map((entry) => entry.key || employeeKey(entry.name)).filter(Boolean));
+  const rows = collectEmployeeRows(body).filter((row) => !deleted.has(employeeKey(row.name)));
 
   const activeNames = new Set(rows.map((row) => row.name));
   const existing = await supabaseFetch("employees?select=name");
-  const staleRows = Array.isArray(existing) ? existing.filter((row) => row.name && !activeNames.has(row.name)) : [];
+  const staleRows = Array.isArray(existing)
+    ? existing.filter((row) => row.name && (!activeNames.has(row.name) || deleted.has(employeeKey(row.name))))
+    : [];
   await Promise.all(
     staleRows.map((row) =>
       supabaseFetch(`employees?name=eq.${encodeURIComponent(row.name)}`, {
@@ -338,11 +366,13 @@ async function syncEmployees(body) {
     ),
   );
 
-  await supabaseFetch("employees?on_conflict=name", {
-    method: "POST",
-    prefer: "resolution=merge-duplicates,return=representation",
-    body: rows,
-  });
+  if (rows.length) {
+    await supabaseFetch("employees?on_conflict=name", {
+      method: "POST",
+      prefer: "resolution=merge-duplicates,return=representation",
+      body: rows,
+    });
+  }
   return { status: 200, payload: { success: true, count: rows.length } };
 }
 
@@ -387,7 +417,8 @@ async function deleteById(table, id, label) {
 async function deleteEmployee(body) {
   const name = String(body.name || "").trim();
   if (!name) return { status: 400, payload: { success: false, error: "Nama karyawan wajib ada." } };
-  await supabaseFetch(`employees?name=eq.${encodeURIComponent(name)}`, {
+  await rememberDeletedEmployee(name);
+  await supabaseFetch(`employees?name=ilike.${encodeURIComponent(name)}`, {
     method: "DELETE",
     prefer: "return=minimal",
   });

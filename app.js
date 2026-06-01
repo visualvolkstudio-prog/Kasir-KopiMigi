@@ -19,9 +19,11 @@ const storageKeys = {
   auth: "kasir-migi-auth",
   employee: "kasir-migi-employee",
   employees: "kasir-migi-employees",
+  deletedEmployees: "kasir-migi-deleted-employees",
   sessionShift: "kasir-migi-session-shift",
   activeShift: "kasir-migi-active-shift",
   inventory: "kopishop-pos-inventory",
+  inventoryDirty: "kopishop-pos-inventory-dirty",
   purchases: "kopishop-pos-purchases",
   recipes: "kopishop-pos-recipes",
   orderDrafts: "kopishop-pos-order-drafts",
@@ -357,7 +359,7 @@ function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" })[char]);
 }
 
-function normalizeEmployeeRoster(value) {
+function normalizeEmployeeRoster(value, fallback = []) {
   const names = Array.isArray(value)
     ? value
     : String(value || "")
@@ -367,15 +369,47 @@ function normalizeEmployeeRoster(value) {
   names.forEach((name) => {
     if (name && !unique.some((entry) => entry.toLowerCase() === name.toLowerCase())) unique.push(name);
   });
-  return unique.length ? unique : ["Admin"];
+  return unique.length ? unique : fallback;
+}
+
+function employeeDeleteKey(name) {
+  return stableIdFromName(name || "");
+}
+
+function getDeletedEmployeeKeys() {
+  const deleted = readJson(storageKeys.deletedEmployees, []);
+  return new Set((Array.isArray(deleted) ? deleted : []).map((entry) => entry.key || employeeDeleteKey(entry.name)).filter(Boolean));
+}
+
+function filterDeletedEmployees(names) {
+  const deleted = getDeletedEmployeeKeys();
+  return normalizeEmployeeRoster(names).filter((name) => !deleted.has(employeeDeleteKey(name)));
+}
+
+function rememberDeletedEmployee(name) {
+  if (!name) return;
+  const deleted = readJson(storageKeys.deletedEmployees, []);
+  const key = employeeDeleteKey(name);
+  const next = (Array.isArray(deleted) ? deleted : []).filter((entry) => (entry.key || employeeDeleteKey(entry.name)) !== key);
+  next.unshift({ name, key, deletedAt: new Date().toISOString() });
+  writeJson(storageKeys.deletedEmployees, next.slice(0, 200));
+}
+
+function forgetDeletedEmployee(name) {
+  const key = employeeDeleteKey(name);
+  const deleted = readJson(storageKeys.deletedEmployees, []);
+  writeJson(
+    storageKeys.deletedEmployees,
+    (Array.isArray(deleted) ? deleted : []).filter((entry) => (entry.key || employeeDeleteKey(entry.name)) !== key),
+  );
 }
 
 function getEmployeeRoster() {
-  return normalizeEmployeeRoster(readJson(storageKeys.employees, ["Admin"]));
+  return filterDeletedEmployees(readJson(storageKeys.employees, []));
 }
 
 function saveEmployeeRoster(names) {
-  const roster = normalizeEmployeeRoster(names);
+  const roster = filterDeletedEmployees(names);
   writeJson(storageKeys.employees, roster);
   return roster;
 }
@@ -389,6 +423,7 @@ function saveShiftAssignments(assignments) {
 }
 
 function assignmentEmployeeId(name) {
+  if (!name) return "";
   return employeeIdFromName(name);
 }
 
@@ -413,6 +448,7 @@ function todayShiftAssignments(today = dateKey()) {
 }
 
 function usedShiftForEmployee(name, today = dateKey()) {
+  if (!name) return "";
   const employeeId = assignmentEmployeeId(name);
   return todayShiftAssignments(today).find((entry) => entry.employeeId === employeeId)?.shift || "";
 }
@@ -443,7 +479,7 @@ function registerShiftAssignment(employee, shift) {
 
 function activeEmployeeName() {
   if (currentRole() === "owner") return "Owner";
-  return localStorage.getItem(storageKeys.employee) || getEmployeeRoster()[0] || "Admin";
+  return localStorage.getItem(storageKeys.employee) || getEmployeeRoster()[0] || "";
 }
 
 function getAuth() {
@@ -499,7 +535,7 @@ function renderEmployeeControls() {
     ? roster.find((name) => !isEmployeeUsedInOtherShift(name, selectedLoginShift)) || activeCandidate
     : activeCandidate;
   const owner = isLoggedIn() && isOwner();
-  const displayName = owner ? state.activeCashier.employee || "Belum ada kasir aktif" : active;
+  const displayName = owner ? state.activeCashier.employee || "Belum ada kasir aktif" : active || "Belum ada karyawan";
   const badgeLabel = owner
     ? state.activeCashier.online
       ? "Online"
@@ -507,7 +543,8 @@ function renderEmployeeControls() {
     : !navigator.onLine || state.pendingSyncCount
       ? "Sync pending"
       : "Aktif";
-  if (!isOwner()) localStorage.setItem(storageKeys.employee, active);
+  if (!isOwner() && active) localStorage.setItem(storageKeys.employee, active);
+  if (!isOwner() && !active) localStorage.removeItem(storageKeys.employee);
   if (els.employeeName) els.employeeName.textContent = displayName;
   if (els.employeeStatusBadge) {
     els.employeeStatusBadge.textContent = badgeLabel;
@@ -543,17 +580,19 @@ function renderEmployeeControls() {
       .join("");
   }
   if (els.loginEmployee) {
-    els.loginEmployee.replaceChildren(
-      ...roster.map((name) => {
-        const usedShift = usedShiftForEmployee(name);
-        const disabled = Boolean(usedShift && usedShift !== selectedLoginShift);
-        const label = disabled ? `${name} (Sudah bertugas di ${usedShift})` : name;
-        const option = new Option(label, name);
-        option.disabled = disabled;
-        return option;
-      }),
-    );
-    els.loginEmployee.value = active;
+    const options = roster.length
+      ? roster.map((name) => {
+          const usedShift = usedShiftForEmployee(name);
+          const disabled = Boolean(usedShift && usedShift !== selectedLoginShift);
+          const label = disabled ? `${name} (Sudah bertugas di ${usedShift})` : name;
+          const option = new Option(label, name);
+          option.disabled = disabled;
+          return option;
+        })
+      : [new Option("Belum ada karyawan", "")];
+    if (!roster.length) options[0].disabled = true;
+    els.loginEmployee.replaceChildren(...options);
+    els.loginEmployee.value = active || "";
   }
   if (els.loginShift) els.loginShift.value = selectedLoginShift;
 }
@@ -618,15 +657,19 @@ async function preloadEmployeesForLogin() {
   if (!navigator.onLine) return false;
   try {
     const data = await postSupabaseAction("bootstrap-data");
-    if (Array.isArray(data?.employees) && data.employees.length) {
+    if (Array.isArray(data?.employees)) {
       saveEmployeeRoster(data.employees);
-      return true;
+      return data.employees.length > 0;
     }
   } catch {}
   return false;
 }
 
 async function finishLogin(role, employee, shift) {
+  if (role === "cashier" && !employee) {
+    toast("Pilih karyawan dulu. Jika kosong, tambahkan dari akun Owner.");
+    return false;
+  }
   if (role === "cashier" && isEmployeeUsedInOtherShift(employee, shift)) {
     toast(`${employee} sudah bertugas di ${usedShiftForEmployee(employee)} hari ini. Pilih karyawan lain.`);
     renderEmployeeControls();
@@ -658,7 +701,7 @@ async function finishLogin(role, employee, shift) {
 async function login(event) {
   event.preventDefault();
   if (state.pendingLogin?.role === "cashier") {
-    const employee = els.loginEmployee?.value || getEmployeeRoster()[0] || "Admin";
+    const employee = els.loginEmployee?.value || getEmployeeRoster()[0] || "";
     await finishLogin("cashier", employee, autoShiftName());
     return;
   }
@@ -907,6 +950,29 @@ function getInventory() {
 
 function saveInventory(inventory) {
   writeJson(storageKeys.inventory, inventory);
+}
+
+function markInventoryDirty() {
+  localStorage.setItem(storageKeys.inventoryDirty, "true");
+}
+
+function clearInventoryDirty() {
+  localStorage.removeItem(storageKeys.inventoryDirty);
+}
+
+function hasDirtyInventory() {
+  return localStorage.getItem(storageKeys.inventoryDirty) === "true";
+}
+
+function saveLocalInventoryChange(inventory) {
+  saveInventory(inventory);
+  markInventoryDirty();
+}
+
+function applyCloudInventory(inventory) {
+  if (hasDirtyInventory()) return false;
+  saveInventory(inventory || {});
+  return true;
 }
 
 function getPurchases() {
@@ -1703,12 +1769,17 @@ function closeEmployeeDeleteModal() {
 function confirmEmployeeDelete() {
   const name = state.pendingEmployeeDelete;
   if (!name) return;
+  rememberDeletedEmployee(name);
   const roster = saveEmployeeRoster(getEmployeeRoster().filter((entry) => entry !== name));
-  const fallback = roster[0] || "Admin";
+  const fallback = roster[0] || "";
   if (localStorage.getItem(storageKeys.employee) === name) {
-    localStorage.setItem(storageKeys.employee, fallback);
+    if (fallback) localStorage.setItem(storageKeys.employee, fallback);
+    else localStorage.removeItem(storageKeys.employee);
     const auth = readJson(storageKeys.auth, null);
-    if (auth?.loggedIn && auth.role !== "owner") writeJson(storageKeys.auth, { ...auth, employee: fallback });
+    if (auth?.loggedIn && auth.role !== "owner") {
+      if (fallback) writeJson(storageKeys.auth, { ...auth, employee: fallback });
+      else logout();
+    }
   }
   closeEmployeeDeleteModal();
   renderEmployeeControls();
@@ -2198,7 +2269,7 @@ function deductStockForTransaction(transaction) {
     inventory[ingredientId].updatedAt = transaction.createdAt;
     changed = true;
   });
-  if (changed) saveInventory(inventory);
+  if (changed) saveLocalInventoryChange(inventory);
   return changed;
 }
 
@@ -2243,7 +2314,7 @@ async function syncTodayStockFromSales() {
     return;
   }
 
-  saveInventory(inventory);
+  saveLocalInventoryChange(inventory);
   writeJson(storageKeys.history, history);
   renderAll();
   await Promise.allSettled([syncInventoryToCloud(), syncHistoryToCloud()]);
@@ -2833,13 +2904,16 @@ async function syncCashflowToCloud() {
 async function syncInventoryToCloud() {
   if (!navigator.onLine) return;
   const inventory = getInventory();
-  if (Object.keys(inventory).length) await postSupabaseAction("sync-inventory", { inventory });
+  if (!hasDirtyInventory()) return false;
+  await postSupabaseAction("sync-inventory", { inventory });
+  clearInventoryDirty();
+  return true;
 }
 
 async function syncEmployeesToCloud() {
   if (!navigator.onLine) return;
   const employees = getEmployeeRoster();
-  if (employees.length) await postSupabaseAction("sync-employees", { employees });
+  await postSupabaseAction("sync-employees", { employees });
 }
 
 async function deleteEmployeeInCloud(name) {
@@ -2932,8 +3006,8 @@ async function loadCloudData() {
 
   if (Array.isArray(data.history)) cacheCloudTransactions(data.history);
   if (Array.isArray(data.cashflowExpenses)) writeJson(storageKeys.cashflowExpenses, data.cashflowExpenses.slice(0, 500));
-  if (data.inventory && typeof data.inventory === "object") saveInventory(data.inventory);
-  if (Array.isArray(data.employees) && data.employees.length) saveEmployeeRoster(data.employees);
+  if (data.inventory && typeof data.inventory === "object") applyCloudInventory(data.inventory);
+  if (Array.isArray(data.employees)) saveEmployeeRoster(data.employees);
   if (data.settingsFound && !hasDirtySettings()) {
     applyCloudSettings(data.settings);
   } else if (!data.settingsFound || hasDirtySettings()) {
@@ -2976,6 +3050,7 @@ async function refreshOnlineData({ render = true } = {}) {
   if (!navigator.onLine || !isLoggedIn()) return false;
   await processPendingDeletes().catch(() => null);
   await syncPendingTransactions({ pull: false }).catch(() => null);
+  await syncInventoryToCloud().catch(() => null);
   await loadCloudData().catch(() => null);
   await pullTransactionsFromSupabase({ render: false }).catch(() => null);
   await pullSettingsFromSupabase({ render: false }).catch(() => null);
@@ -3535,7 +3610,7 @@ function savePurchase(event) {
     buyPrice: cost / qty,
     updatedAt: new Date().toISOString(),
   };
-  saveInventory(inventory);
+  saveLocalInventoryChange(inventory);
 
   delete els.purchaseForm.dataset.editingStockId;
   const submitBtn = els.purchaseForm.querySelector("button[type=submit]");
@@ -3980,6 +4055,7 @@ els.employeeAddForm?.addEventListener("submit", (event) => {
   }
   const name = els.employeeNewName?.value.trim();
   if (!name) return;
+  forgetDeletedEmployee(name);
   const roster = saveEmployeeRoster([...getEmployeeRoster(), name]);
   localStorage.setItem(storageKeys.employee, name);
   const auth = readJson(storageKeys.auth, null);
@@ -4058,7 +4134,7 @@ els.stockEditForm?.addEventListener("submit", (event) => {
     stock: nextStock,
     updatedAt: new Date().toISOString(),
   };
-  saveInventory(inventory);
+  saveLocalInventoryChange(inventory);
   closeStockEditModal();
   renderInventory();
   syncInventoryToCloud().catch(() => null);
@@ -4116,7 +4192,7 @@ els.cashflowExpenseForm?.addEventListener("submit", (event) => {
       buyPrice: amount / qty,
       updatedAt: payload.createdAt,
     };
-    saveInventory(inventory);
+    saveLocalInventoryChange(inventory);
   }
 
   saveCashflowExpense({
@@ -4206,7 +4282,7 @@ els.stockTable?.addEventListener("click", (event) => {
     if (!inventory[id]) return;
     const name = inventory[id].name;
     delete inventory[id];
-    saveInventory(inventory);
+    saveLocalInventoryChange(inventory);
     renderInventory();
     renderCashflow();
     syncCfExpenseNoteField();
