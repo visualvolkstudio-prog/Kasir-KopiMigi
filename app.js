@@ -1077,12 +1077,19 @@ function staffDrinkUsedToday(employee = activeEmployeeName(), date = dateKey()) 
   ));
 }
 
+function staffDrinkItemCount() {
+  return state.cart.reduce((sum, item) => sum + Number(item.qty || 0), 0);
+}
+
 function syncOrderTypeUi() {
   const staffDrink = state.orderType === "staff_drink";
   els.orderTypeTabs?.querySelectorAll("button[data-order-type]").forEach((button) => {
     button.classList.toggle("active", button.dataset.orderType === state.orderType);
   });
-  if (els.staffDrinkInfo) els.staffDrinkInfo.hidden = !staffDrink;
+  if (els.staffDrinkInfo) {
+    els.staffDrinkInfo.hidden = !staffDrink;
+    els.staffDrinkInfo.textContent = "Staff Drink hanya bisa digunakan 1 kali per hari per karyawan dan maksimal 1 item.";
+  }
   if (els.discountBox) els.discountBox.hidden = staffDrink;
   if (els.paymentMethods) els.paymentMethods.hidden = staffDrink;
   if (staffDrink) state.payment = "Staff Drink";
@@ -1765,6 +1772,10 @@ async function startOrder(event) {
   if (!validateStockForCart()) return;
   if (state.orderType === "staff_drink" && staffDrinkUsedToday()) {
     window.alert(`Jatah kopi gratis untuk ${activeEmployeeName()} hari ini sudah digunakan.`);
+    return;
+  }
+  if (state.orderType === "staff_drink" && staffDrinkItemCount() !== 1) {
+    window.alert("Staff Drink hanya bisa diproses untuk 1 item.");
     return;
   }
   els.customerName.value = els.orderCustomerName.value.trim();
