@@ -2440,8 +2440,9 @@ function encodeEscPos(text) {
   const encoder = new TextEncoder();
   const init = [0x1b, 0x40, 0x1b, 0x61, 0x00];
   const body = [...encoder.encode(text)];
+  const feedBeforeCut = [0x1b, 0x64, 0x04];
   const cut = [0x1d, 0x56, 0x42, 0x00];
-  return new Uint8Array([...init, ...body, ...cut]);
+  return new Uint8Array([...init, ...body, ...feedBeforeCut, ...cut]);
 }
 
 async function escPosLogoBytes() {
@@ -2498,11 +2499,12 @@ async function encodeEscPosReceipt(transaction, kind) {
   const encoder = new TextEncoder();
   const init = [0x1b, 0x40];
   const body = [...encoder.encode(receiptText(transaction, kind))];
+  const feedBeforeCut = [0x1b, 0x64, 0x04];
   const cut = [0x1d, 0x56, 0x42, 0x00];
   try {
-    return new Uint8Array([...init, ...(await escPosLogoBytes()), ...body, ...cut]);
+    return new Uint8Array([...init, ...(await escPosLogoBytes()), ...body, ...feedBeforeCut, ...cut]);
   } catch {
-    return new Uint8Array([...init, ...body, ...cut]);
+    return new Uint8Array([...init, ...body, ...feedBeforeCut, ...cut]);
   }
 }
 
