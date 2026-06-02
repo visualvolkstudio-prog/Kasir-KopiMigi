@@ -68,6 +68,8 @@ const state = {
   boothStream: null,
   activeCashier: { online: false, employee: "" },
   pendingEmployeeDelete: "",
+  menuSaving: false,
+  reportShareText: "",
   logoutAfterOrder: false,
   pendingLogin: null,
   pendingSyncCount: 0,
@@ -108,6 +110,8 @@ const els = {
   loginPassword: document.querySelector("#loginPassword"),
   loginShift: document.querySelector("#loginShift"),
   loginEmployee: document.querySelector("#loginEmployee"),
+  loginDutyRoleWrap: document.querySelector("#loginDutyRoleWrap"),
+  loginDutyRole: document.querySelector("#loginDutyRole"),
   loginSubmitBtn: document.querySelector("#loginSubmitBtn"),
   loginHint: document.querySelector("#loginHint"),
   orderModal: document.querySelector("#orderModal"),
@@ -194,6 +198,7 @@ const els = {
   dailyReportText: document.querySelector("#dailyReportText"),
   copyDailyReport: document.querySelector("#copyDailyReport"),
   shareDailyReport: document.querySelector("#shareDailyReport"),
+  dailyReportShareStatus: document.querySelector("#dailyReportShareStatus"),
   orderStatusTabs: document.querySelector("#orderStatusTabs"),
   orderList: document.querySelector("#orderList"),
   unpaidOrderCount: document.querySelector("#unpaidOrderCount"),
@@ -215,6 +220,7 @@ const els = {
   bestsellerList: document.querySelector("#bestsellerList"),
   insightList: document.querySelector("#insightList"),
   menuForm: document.querySelector("#menuForm"),
+  menuSubmitBtn: document.querySelector("#menuSubmitBtn"),
   menuId: document.querySelector("#menuId"),
   menuName: document.querySelector("#menuName"),
   menuCategorySelect: document.querySelector("#menuCategorySelect"),
@@ -327,6 +333,19 @@ function isShiftOperating(value = new Date()) {
   const date = value instanceof Date ? value : new Date(value);
   const hour = date.getHours();
   return hour >= 10 && hour < 22;
+}
+
+function isHelperDay(value = new Date()) {
+  const day = (value instanceof Date ? value : new Date(value)).getDay();
+  return day === 5 || day === 6 || day === 0;
+}
+
+function normalizeDutyRole(value, date = new Date()) {
+  return value === "helper" && isHelperDay(date) ? "helper" : "karyawan";
+}
+
+function dutyRoleLabel(value = currentDutyRole()) {
+  return value === "helper" ? "Helper" : "Karyawan";
 }
 
 function orderSequenceFromId(id, prefix) {
@@ -465,15 +484,16 @@ function defaultLoginShift() {
   return getActiveShift();
 }
 
-function registerShiftAssignment(employee, shift) {
+function registerShiftAssignment(employee, shift, dutyRole = "karyawan") {
   if (!employee || employee === "Owner") return;
   const today = dateKey();
   const employeeId = assignmentEmployeeId(employee);
   const nextShift = normalizeShift(shift);
+  const nextDutyRole = normalizeDutyRole(dutyRole);
   const assignments = getShiftAssignments().filter(
     (entry) => !(entry.date === today && (entry.employeeId || assignmentEmployeeId(entry.employee)) === employeeId && normalizeShift(entry.shift) === nextShift),
   );
-  assignments.push({ date: today, employee, employeeId, shift: nextShift, loginAt: new Date().toISOString() });
+  assignments.push({ date: today, employee, employeeId, shift: nextShift, dutyRole: nextDutyRole, loginAt: new Date().toISOString() });
   saveShiftAssignments(assignments);
 }
 
@@ -496,13 +516,14 @@ function isAuthExpired(auth = getAuth(), now = Date.now()) {
   return new Date(auth.expiresAt).getTime() <= now;
 }
 
-function createAuthSession({ employee, shift, role }) {
+function createAuthSession({ employee, shift, role, dutyRole = "karyawan" }) {
   const loginAt = new Date();
   return {
     loggedIn: true,
     employee,
     shift: normalizeShift(shift),
     role,
+    dutyRole: role === "cashier" ? normalizeDutyRole(dutyRole, loginAt) : "owner",
     at: loginAt.toISOString(),
     loginAt: loginAt.toISOString(),
     expiresAt: new Date(loginAt.getTime() + sessionTtlMs).toISOString(),
@@ -515,7 +536,11 @@ function setLoginEmployeeStep(active) {
   if (els.loginSubmitBtn) els.loginSubmitBtn.textContent = active ? "Masuk Dashboard" : "Masuk";
   if (els.loginHint) {
     els.loginHint.style.color = "";
-    els.loginHint.textContent = active ? "Pilih karyawan yang bertugas, lalu masuk dashboard." : "Shift mengikuti jam operasional.";
+    els.loginHint.textContent = active
+      ? isHelperDay()
+        ? "Pilih karyawan dan tugas Karyawan/Helper, lalu masuk dashboard."
+        : "Pilih karyawan yang bertugas, lalu masuk dashboard."
+      : "Shift mengikuti jam operasional.";
   }
 }
 
@@ -527,15 +552,36 @@ function isCashier() {
   return currentRole() === "cashier";
 }
 
+function currentDutyRole() {
+  const auth = getAuth();
+  return isCashier() ? normalizeDutyRole(auth?.dutyRole || "karyawan") : "owner";
+}
+
+function activeEmployeeDisplayName(name = activeEmployeeName(), dutyRole = currentDutyRole()) {
+  if (!name) return "";
+  return dutyRole === "helper" ? `${name} (Helper)` : name;
+}
+
+function transactionEmployeeDisplay(transaction) {
+  return activeEmployeeDisplayName(transaction?.employee || "", transaction?.dutyRole || "karyawan");
+}
+
 function renderEmployeeControls() {
   const roster = getEmployeeRoster();
   const selectedLoginShift = autoShiftName();
+  const helperDay = isHelperDay();
+  const selectedDutyRole = normalizeDutyRole(els.loginDutyRole?.value || "karyawan");
+  els.loginForm?.classList.toggle("helper-day", helperDay);
   const activeCandidate = roster.includes(activeEmployeeName()) ? activeEmployeeName() : roster[0];
   const active = isEmployeeUsedInOtherShift(activeCandidate, selectedLoginShift)
     ? roster.find((name) => !isEmployeeUsedInOtherShift(name, selectedLoginShift)) || activeCandidate
     : activeCandidate;
   const owner = isLoggedIn() && isOwner();
-  const displayName = owner ? state.activeCashier.employee || "Belum ada kasir aktif" : active || "Belum ada karyawan";
+  const displayName = owner
+    ? state.activeCashier.employee || "Belum ada kasir aktif"
+    : active
+      ? activeEmployeeDisplayName(active, selectedDutyRole)
+      : "Belum ada karyawan";
   const badgeLabel = owner
     ? state.activeCashier.online
       ? "Online"
@@ -593,6 +639,11 @@ function renderEmployeeControls() {
     if (!roster.length) options[0].disabled = true;
     els.loginEmployee.replaceChildren(...options);
     els.loginEmployee.value = active || "";
+  }
+  if (els.loginDutyRoleWrap) els.loginDutyRoleWrap.hidden = !helperDay;
+  if (els.loginDutyRole) {
+    els.loginDutyRole.value = helperDay ? selectedDutyRole : "karyawan";
+    els.loginDutyRole.disabled = !helperDay;
   }
   if (els.loginShift) els.loginShift.value = selectedLoginShift;
 }
@@ -665,7 +716,8 @@ async function preloadEmployeesForLogin() {
   return false;
 }
 
-async function finishLogin(role, employee, shift) {
+async function finishLogin(role, employee, shift, dutyRole = "karyawan") {
+  const normalizedDutyRole = role === "cashier" ? normalizeDutyRole(dutyRole) : "owner";
   if (role === "cashier" && !employee) {
     toast("Pilih karyawan dulu. Jika kosong, tambahkan dari akun Owner.");
     return false;
@@ -683,15 +735,15 @@ async function finishLogin(role, employee, shift) {
   }
   if (role === "cashier") localStorage.setItem(storageKeys.employee, employee);
   localStorage.setItem(storageKeys.activeShift, shift);
-  writeJson(storageKeys.auth, createAuthSession({ employee, shift, role }));
-  if (role === "cashier") registerShiftAssignment(employee, shift);
+  writeJson(storageKeys.auth, createAuthSession({ employee, shift, role, dutyRole: normalizedDutyRole }));
+  if (role === "cashier") registerShiftAssignment(employee, shift, normalizedDutyRole);
   setLoginEmployeeStep(false);
   renderEmployeeControls();
   applyAccessControls();
   document.body.classList.remove("locked");
   els.loginPassword.value = "";
   setActiveView("pos");
-  toast(role === "owner" ? "Masuk sebagai Owner." : `Masuk sebagai ${employee} · ${shift}.`);
+  toast(role === "owner" ? "Masuk sebagai Owner." : `Masuk sebagai ${activeEmployeeDisplayName(employee, normalizedDutyRole)} · ${shift}.`);
   if (role === "cashier") updateDevicePresence().catch(() => null);
   if (role === "owner") refreshActiveCashierPresence().catch(() => null);
   syncCloudData();
@@ -702,7 +754,7 @@ async function login(event) {
   event.preventDefault();
   if (state.pendingLogin?.role === "cashier") {
     const employee = els.loginEmployee?.value || getEmployeeRoster()[0] || "";
-    await finishLogin("cashier", employee, autoShiftName());
+    await finishLogin("cashier", employee, autoShiftName(), els.loginDutyRole?.value || "karyawan");
     return;
   }
 
@@ -715,7 +767,7 @@ async function login(event) {
     const role = isOwnerLogin ? "owner" : "cashier";
     const shift = autoShiftName();
     if (role === "owner") {
-      await finishLogin("owner", "Owner", shift);
+      await finishLogin("owner", "Owner", shift, "owner");
       return;
     }
 
@@ -802,6 +854,53 @@ function shiftSummaryLines(shift = getActiveShift(), date = dateKey()) {
   ];
 }
 
+function dayTransactions(date = dateKey()) {
+  return getHistory().filter((entry) => dateKey(entry.createdAt) === date);
+}
+
+function shiftReportText(shift, reportDateValue = dateKey()) {
+  const reportDate = new Date(`${reportDateValue}T12:00:00`).toLocaleDateString("id-ID", {
+    weekday: "long",
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  });
+  const transactions = dayTransactions(reportDateValue).filter((entry) => (entry.shift || "Shift 1") === shift);
+  const normal = revenueTransactions(transactions);
+  const staffDrinks = transactions.filter(isStaffDrinkTransaction);
+  const revenue = normal.reduce((sum, entry) => sum + Number(entry.grandTotal || 0), 0);
+  const tunai = normal.filter((entry) => entry.payment === "Tunai").reduce((sum, entry) => sum + Number(entry.grandTotal || 0), 0);
+  const qris = normal.filter((entry) => entry.payment === "QRIS").reduce((sum, entry) => sum + Number(entry.grandTotal || 0), 0);
+  const discount = normal.reduce((sum, entry) => sum + Number(entry.discountTotal || 0), 0);
+  const employees = [...new Set(transactions.map(transactionEmployeeDisplay).filter(Boolean))];
+  const itemCount = normal.reduce((sum, entry) => sum + entry.items.reduce((inner, item) => inner + item.qty, 0), 0);
+
+  return [
+    `Laporan ${shift}`,
+    reportDate,
+    "",
+    `Petugas: ${employees.length ? employees.join(", ") : "-"}`,
+    `Total Penjualan: ${money(revenue)}`,
+    `Transaksi Normal: ${normal.length}`,
+    `Item terjual: ${itemCount}`,
+    `Tunai: ${money(tunai)}`,
+    `QRIS: ${money(qris)}`,
+    `Total Diskon: ${money(discount)}`,
+    `Staff Drink: ${staffDrinks.length}`,
+  ].join("\n");
+}
+
+function openWhatsAppReport(text) {
+  window.open(`https://wa.me/?text=${encodeURIComponent(["*Migi Coffee*", "", text].join("\n"))}`, "_blank", "noopener");
+}
+
+function markReportReady(action, label, text) {
+  if (!text?.trim() || !markShiftActionOnce(action)) return;
+  state.reportShareText = text;
+  if (els.dailyReportShareStatus) els.dailyReportShareStatus.textContent = `${label} siap dikirim`;
+  if (els.shareDailyReport) els.shareDailyReport.title = label;
+}
+
 function closeActiveShift() {
   window.alert(shiftSummaryLines().join("\n"));
 }
@@ -828,7 +927,7 @@ function updateEmployeeHeaderState(now = new Date()) {
   els.activeEmployeeCard.classList.toggle("owner-mode", isLoggedIn() && isOwner());
   els.activeEmployeeCard.classList.toggle("cashier-online", false);
   els.activeEmployeeCard.classList.toggle("cashier-offline", false);
-  if (els.activeEmployeeHeader) els.activeEmployeeHeader.textContent = activeEmployeeName();
+  if (els.activeEmployeeHeader) els.activeEmployeeHeader.textContent = isCashier() ? activeEmployeeDisplayName() : activeEmployeeName();
   els.activeEmployeeCard.title = isOwner()
     ? "Owner"
     : active
@@ -860,6 +959,15 @@ function markShiftActionOnce(action, date = new Date()) {
 function runShiftScheduleChecks(now = new Date()) {
   const hour = now.getHours();
   const minute = now.getMinutes();
+  const minuteOfDay = hour * 60 + minute;
+
+  if (minuteOfDay >= 17 * 60 + 30 && minuteOfDay < 22 * 60) {
+    markReportReady("shift-1-wa-report", "Laporan Shift 1", shiftReportText("Shift 1", dateKey(now)));
+  }
+
+  if (minuteOfDay >= 22 * 60 + 30) {
+    markReportReady("daily-wa-report", "Laporan harian", dailyReportText(dayTransactions(dateKey(now)), dateKey(now)));
+  }
 
   if (!isLoggedIn() || !isCashier()) return;
   const activeShift = getActiveShift();
@@ -868,7 +976,7 @@ function runShiftScheduleChecks(now = new Date()) {
     toast("Shift 1 hampir selesai. Siapkan tutup shift.");
   }
 
-  if (activeShift === "Shift 1" && hour === 16 && minute === 58 && markShiftActionOnce("shift-1-auto-logout", now)) {
+  if (activeShift === "Shift 1" && hour === 17 && minute === 0 && markShiftActionOnce("shift-1-auto-logout", now)) {
     handleShiftAutoLogout();
   }
 
@@ -879,6 +987,7 @@ function runShiftScheduleChecks(now = new Date()) {
   if (activeShift === "Shift 2" && hour === 22 && minute === 0 && markShiftActionOnce("shift-2-auto-logout", now)) {
     handleShiftAutoLogout();
   }
+
 }
 
 function hasActiveOrderInProgress() {
@@ -1526,19 +1635,18 @@ function renderMenuTable() {
   const menu = getMenu();
   const categories = [...new Set(menu.map((item) => item.category || "Tanpa Kategori"))].sort((a, b) => a.localeCompare(b, "id-ID"));
   const rows = categories
-    .map((category, index) => {
+    .map((category) => {
       const items = menu
         .filter((item) => (item.category || "Tanpa Kategori") === category)
         .sort((a, b) => a.name.localeCompare(b.name, "id-ID"));
       return `
-        <details class="menu-category-group" ${index === 0 ? "open" : ""}>
-          <summary class="menu-category-heading">
+        <section class="menu-category-group">
+          <div class="menu-category-heading">
             <span>
               <strong>${category}</strong>
               <small>${items.length} menu</small>
             </span>
-            <b aria-hidden="true">v</b>
-          </summary>
+          </div>
           <div class="menu-category-items">
           ${items
             .map((item) => {
@@ -1561,7 +1669,7 @@ function renderMenuTable() {
             })
             .join("")}
           </div>
-        </details>
+        </section>
       `;
     })
     .join("");
@@ -2218,6 +2326,7 @@ function currentTransaction(draft = false) {
     status: draft ? "unpaid" : "paid",
     employee: activeEmployeeName(),
     employeeId: activeEmployeeId(),
+    dutyRole: currentDutyRole(),
     orderType,
     isStaffDrink: staffDrink,
     staffDrinkDate: staffDrink ? dateKey(now) : "",
@@ -2354,7 +2463,7 @@ function receiptHtml(transaction, kind = "paid") {
     ${kind === "bill" ? "" : staffDrink ? "<p>STAFF DRINK / JATAH KARYAWAN</p>" : "<p>LUNAS</p>"}
     <p>${transaction.id}</p>
     <p>${new Date(transaction.createdAt).toLocaleString("id-ID")}</p>
-    <p>Kasir: ${transaction.employee}${transaction.shift ? ` (${transaction.shift})` : ""}</p>
+    <p>Kasir: ${transactionEmployeeDisplay(transaction)}${transaction.shift ? ` (${transaction.shift})` : ""}</p>
     <p>Channel: ${transaction.channel || "Kasir"}</p>
     <p>Customer: ${transaction.customer}</p>
     <p>Meja: ${transaction.table}</p>
@@ -2400,7 +2509,7 @@ function receiptText(transaction, kind = "paid") {
     line,
     transaction.id,
     new Date(transaction.createdAt).toLocaleString("id-ID"),
-    `Kasir: ${transaction.employee}${transaction.shift ? ` (${transaction.shift})` : ""}`,
+    `Kasir: ${transactionEmployeeDisplay(transaction)}${transaction.shift ? ` (${transaction.shift})` : ""}`,
     `Channel: ${transaction.channel || "Kasir"}`,
     `Customer: ${transaction.customer}`,
     `Meja: ${transaction.table}`,
@@ -2643,7 +2752,7 @@ function renderHistory() {
               <article class="history-card">
                 <div>
                   <strong>${transaction.id} · ${money(transaction.grandTotal)}${isStaffDrinkTransaction(transaction) ? " · Staff Drink" : ""}</strong>
-                  <p>${new Date(transaction.createdAt).toLocaleString("id-ID")} · ${transaction.shift || "Shift 1"} · ${transaction.customer} · ${transaction.payment}${transaction.discountTotal ? ` · Diskon ${money(transaction.discountTotal)}` : ""}${transaction.boothCode ? ` · Booth ${transaction.boothCode}` : ""}</p>
+                  <p>${new Date(transaction.createdAt).toLocaleString("id-ID")} · ${transaction.shift || "Shift 1"} · ${transactionEmployeeDisplay(transaction)} · ${transaction.customer} · ${transaction.payment}${transaction.discountTotal ? ` · Diskon ${money(transaction.discountTotal)}` : ""}${transaction.boothCode ? ` · Booth ${transaction.boothCode}` : ""}</p>
                   <p>${transaction.items.map((item) => `${item.qty}x ${item.name}`).join(", ")}</p>
                 </div>
               </article>
@@ -3207,7 +3316,7 @@ function dailyReportText(todayTransactions, reportDateValue = selectedDailyDate(
     ...shiftLines,
     "",
     "Konsumsi Karyawan:",
-    ...(staffDrinks.length ? staffDrinks.map((entry) => `- ${entry.employee}: ${entry.items.map((item) => `${item.qty}x ${item.name}`).join(", ")} (${money(entry.originalTotal || entry.subtotal || 0)})`) : ["- Belum ada Staff Drink"]),
+    ...(staffDrinks.length ? staffDrinks.map((entry) => `- ${transactionEmployeeDisplay(entry)}: ${entry.items.map((item) => `${item.qty}x ${item.name}`).join(", ")} (${money(entry.originalTotal || entry.subtotal || 0)})`) : ["- Belum ada Staff Drink"]),
     `Nilai konsumsi: ${money(staffValue)}`,
     "",
     "Rincian Orderan:",
@@ -3286,9 +3395,10 @@ async function copyDailyReport() {
 }
 
 function shareDailyReportToWhatsApp() {
-  const text = els.dailyReportText?.textContent?.trim();
+  const text = state.reportShareText || els.dailyReportText?.textContent?.trim();
   if (!text) return toast("Belum ada laporan untuk dibagikan.");
-  window.open(`https://wa.me/?text=${encodeURIComponent(["*Migi Coffee*", "", text].join("\n"))}`, "_blank", "noopener");
+  openWhatsAppReport(text);
+  if (els.dailyReportShareStatus) els.dailyReportShareStatus.textContent = "Laporan dibuka di WhatsApp";
 }
 
 function filteredMonthHistory() {
@@ -3547,8 +3657,28 @@ function readMenuImageFile(event) {
   reader.readAsDataURL(file);
 }
 
-function saveMenu(event) {
+function setMenuSaveState(isSaving, text = "Menyimpan...") {
+  state.menuSaving = isSaving;
+  els.menuForm?.classList.toggle("is-saving", isSaving);
+  if (els.menuSubmitBtn) {
+    els.menuSubmitBtn.disabled = isSaving;
+    els.menuSubmitBtn.textContent = isSaving ? text : "Simpan Menu";
+  }
+}
+
+async function persistMenuSettings() {
+  if (!navigator.onLine) {
+    toast("Menu tersimpan lokal. Akan sync saat online.");
+    return false;
+  }
+  await syncSettingsToCloud({ force: true });
+  await pullSettingsFromSupabase({ render: false });
+  return true;
+}
+
+async function saveMenu(event) {
   event.preventDefault();
+  if (state.menuSaving) return;
   const menu = getMenu();
   syncMenuCategoryField();
   const recipes = getRecipes();
@@ -3577,11 +3707,19 @@ function saveMenu(event) {
   writeJson(storageKeys.menu, menu);
   saveRecipes(recipes);
   markSettingsDirty();
-  resetMenuForm();
-  state.category = "Semua";
-  renderAll();
-  syncSettingsToCloud({ force: true }).catch(() => null);
-  toast("Menu tersimpan.");
+  setMenuSaveState(true);
+  try {
+    const synced = await persistMenuSettings();
+    resetMenuForm();
+    state.category = "Semua";
+    renderAll();
+    toast(synced ? "Menu tersimpan dan tersinkron." : "Menu tersimpan lokal.");
+  } catch (error) {
+    renderAll();
+    toast("Menu tersimpan lokal, tapi sync cloud belum berhasil.");
+  } finally {
+    setMenuSaveState(false);
+  }
 }
 
 function savePurchase(event) {
@@ -4325,7 +4463,7 @@ els.purchaseCost?.addEventListener("blur", () => {
   const value = parseRupiah(els.purchaseCost.value);
   els.purchaseCost.value = value ? money(value) : "";
 });
-els.menuTable.addEventListener("click", (event) => {
+els.menuTable.addEventListener("click", async (event) => {
   const editButton = event.target.closest("button[data-edit-menu]");
   const deleteButton = event.target.closest("button[data-delete-menu]");
   const menu = getMenu();
@@ -4350,8 +4488,12 @@ els.menuTable.addEventListener("click", (event) => {
     writeJson(storageKeys.menu, menu.filter((item) => item.id !== deleteButton.dataset.deleteMenu));
     markSettingsDirty();
     renderAll();
-    syncSettingsToCloud({ force: true }).catch(() => null);
-    toast("Menu dihapus.");
+    try {
+      const synced = await persistMenuSettings();
+      toast(synced ? "Menu dihapus dan tersinkron." : "Menu dihapus lokal.");
+    } catch {
+      toast("Menu dihapus lokal, tapi sync cloud belum berhasil.");
+    }
   }
 });
 
@@ -4368,6 +4510,7 @@ els.downloadBooth?.addEventListener("click", downloadBooth);
 els.boothCustomer?.addEventListener("input", drawBoothCanvas);
 els.boothSessionPackage?.addEventListener("change", drawBoothCanvas);
 els.loginForm.addEventListener("submit", login);
+els.loginDutyRole?.addEventListener("change", renderEmployeeControls);
 els.orderForm.addEventListener("submit", startOrder);
 els.cancelOrderModal.addEventListener("click", closeOrderModal);
 els.orderModal.addEventListener("click", (event) => {

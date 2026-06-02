@@ -9,9 +9,9 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="Kasir Migi" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <link rel="manifest" href="/manifest.json?v=15" />
-    <link rel="icon" href="/assets/favicon-migi.png?v=15" />
-    <link rel="apple-touch-icon" href="/assets/pwa-icon-512.png?v=15" />
+    <link rel="manifest" href="/manifest.json?v=16" />
+    <link rel="icon" href="/assets/favicon-migi.png?v=16" />
+    <link rel="apple-touch-icon" href="/assets/pwa-icon-512.png?v=16" />
     <link rel="stylesheet" href="styles.css?v=9" />
   </head>
   <body>
@@ -36,6 +36,13 @@
           <label>
             Karyawan
             <select id="loginEmployee"></select>
+          </label>
+          <label id="loginDutyRoleWrap">
+            Tugas
+            <select id="loginDutyRole">
+              <option value="karyawan">Karyawan</option>
+              <option value="helper">Helper</option>
+            </select>
           </label>
         </div>
         <button class="primary-button full-button" id="loginSubmitBtn" type="submit">Masuk</button>
@@ -450,7 +457,7 @@
                 </div>
                 <div class="button-row">
                   <button class="secondary-button" id="cancelMenuEdit" type="button">Batal</button>
-                  <button class="primary-button" type="submit">Simpan Menu</button>
+                  <button class="primary-button" id="menuSubmitBtn" type="submit">Simpan Menu</button>
                 </div>
               </form>
             </section>
@@ -673,6 +680,7 @@
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19l1.2-3.5A7 7 0 1 1 8.5 18z" /><path d="M9 9c.5 2.5 2.3 4.3 5 5" /></svg>
                     WhatsApp
                   </button>
+                  <span class="report-share-status" id="dailyReportShareStatus"></span>
                 </div>
               </div>
               <div class="daily-summary" id="dailySummary"></div>

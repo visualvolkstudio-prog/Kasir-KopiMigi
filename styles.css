@@ -866,6 +866,19 @@ button { cursor: pointer; }
   border-color: #d1d5db;
   transform: translateY(-1px);
 }
+
+.primary-button:disabled,
+.secondary-button:disabled {
+  cursor: wait;
+  opacity: 0.68;
+  transform: none;
+  box-shadow: none;
+}
+
+.stack-form.is-saving {
+  pointer-events: none;
+  opacity: 0.76;
+}
 .text-link-button { text-decoration: none; }
 
 .compact { min-height: 34px; font-size: 12.5px; }
@@ -1002,12 +1015,8 @@ input:focus, select:focus {
   gap: 10px;
   padding: 11px 13px;
   color: var(--ink);
-  cursor: pointer;
-  list-style: none;
-}
-
-.menu-category-heading::-webkit-details-marker {
-  display: none;
+  background: linear-gradient(180deg, #fff, #f8f9fd);
+  border-bottom: 1px solid var(--line);
 }
 
 .menu-category-heading span,
@@ -1032,28 +1041,10 @@ input:focus, select:focus {
   text-transform: none;
 }
 
-.menu-category-heading b {
-  width: 28px;
-  height: 28px;
-  border-radius: 999px;
-  background: var(--soft);
-  color: var(--muted);
-  display: grid;
-  place-items: center;
-  flex: 0 0 auto;
-  transition: transform 0.16s ease, background 0.16s ease;
-}
-
-.menu-category-group[open] .menu-category-heading b {
-  transform: rotate(180deg);
-  background: rgba(49, 92, 159, 0.12);
-  color: var(--accent-text);
-}
-
 .menu-category-items {
   display: grid;
   gap: 7px;
-  padding: 0 11px 11px;
+  padding: 11px;
   animation: menuGroupIn 0.16s ease both;
 }
 
@@ -1715,6 +1706,13 @@ input:focus, select:focus {
   background: rgba(18,120,79,0.08);
 }
 
+.report-share-status {
+  color: #12784f;
+  font-size: 12px;
+  font-weight: 800;
+  min-height: 18px;
+}
+
 .daily-report-text {
   margin: 12px 0 0;
   border: 1px solid var(--line);
@@ -2035,6 +2033,10 @@ body.locked .login-screen { display: grid; }
   display: grid;
   grid-template-columns: 0.8fr 1.2fr;
   gap: 10px;
+}
+
+.login-card.helper-day .login-session-grid {
+  grid-template-columns: 0.8fr 1.2fr 0.9fr;
 }
 
 .settings-panel textarea {
