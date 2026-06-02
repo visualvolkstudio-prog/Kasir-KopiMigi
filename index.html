@@ -393,7 +393,7 @@
         </section>
 
         <section class="view-panel" id="view-orders">
-          <div class="section-heading">
+          <div class="section-heading order-heading">
             <div>
               <p class="eyebrow">Order masuk</p>
               <h3>Daftar Pesanan</h3>
@@ -403,6 +403,7 @@
               <button data-order-status="paid" type="button">Sudah Dibayar <span id="paidOrderCount">0</span></button>
             </div>
             <input class="order-date-filter" id="paidOrderDate" type="date" hidden />
+            <div class="segmented order-category-tabs" id="paidOrderCategoryTabs" role="tablist" aria-label="Kategori order sudah dibayar" hidden></div>
           </div>
           <div class="history-list order-list" id="orderList"></div>
           <section class="history-panel pending-sync-panel">
@@ -544,8 +545,13 @@
               <p class="eyebrow">Keuangan</p>
               <h3>Arus Kas</h3>
             </div>
-            <div class="analytics-actions">
-              <input id="cashflowMonth" type="date" aria-label="Tanggal arus kas" />
+            <div class="analytics-actions cashflow-controls">
+              <div class="segmented cashflow-period-tabs" id="cashflowPeriodTabs" role="tablist" aria-label="Periode arus kas">
+                <button class="active" data-cashflow-period="month" type="button">Bulanan</button>
+                <button data-cashflow-period="day" type="button">Harian</button>
+              </div>
+              <input id="cashflowMonth" type="month" aria-label="Bulan arus kas" />
+              <input id="cashflowDate" type="date" aria-label="Tanggal arus kas" hidden />
             </div>
           </div>
 
@@ -622,10 +628,13 @@
                   <p class="eyebrow">Riwayat</p>
                   <h3>Mutasi Kas per Hari</h3>
                 </div>
-                <div class="segmented" id="cfFilterTabs" role="tablist">
+                <div class="segmented cashflow-filter-tabs" id="cfFilterTabs" role="tablist" aria-label="Filter mutasi arus kas">
                   <button class="active" data-cf-filter="all" type="button">Semua</button>
                   <button data-cf-filter="in" type="button">Masuk</button>
-                  <button data-cf-filter="out" type="button">Keluar</button>
+                  <button data-cf-filter="Operasional" type="button">Operasional</button>
+                  <button data-cf-filter="Bahan Baku" type="button">Bahan Baku</button>
+                  <button data-cf-filter="Peralatan" type="button">Peralatan</button>
+                  <button data-cf-filter="Lain-lain" type="button">Lain-lain</button>
                 </div>
               </div>
               <div class="history-list" id="cashflowList"></div>

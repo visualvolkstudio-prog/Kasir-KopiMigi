@@ -61,6 +61,7 @@ const state = {
   discountNote: "",
   orderChannel: "Kasir",
   orderStatus: "unpaid",
+  paidOrderCategory: "Semua",
   chartRange: "daily",
   activeDraftId: "",
   pendingBoothCode: "",
@@ -204,6 +205,7 @@ const els = {
   unpaidOrderCount: document.querySelector("#unpaidOrderCount"),
   paidOrderCount: document.querySelector("#paidOrderCount"),
   paidOrderDate: document.querySelector("#paidOrderDate"),
+  paidOrderCategoryTabs: document.querySelector("#paidOrderCategoryTabs"),
   connectionStatus: document.querySelector("#connectionStatus"),
   pendingSyncCount: document.querySelector("#pendingSyncCount"),
   manualSyncBtn: document.querySelector("#manualSyncBtn"),
@@ -264,7 +266,9 @@ const els = {
   cfOutCount: document.querySelector("#cfOutCount"),
   cfNetLabel: document.querySelector("#cfNetLabel"),
   cfFilterTabs: document.querySelector("#cfFilterTabs"),
+  cashflowPeriodTabs: document.querySelector("#cashflowPeriodTabs"),
   cashflowMonth: document.querySelector("#cashflowMonth"),
+  cashflowDate: document.querySelector("#cashflowDate"),
   boothVideo: document.querySelector("#boothVideo"),
   cameraPlaceholder: document.querySelector("#cameraPlaceholder"),
   startCamera: document.querySelector("#startCamera"),
@@ -396,25 +400,22 @@ function receiptTableLabel(transaction, displayCode) {
   return value;
 }
 
-function orderGroupCategory(transaction) {
-  const categories = [...new Set((transaction?.items || []).map((item) => item.category || "Lainnya"))];
-  if (!categories.length) return "Lainnya";
-  return categories.length === 1 ? categories[0] : "Campuran";
+function transactionCategories(transaction) {
+  return [...new Set((transaction?.items || []).map((item) => item.category || "Lainnya"))];
 }
 
-function groupedPaidOrders(transactions = []) {
-  const groups = new Map();
-  transactions.forEach((transaction) => {
-    const category = orderGroupCategory(transaction);
-    if (!groups.has(category)) groups.set(category, []);
-    groups.get(category).push(transaction);
-  });
-  return [...groups.entries()].sort(([a], [b]) => {
-    const preferred = ["Kopi", "Manual Brew", "Non Kopi", "Milk Based", "Air Minum", "Snack", "Photobooth", "Campuran", "Lainnya"];
-    const ai = preferred.includes(a) ? preferred.indexOf(a) : preferred.indexOf("Lainnya");
-    const bi = preferred.includes(b) ? preferred.indexOf(b) : preferred.indexOf("Lainnya");
-    return ai - bi || a.localeCompare(b, "id-ID");
-  });
+function orderMatchesPaidCategory(transaction, category = "Semua") {
+  return category === "Semua" || transactionCategories(transaction).includes(category);
+}
+
+function paidOrderCategories(transactions = []) {
+  const categories = ["Semua", ...getMenuCategories()];
+  const existing = new Set(categories);
+  const transactionCategoriesToday = transactions
+    .flatMap((transaction) => transactionCategories(transaction))
+    .filter((category) => category && !existing.has(category))
+    .sort((a, b) => a.localeCompare(b, "id-ID"));
+  return [...categories, ...transactionCategoriesToday];
 }
 
 function readJson(key, fallback) {
@@ -2054,25 +2055,36 @@ function renderInventory() {
 }
 
 function renderCashflow() {
-  const selectedDate = els.cashflowMonth?.value || dateKey();
-  const dayExpenses = getCashflowExpenses().filter((entry) => dateKey(entry.createdAt) === selectedDate);
-  const daySales = revenueTransactions(getHistory()).filter((entry) => dateKey(entry.createdAt) === selectedDate);
-  const salesIn = daySales.reduce((sum, entry) => sum + entry.grandTotal, 0);
-  const totalOut = dayExpenses.reduce((sum, entry) => sum + entry.amount, 0);
+  const activePeriod = els.cashflowPeriodTabs?.querySelector("button.active")?.dataset?.cashflowPeriod || "month";
+  const isDaily = activePeriod === "day";
+  const selectedMonthValue = els.cashflowMonth?.value || dateKey().slice(0, 7);
+  const selectedDateValue = els.cashflowDate?.value || dateKey();
+  if (els.cashflowMonth) els.cashflowMonth.hidden = isDaily;
+  if (els.cashflowDate) els.cashflowDate.hidden = !isDaily;
+  const periodLabel = isDaily ? "tanggal ini" : "bulan ini";
+  const isInPeriod = (entry) => {
+    const entryDate = dateKey(entry.createdAt);
+    return isDaily ? entryDate === selectedDateValue : entryDate.slice(0, 7) === selectedMonthValue;
+  };
+  const periodExpenses = getCashflowExpenses().filter(isInPeriod);
+  const periodSales = revenueTransactions(getHistory()).filter(isInPeriod);
+  const salesIn = periodSales.reduce((sum, entry) => sum + entry.grandTotal, 0);
+  const totalOut = periodExpenses.reduce((sum, entry) => sum + entry.amount, 0);
   const net = salesIn - totalOut;
 
   if (els.cfTotalIn) els.cfTotalIn.textContent = money(salesIn);
-  if (els.cfInCount) els.cfInCount.textContent = `${daySales.length} transaksi hari ini`;
+  if (els.cfInCount) els.cfInCount.textContent = `${periodSales.length} transaksi ${periodLabel}`;
   if (els.cfTotalOut) els.cfTotalOut.textContent = money(totalOut);
-  if (els.cfOutCount) els.cfOutCount.textContent = `${dayExpenses.length} pengeluaran hari ini`;
+  if (els.cfOutCount) els.cfOutCount.textContent = `${periodExpenses.length} pengeluaran ${periodLabel}`;
   if (els.cfNet) els.cfNet.textContent = money(net);
-  if (els.cfNetLabel) els.cfNetLabel.textContent = net >= 0 ? "surplus hari ini" : "defisit hari ini";
+  if (els.cfNetLabel) els.cfNetLabel.textContent = `${net >= 0 ? "surplus" : "defisit"} ${periodLabel}`;
 
   const activeFilter = els.cfFilterTabs?.querySelector("button.active")?.dataset?.cfFilter || "all";
-  const salesList = daySales
-    .map((entry) => ({ type: "in", label: `Penjualan · ${paidOrderDisplayCode(entry, daySales)}`, amount: entry.grandTotal, note: entry.customer, createdAt: entry.createdAt }));
-  const expenseList = dayExpenses.map((entry) => ({
+  const salesList = periodSales
+    .map((entry) => ({ type: "in", category: "Masuk", label: `Penjualan · ${paidOrderDisplayCode(entry, periodSales)}`, amount: entry.grandTotal, note: entry.customer, createdAt: entry.createdAt }));
+  const expenseList = periodExpenses.map((entry) => ({
     type: "out",
+    category: entry.category || "Lain-lain",
     label: entry.note,
     amount: entry.amount,
     note: `${entry.category}${entry.qty ? ` · ${Number(entry.qty).toLocaleString("id-ID")} ${entry.unit || ""}` : ""}`,
@@ -2082,7 +2094,7 @@ function renderCashflow() {
 
   let combined = [...salesList, ...expenseList].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   if (activeFilter === "in") combined = combined.filter((entry) => entry.type === "in");
-  if (activeFilter === "out") combined = combined.filter((entry) => entry.type === "out");
+  if (!["all", "in"].includes(activeFilter)) combined = combined.filter((entry) => entry.type === "out" && entry.category === activeFilter);
 
   if (els.cashflowList) {
     const grouped = combined.reduce((map, entry) => {
@@ -2114,7 +2126,7 @@ function renderCashflow() {
             </section>
           `;
         }).join("")
-      : `<div class="empty-state">Belum ada mutasi kas di bulan ini.</div>`;
+      : `<div class="empty-state">Belum ada mutasi kas di ${periodLabel}.</div>`;
   }
 }
 
@@ -3045,29 +3057,27 @@ function renderOrders() {
     .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
   const paidDisplayCodes = paidOrderDisplayCodes(paidAscending);
   const paid = [...paidAscending].reverse();
+  const paidCategories = paidOrderCategories(paidAscending);
+  if (!paidCategories.includes(state.paidOrderCategory)) state.paidOrderCategory = "Semua";
+  const paidByCategory = paid.filter((transaction) => orderMatchesPaidCategory(transaction, state.paidOrderCategory));
   if (els.unpaidOrderCount) els.unpaidOrderCount.textContent = unpaid.length;
   if (els.paidOrderCount) els.paidOrderCount.textContent = paidAscending.length;
   if (els.paidOrderDate) els.paidOrderDate.hidden = state.orderStatus !== "paid";
+  if (els.paidOrderCategoryTabs) {
+    els.paidOrderCategoryTabs.hidden = state.orderStatus !== "paid";
+    els.paidOrderCategoryTabs.innerHTML = state.orderStatus === "paid"
+      ? paidCategories
+          .map((category) => `<button class="${category === state.paidOrderCategory ? "active" : ""}" data-paid-order-category="${category}" type="button">${category}</button>`)
+          .join("")
+      : "";
+  }
 
-  const list = state.orderStatus === "paid" ? paid : unpaid;
+  const list = state.orderStatus === "paid" ? paidByCategory : unpaid;
   els.orderList.innerHTML = list.length
     ? state.orderStatus === "paid"
-      ? groupedPaidOrders(paid.slice(0, 80)).map(([category, transactions]) => {
-          const total = transactions.reduce((sum, transaction) => sum + Number(transaction.grandTotal || 0), 0);
-          return `
-            <section class="order-category-section">
-              <div class="order-category-header">
-                <strong>${category}</strong>
-                <span>${transactions.length} order · ${money(total)}</span>
-              </div>
-              <div class="order-category-list">
-                ${transactions.map((transaction) => orderCard(transaction, state.orderStatus, paidDisplayCodes.get(transaction.id))).join("")}
-              </div>
-            </section>
-          `;
-        }).join("")
+      ? list.slice(0, 80).map((transaction) => orderCard(transaction, state.orderStatus, paidDisplayCodes.get(transaction.id))).join("")
       : list.slice(0, 80).map((transaction) => orderCard(transaction, state.orderStatus)).join("")
-    : `<div class="empty-state">${state.orderStatus === "paid" ? "Belum ada order yang sudah dibayar." : "Belum ada order menunggu pembayaran."}</div>`;
+    : `<div class="empty-state">${state.orderStatus === "paid" ? `Belum ada order ${state.paidOrderCategory === "Semua" ? "yang sudah dibayar" : `kategori ${state.paidOrderCategory}`} pada tanggal ini.` : "Belum ada order menunggu pembayaran."}</div>`;
 }
 
 async function renderPendingSync() {
@@ -4268,6 +4278,13 @@ els.orderChannels?.addEventListener("click", (event) => {
   renderOrders();
 });
 
+els.paidOrderCategoryTabs?.addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-paid-order-category]");
+  if (!button) return;
+  state.paidOrderCategory = button.dataset.paidOrderCategory;
+  renderOrders();
+});
+
 els.chartRangeTabs?.addEventListener("click", (event) => {
   const button = event.target.closest("button[data-chart-range]");
   if (!button) return;
@@ -4537,7 +4554,15 @@ els.cfFilterTabs?.addEventListener("click", (event) => {
   renderCashflow();
 });
 
+els.cashflowPeriodTabs?.addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-cashflow-period]");
+  if (!button) return;
+  els.cashflowPeriodTabs.querySelectorAll("button").forEach((entry) => entry.classList.toggle("active", entry === button));
+  renderCashflow();
+});
+
 els.cashflowMonth?.addEventListener("change", renderCashflow);
+els.cashflowDate?.addEventListener("change", renderCashflow);
 
 els.cashflowList?.addEventListener("click", (event) => {
   const deleteBtn = event.target.closest("button[data-delete-expense]");
@@ -4687,7 +4712,8 @@ els.cancelOrderModal.addEventListener("click", closeOrderModal);
 els.analyticsMonth.value = new Date().toISOString().slice(0, 7);
 if (els.analyticsDate) els.analyticsDate.value = dateKey();
 if (els.paidOrderDate) els.paidOrderDate.value = dateKey();
-if (els.cashflowMonth) els.cashflowMonth.value = dateKey();
+if (els.cashflowMonth) els.cashflowMonth.value = dateKey().slice(0, 7);
+if (els.cashflowDate) els.cashflowDate.value = dateKey();
 if (state.payment === "Kartu") state.payment = "Tunai";
 syncCfExpenseNoteField();
 registerServiceWorker();
