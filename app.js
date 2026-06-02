@@ -1713,6 +1713,11 @@ function recipeRowHtml(recipe = {}) {
 function renderRecipeRows(menuId = els.menuId?.value) {
   if (!els.recipeIngredientRows) return;
   const rows = getRecipes()[menuId] || [];
+  renderRecipeRowsFromRows(rows);
+}
+
+function renderRecipeRowsFromRows(rows = []) {
+  if (!els.recipeIngredientRows) return;
   els.recipeIngredientRows.innerHTML = rows.length ? rows.map(recipeRowHtml).join("") : recipeRowHtml();
   updateRecipeRowUnits();
 }
@@ -1725,6 +1730,27 @@ function updateRecipeRowUnits() {
     const unit = row.querySelector(".recipe-unit-preview");
     if (unit) unit.value = inventory[select?.value]?.unit || "";
   });
+}
+
+function recipeDraftRows() {
+  const rows = Array.from(els.recipeIngredientRows?.querySelectorAll(".recipe-ingredient-row") || []);
+  return rows.map((row) => ({
+    ingredientId: row.querySelector(".recipe-ingredient-select")?.value || "",
+    qty: row.querySelector(".recipe-qty-input")?.value || "",
+  }));
+}
+
+function hasMenuFormDraft() {
+  if (!els.menuForm) return false;
+  const hasMenuInput = Boolean(
+    els.menuId?.value ||
+      els.menuName?.value.trim() ||
+      els.menuCategory?.value.trim() ||
+      els.menuPrice?.value.trim() ||
+      els.menuImage?.value,
+  );
+  const hasRecipeInput = recipeDraftRows().some((row) => row.ingredientId || row.qty);
+  return hasMenuInput || hasRecipeInput;
 }
 
 function collectRecipeRows() {
@@ -1752,6 +1778,10 @@ function collectRecipeRows() {
 }
 
 function renderRecipeOptions() {
+  if (hasMenuFormDraft()) {
+    renderRecipeRowsFromRows(recipeDraftRows());
+    return;
+  }
   renderRecipeRows(els.menuId?.value || "");
 }
 
@@ -4430,10 +4460,13 @@ els.stockTable?.addEventListener("click", (event) => {
     toast(`Bahan "${name}" dihapus dari stok.`);
   }
 });
-els.addRecipeIngredient?.addEventListener("click", () => {
+els.addRecipeIngredient?.addEventListener("click", (event) => {
+  event.preventDefault();
   if (!els.recipeIngredientRows) return;
-  els.recipeIngredientRows.insertAdjacentHTML("beforeend", recipeRowHtml());
-  updateRecipeRowUnits();
+  const rows = recipeDraftRows();
+  rows.push({ ingredientId: "", qty: "" });
+  renderRecipeRowsFromRows(rows);
+  els.recipeIngredientRows.querySelector(".recipe-ingredient-row:last-child .recipe-ingredient-select")?.focus();
 });
 els.recipeIngredientRows?.addEventListener("change", (event) => {
   if (event.target.closest(".recipe-ingredient-select")) updateRecipeRowUnits();
