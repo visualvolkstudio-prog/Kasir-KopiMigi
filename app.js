@@ -2834,6 +2834,7 @@ function orderCard(transaction, kind, displayCode = "") {
                 </select>
               </label>`
         }
+        ${isOwner() ? `<button class="secondary-button compact danger-text" data-delete-transaction="${transaction.id}" type="button">Hapus</button>` : ""}
       </div>
     `;
 
@@ -2868,6 +2869,10 @@ function removeTransactionFromLocalHistory(id) {
 
 async function deletePaidTransaction(id) {
   if (!id) return;
+  if (!isOwner()) {
+    toast("Hapus transaksi sudah dibayar hanya untuk Owner.");
+    return;
+  }
   if (navigator.onLine) {
     try {
       await deleteTransactionInSupabase(id);
