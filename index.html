@@ -3,22 +3,22 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Kasir Migi</title>
+    <title>Kopi Migi POS</title>
     <meta name="theme-color" content="#405aa8" />
-    <meta name="application-name" content="Kasir Migi" />
+    <meta name="application-name" content="Kopi Migi" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-title" content="Kasir Migi" />
+    <meta name="apple-mobile-web-app-title" content="Kopi Migi" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <link rel="manifest" href="/manifest.json?v=16" />
+    <link rel="manifest" href="/manifest.json?v=17" />
     <link rel="icon" href="/assets/favicon-migi.png?v=16" />
     <link rel="apple-touch-icon" href="/assets/pwa-icon-512.png?v=16" />
-    <link rel="stylesheet" href="styles.css?v=9" />
+    <link rel="stylesheet" href="styles.css?v=10" />
   </head>
   <body>
     <section class="login-screen" id="loginScreen" aria-label="Login kasir">
       <form class="login-card" id="loginForm">
         <img src="assets/logo-paw.png" alt="Logo Migi" />
-        <p class="eyebrow">Kasir Migi</p>
+        <p class="eyebrow">Kopi Migi</p>
         <h2>Masuk Kasir</h2>
         <label class="login-credential-field">
           Username
@@ -238,8 +238,8 @@
             <img src="assets/logo-paw.png" alt="" />
           </div>
           <div>
-            <p class="eyebrow">Migi Coffee</p>
-            <h1>Kasir Migi</h1>
+            <p class="eyebrow">Kopi Migi</p>
+            <h1>Kasir</h1>
           </div>
         </div>
 
@@ -620,7 +620,7 @@
               <div class="section-heading">
                 <div>
                   <p class="eyebrow">Riwayat</p>
-                  <h3>Mutasi Kas</h3>
+                  <h3>Mutasi Kas per Hari</h3>
                 </div>
                 <div class="segmented" id="cfFilterTabs" role="tablist">
                   <button class="active" data-cf-filter="all" type="button">Semua</button>
@@ -651,6 +651,8 @@
           </div>
           <div class="metric-grid">
             <article class="metric-card"><span>Omset bulan ini</span><strong id="monthRevenue">Rp0</strong></article>
+            <article class="metric-card"><span>Tunai bulan ini</span><strong id="monthTunaiRevenue">Rp0</strong></article>
+            <article class="metric-card"><span>QRIS bulan ini</span><strong id="monthQrisRevenue">Rp0</strong></article>
             <article class="metric-card"><span>Rata-rata / hari jualan</span><strong id="avgDailyRevenue">Rp0</strong></article>
             <article class="metric-card"><span>Transaksi</span><strong id="monthTransactions">0</strong></article>
             <article class="metric-card"><span>Item terjual</span><strong id="monthItems">0</strong></article>
@@ -768,6 +770,6 @@
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-    <script src="app.js?v=13"></script>
+    <script src="app.js?v=14"></script>
   </body>
 </html>

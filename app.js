@@ -213,6 +213,8 @@ const els = {
   analyticsDate: document.querySelector("#analyticsDate"),
   chartRangeTabs: document.querySelector("#chartRangeTabs"),
   monthRevenue: document.querySelector("#monthRevenue"),
+  monthTunaiRevenue: document.querySelector("#monthTunaiRevenue"),
+  monthQrisRevenue: document.querySelector("#monthQrisRevenue"),
   avgDailyRevenue: document.querySelector("#avgDailyRevenue"),
   monthTransactions: document.querySelector("#monthTransactions"),
   monthItems: document.querySelector("#monthItems"),
@@ -366,6 +368,32 @@ function sequentialPaidOrderCode(transaction, sequence) {
   const prefix = dayOrderPrefix(transaction?.createdAt || new Date());
   const number = String(sequence || 1).padStart(3, "0");
   return `${prefix}-${number}${isOnlineChannel(transaction?.channel) ? "-O" : ""}`;
+}
+
+function paidOrderDisplayCodes(transactions = []) {
+  return new Map(
+    [...transactions]
+      .filter((entry) => entry?.status !== "unpaid")
+      .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
+      .map((transaction, index) => [transaction.id, sequentialPaidOrderCode(transaction, index + 1)]),
+  );
+}
+
+function paidOrderDisplayCode(transaction, transactions = getHistory()) {
+  if (!transaction) return "";
+  const sameDay = transactions.filter((entry) => dateKey(entry.createdAt) === dateKey(transaction.createdAt));
+  if (!sameDay.some((entry) => entry.id === transaction.id)) sameDay.push(transaction);
+  return paidOrderDisplayCodes(sameDay).get(transaction.id) || transaction.id;
+}
+
+function receiptDisplayCode(transaction, kind = "paid") {
+  return kind === "bill" ? transaction?.id || "" : paidOrderDisplayCode(transaction);
+}
+
+function receiptTableLabel(transaction, displayCode) {
+  const value = String(transaction?.table || "").trim();
+  if (!value || value === transaction?.id || /^[A-Z]+-\d{3}(?:-O)?$/.test(value)) return displayCode;
+  return value;
 }
 
 function readJson(key, fallback) {
@@ -897,7 +925,7 @@ function shiftReportText(shift, reportDateValue = dateKey()) {
 }
 
 function openWhatsAppReport(text) {
-  window.open(`https://wa.me/?text=${encodeURIComponent(["*Migi Coffee*", "", text].join("\n"))}`, "_blank", "noopener");
+  window.open(`https://wa.me/?text=${encodeURIComponent(["*Kopi Migi*", "", text].join("\n"))}`, "_blank", "noopener");
 }
 
 function markReportReady(action, label, text) {
@@ -1640,6 +1668,7 @@ function renderMenuTable() {
   const recipes = getRecipes();
   const menu = getMenu();
   const categories = [...new Set(menu.map((item) => item.category || "Tanpa Kategori"))].sort((a, b) => a.localeCompare(b, "id-ID"));
+  els.menuTable.classList.add("menu-category-board");
   const rows = categories
     .map((category) => {
       const items = menu
@@ -2006,23 +2035,21 @@ function renderInventory() {
 function renderCashflow() {
   const month = els.cashflowMonth?.value || new Date().toISOString().slice(0, 7);
   const expenses = getCashflowExpenses().filter((entry) => entry.createdAt?.slice(0, 7) === month);
-  const salesIn = getHistory()
-    .filter((entry) => entry.createdAt?.slice(0, 7) === month)
-    .reduce((sum, entry) => sum + entry.grandTotal, 0);
+  const monthSales = revenueTransactions(getHistory()).filter((entry) => entry.createdAt?.slice(0, 7) === month);
+  const salesIn = monthSales.reduce((sum, entry) => sum + entry.grandTotal, 0);
   const totalOut = expenses.reduce((sum, entry) => sum + entry.amount, 0);
   const net = salesIn - totalOut;
 
   if (els.cfTotalIn) els.cfTotalIn.textContent = money(salesIn);
-  if (els.cfInCount) els.cfInCount.textContent = `${getHistory().filter((entry) => entry.createdAt?.slice(0, 7) === month).length} transaksi`;
+  if (els.cfInCount) els.cfInCount.textContent = `${monthSales.length} transaksi`;
   if (els.cfTotalOut) els.cfTotalOut.textContent = money(totalOut);
   if (els.cfOutCount) els.cfOutCount.textContent = `${expenses.length} pengeluaran`;
   if (els.cfNet) els.cfNet.textContent = money(net);
   if (els.cfNetLabel) els.cfNetLabel.textContent = net >= 0 ? "surplus bulan ini" : "defisit bulan ini";
 
   const activeFilter = els.cfFilterTabs?.querySelector("button.active")?.dataset?.cfFilter || "all";
-  const salesList = revenueTransactions(getHistory())
-    .filter((entry) => entry.createdAt?.slice(0, 7) === month)
-    .map((entry) => ({ type: "in", label: `Penjualan · ${entry.id}`, amount: entry.grandTotal, note: entry.customer, createdAt: entry.createdAt }));
+  const salesList = monthSales
+    .map((entry) => ({ type: "in", label: `Penjualan · ${paidOrderDisplayCode(entry, monthSales)}`, amount: entry.grandTotal, note: entry.customer, createdAt: entry.createdAt }));
   const expenseList = expenses.map((entry) => ({
     type: "out",
     label: entry.note,
@@ -2037,17 +2064,35 @@ function renderCashflow() {
   if (activeFilter === "out") combined = combined.filter((entry) => entry.type === "out");
 
   if (els.cashflowList) {
+    const grouped = combined.reduce((map, entry) => {
+      const key = dateKey(entry.createdAt);
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push(entry);
+      return map;
+    }, new Map());
     els.cashflowList.innerHTML = combined.length
-      ? combined.map((entry) => `
-          <article class="history-card" style="border-left:3px solid ${entry.type === "in" ? "#2f7a46" : "#e05c3a"};">
-            <div style="flex:1;">
-              <strong style="color:${entry.type === "in" ? "#2f7a46" : "#e05c3a"}">${entry.type === "in" ? "+" : "-"}${money(entry.amount)}</strong>
-              <p>${entry.label}</p>
-              <p style="color:var(--muted)">${entry.note} · ${new Date(entry.createdAt).toLocaleString("id-ID")}</p>
-            </div>
-            ${entry.type === "out" ? `<button class="secondary-button compact danger-text" data-delete-expense="${entry.id}" type="button">Hapus</button>` : ""}
-          </article>
-        `).join("")
+      ? [...grouped.entries()].map(([day, entries]) => {
+          const dayTotalIn = entries.filter((entry) => entry.type === "in").reduce((sum, entry) => sum + entry.amount, 0);
+          const dayTotalOut = entries.filter((entry) => entry.type === "out").reduce((sum, entry) => sum + entry.amount, 0);
+          return `
+            <section class="cashflow-day-group">
+              <div class="cashflow-day-header">
+                <strong>${new Date(`${day}T12:00:00`).toLocaleDateString("id-ID", { weekday: "long", day: "2-digit", month: "short" })}</strong>
+                <span>Masuk ${money(dayTotalIn)} · Keluar ${money(dayTotalOut)}</span>
+              </div>
+              ${entries.map((entry) => `
+                <article class="history-card" style="border-left:3px solid ${entry.type === "in" ? "#2f7a46" : "#e05c3a"};">
+                  <div style="flex:1;">
+                    <strong style="color:${entry.type === "in" ? "#2f7a46" : "#e05c3a"}">${entry.type === "in" ? "+" : "-"}${money(entry.amount)}</strong>
+                    <p>${entry.label}</p>
+                    <p style="color:var(--muted)">${entry.note} · ${new Date(entry.createdAt).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}</p>
+                  </div>
+                  ${entry.type === "out" ? `<button class="secondary-button compact danger-text" data-delete-expense="${entry.id}" type="button">Hapus</button>` : ""}
+                </article>
+              `).join("")}
+            </section>
+          `;
+        }).join("")
       : `<div class="empty-state">Belum ada mutasi kas di bulan ini.</div>`;
   }
 }
@@ -2467,16 +2512,38 @@ async function syncTodayStockFromSales() {
   if (!stockChanged) toast("Tidak ada stok berubah.");
 }
 
+function groupedReceiptItems(items = []) {
+  const groups = new Map();
+  items.forEach((item) => {
+    const category = item.category || "Lainnya";
+    if (!groups.has(category)) groups.set(category, []);
+    groups.get(category).push(item);
+  });
+  const preferred = ["Kopi", "Manual Brew", "Non Kopi", "Snack", "Photobooth", "Lainnya"];
+  return [...groups.entries()].sort(([a], [b]) => {
+    const ai = preferred.includes(a) ? preferred.indexOf(a) : preferred.indexOf("Lainnya");
+    const bi = preferred.includes(b) ? preferred.indexOf(b) : preferred.indexOf("Lainnya");
+    return ai - bi || a.localeCompare(b);
+  });
+}
+
 function receiptHtml(transaction, kind = "paid") {
-  const itemLines = transaction.items
-    .map(
-      (item) => `
-        <div class="receipt-line">
-          <span class="receipt-item-name">${item.qty}x ${item.name}</span>
-          ${kind === "bill" ? "" : `<span class="receipt-item-price">${money(item.price * item.qty)}</span>`}
-        </div>
-      `,
-    )
+  const displayCode = receiptDisplayCode(transaction, kind);
+  const tableLabel = receiptTableLabel(transaction, displayCode);
+  const itemLines = groupedReceiptItems(transaction.items)
+    .map(([category, items]) => `
+      <p class="receipt-category">${category}</p>
+      ${items
+        .map(
+          (item) => `
+            <div class="receipt-line">
+              <span class="receipt-item-name">${item.qty}x ${item.name}</span>
+              ${kind === "bill" ? "" : `<span class="receipt-item-price">${money(item.price * item.qty)}</span>`}
+            </div>
+          `,
+        )
+        .join("")}
+    `)
     .join("");
   const staffDrink = isStaffDrinkTransaction(transaction);
   const discountLine = !staffDrink && Number(transaction.discountTotal || 0) > 0
@@ -2497,12 +2564,12 @@ function receiptHtml(transaction, kind = "paid") {
     <img class="receipt-logo" src="/assets/logo-migi.png" alt="Logo Kopi Migi" />
     <h2>Kopi Migi</h2>
     ${kind === "bill" ? "" : staffDrink ? "<p>STAFF DRINK / JATAH KARYAWAN</p>" : "<p>LUNAS</p>"}
-    <p>${transaction.id}</p>
+    <p>Kode: ${displayCode}</p>
     <p>${new Date(transaction.createdAt).toLocaleString("id-ID")}</p>
     <p>Kasir: ${transactionEmployeeDisplay(transaction)}${transaction.shift ? ` (${transaction.shift})` : ""}</p>
     <p>Channel: ${transaction.channel || "Kasir"}</p>
     <p>Customer: ${transaction.customer}</p>
-    <p>Meja: ${transaction.table}</p>
+    <p>Nomor: ${tableLabel}</p>
     <div class="receipt-rule"></div>
     ${itemLines}
     ${totalsBlock}
@@ -2525,6 +2592,8 @@ async function printReceipt(transaction, kind = "paid") {
 function receiptText(transaction, kind = "paid") {
   const width = els.printerPaperSize.value === "80mm" ? 42 : 32;
   const staffDrink = isStaffDrinkTransaction(transaction);
+  const displayCode = receiptDisplayCode(transaction, kind);
+  const tableLabel = receiptTableLabel(transaction, displayCode);
   const line = "-".repeat(width);
   const right = (label, value) => `${label}${String(value).padStart(Math.max(1, width - label.length), " ")}`;
   const itemLine = (label, value) => {
@@ -2543,19 +2612,22 @@ function receiptText(transaction, kind = "paid") {
     center("Kopi Migi"),
     ...(kind === "bill" ? [] : [center(staffDrink ? "STAFF DRINK" : "STRUK LUNAS")]),
     line,
-    transaction.id,
+    `Kode: ${displayCode}`,
     new Date(transaction.createdAt).toLocaleString("id-ID"),
     `Kasir: ${transactionEmployeeDisplay(transaction)}${transaction.shift ? ` (${transaction.shift})` : ""}`,
     `Channel: ${transaction.channel || "Kasir"}`,
     `Customer: ${transaction.customer}`,
-    `Meja: ${transaction.table}`,
+    `Nomor: ${tableLabel}`,
     line,
   ];
 
-  transaction.items.forEach((item) => {
-    const label = `${item.qty}x ${item.name}`;
-    if (kind === "bill") rows.push(label);
-    else rows.push(itemLine(label, money(item.price * item.qty)));
+  groupedReceiptItems(transaction.items).forEach(([category, items]) => {
+    rows.push(`[${category}]`);
+    items.forEach((item) => {
+      const label = `${item.qty}x ${item.name}`;
+      if (kind === "bill") rows.push(label);
+      else rows.push(itemLine(label, money(item.price * item.qty)));
+    });
   });
 
   if (kind !== "bill") {
@@ -2809,7 +2881,16 @@ function renderHistory() {
 }
 
 function orderCard(transaction, kind, displayCode = "") {
-  const items = transaction.items.map((item) => `${item.qty}x ${item.name}`).join(", ");
+  const items = kind === "paid"
+    ? groupedReceiptItems(transaction.items)
+        .map(([category, entries]) => `
+          <div class="order-item-category">
+            <span>${category}</span>
+            <p>${entries.map((item) => `${item.qty}x ${item.name}`).join(", ")}</p>
+          </div>
+        `)
+        .join("")
+    : `<p>${transaction.items.map((item) => `${item.qty}x ${item.name}`).join(", ")}</p>`;
   const orderCode = displayCode || transaction.id;
   const actions = kind === "unpaid"
     ? `
@@ -2843,7 +2924,7 @@ function orderCard(transaction, kind, displayCode = "") {
       <div>
         <strong>${orderCode} · ${money(transaction.grandTotal)}</strong>
         <p>${new Date(transaction.createdAt).toLocaleString("id-ID")} · ${transaction.channel || "Kasir"} · ${transaction.customer}</p>
-        <p>${items}</p>
+        <div class="order-item-groups">${items}</div>
       </div>
       ${actions}
     </article>
@@ -2950,9 +3031,7 @@ function renderOrders() {
   const paidAscending = getHistory()
     .filter((entry) => dateKey(entry.createdAt) === paidDate)
     .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
-  const paidDisplayCodes = new Map(
-    paidAscending.map((transaction, index) => [transaction.id, sequentialPaidOrderCode(transaction, index + 1)]),
-  );
+  const paidDisplayCodes = paidOrderDisplayCodes(paidAscending);
   const paid = [...paidAscending].reverse();
   if (els.unpaidOrderCount) els.unpaidOrderCount.textContent = unpaid.length;
   if (els.paidOrderCount) els.paidOrderCount.textContent = paidAscending.length;
@@ -3343,18 +3422,25 @@ function dailyReportText(todayTransactions, reportDateValue = selectedDailyDate(
   const normalTransactions = revenueTransactions(todayTransactions);
   const staffDrinks = todayTransactions.filter(isStaffDrinkTransaction);
   const revenue = normalTransactions.reduce((sum, entry) => sum + entry.grandTotal, 0);
+  const tunai = normalTransactions.filter((entry) => entry.payment === "Tunai").reduce((sum, entry) => sum + Number(entry.grandTotal || 0), 0);
+  const qris = normalTransactions.filter((entry) => entry.payment === "QRIS").reduce((sum, entry) => sum + Number(entry.grandTotal || 0), 0);
   const items = normalTransactions.reduce((sum, entry) => sum + entry.items.reduce((inner, item) => inner + item.qty, 0), 0);
   const discountTotal = normalTransactions.reduce((sum, entry) => sum + Number(entry.discountTotal || 0), 0);
   const staffValue = staffDrinks.reduce((sum, entry) => sum + Number(entry.originalTotal || entry.subtotal || 0), 0);
   const orderedItems = [...normalTransactions.reduce((map, entry) => {
     entry.items.forEach((item) => {
-      const current = map.get(item.id) || { name: item.name, qty: 0, revenue: 0 };
+      const current = map.get(item.id) || { name: item.name, category: item.category || "Lainnya", qty: 0, revenue: 0 };
       current.qty += item.qty;
       current.revenue += item.price * item.qty;
       map.set(item.id, current);
     });
     return map;
   }, new Map()).values()].sort((a, b) => b.qty - a.qty || b.revenue - a.revenue);
+  const orderedCategoryLines = groupedReceiptItems(orderedItems)
+    .flatMap(([category, items]) => [
+      `${category}:`,
+      ...items.map((item) => `- ${item.name}: ${item.qty} pcs (${money(item.revenue)})`),
+    ]);
   const shiftLines = ["Shift 1", "Shift 2"].map((shift) => {
     const transactions = normalTransactions.filter((entry) => (entry.shift || "Shift 1") === shift);
     const shiftRevenue = transactions.reduce((sum, entry) => sum + entry.grandTotal, 0);
@@ -3370,6 +3456,10 @@ function dailyReportText(todayTransactions, reportDateValue = selectedDailyDate(
     `Item terjual: ${items}`,
     `Total Diskon: ${money(discountTotal)}`,
     "",
+    "Klasifikasi Pembayaran:",
+    `- Tunai: ${money(tunai)}`,
+    `- QRIS: ${money(qris)}`,
+    "",
     "Rincian Shift:",
     ...shiftLines,
     "",
@@ -3377,8 +3467,8 @@ function dailyReportText(todayTransactions, reportDateValue = selectedDailyDate(
     ...(staffDrinks.length ? staffDrinks.map((entry) => `- ${transactionEmployeeDisplay(entry)}: ${entry.items.map((item) => `${item.qty}x ${item.name}`).join(", ")} (${money(entry.originalTotal || entry.subtotal || 0)})`) : ["- Belum ada Staff Drink"]),
     `Nilai konsumsi: ${money(staffValue)}`,
     "",
-    "Rincian Orderan:",
-    ...(orderedItems.length ? orderedItems.map((item) => `- ${item.name}: ${item.qty} pcs (${money(item.revenue)})`) : ["- Belum ada order"]),
+    "Rincian Orderan per Kategori:",
+    ...(orderedCategoryLines.length ? orderedCategoryLines : ["- Belum ada order"]),
   ].join("\n");
 }
 
@@ -3469,6 +3559,8 @@ function renderAnalytics() {
   const staffDrinks = monthHistory.filter(isStaffDrinkTransaction);
   const history = revenueTransactions(monthHistory);
   const revenue = history.reduce((sum, entry) => sum + entry.grandTotal, 0);
+  const monthTunai = history.filter((entry) => entry.payment === "Tunai").reduce((sum, entry) => sum + Number(entry.grandTotal || 0), 0);
+  const monthQris = history.filter((entry) => entry.payment === "QRIS").reduce((sum, entry) => sum + Number(entry.grandTotal || 0), 0);
   const uniqueDays = new Set(history.map((entry) => entry.createdAt.slice(0, 10))).size || 1;
   const itemCount = history.reduce((sum, entry) => sum + entry.items.reduce((inner, item) => inner + item.qty, 0), 0);
   const products = new Map();
@@ -3484,6 +3576,8 @@ function renderAnalytics() {
 
   const bestsellers = [...products.values()].sort((a, b) => b.qty - a.qty || b.revenue - a.revenue).slice(0, 8);
   els.monthRevenue.textContent = money(revenue);
+  if (els.monthTunaiRevenue) els.monthTunaiRevenue.textContent = money(monthTunai);
+  if (els.monthQrisRevenue) els.monthQrisRevenue.textContent = money(monthQris);
   els.avgDailyRevenue.textContent = money(Math.round(revenue / uniqueDays));
   els.monthTransactions.textContent = String(history.length);
   els.monthItems.textContent = String(itemCount);
@@ -4280,9 +4374,6 @@ els.employeeDeleteForm?.addEventListener("submit", (event) => {
 });
 els.cancelEmployeeDelete?.addEventListener("click", closeEmployeeDeleteModal);
 els.employeeDeleteCancelBtn?.addEventListener("click", closeEmployeeDeleteModal);
-els.employeeDeleteModal?.addEventListener("click", (event) => {
-  if (event.target === els.employeeDeleteModal) closeEmployeeDeleteModal();
-});
 els.logoutBtn.addEventListener("click", logout);
 els.testLogoPrint?.addEventListener("click", testLogoPrint);
 els.billOrderBtn.addEventListener("click", printBill);
@@ -4340,9 +4431,6 @@ els.stockEditForm?.addEventListener("submit", (event) => {
 });
 els.cancelStockEdit?.addEventListener("click", closeStockEditModal);
 els.stockEditCancelBtn?.addEventListener("click", closeStockEditModal);
-els.stockEditModal?.addEventListener("click", (event) => {
-  if (event.target === els.stockEditModal) closeStockEditModal();
-});
 
 // ── Arus Kas: form pengeluaran ──────────────────────────────────────────────
 els.cashflowExpenseForm?.addEventListener("submit", (event) => {
@@ -4574,9 +4662,6 @@ els.loginForm.addEventListener("submit", login);
 els.loginDutyRole?.addEventListener("change", renderEmployeeControls);
 els.orderForm.addEventListener("submit", startOrder);
 els.cancelOrderModal.addEventListener("click", closeOrderModal);
-els.orderModal.addEventListener("click", (event) => {
-  if (event.target === els.orderModal) closeOrderModal();
-});
 
 els.analyticsMonth.value = new Date().toISOString().slice(0, 7);
 if (els.analyticsDate) els.analyticsDate.value = dateKey();

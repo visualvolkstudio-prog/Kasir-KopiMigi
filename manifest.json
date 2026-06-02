@@ -1,7 +1,7 @@
 {
-  "name": "Kasir Migi",
-  "short_name": "Migi Kasir",
-  "description": "Aplikasi kasir Migi Coffee dengan dukungan offline.",
+  "name": "Kopi Migi POS",
+  "short_name": "Kopi Migi",
+  "description": "Aplikasi kasir Kopi Migi dengan dukungan offline.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
