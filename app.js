@@ -2947,11 +2947,15 @@ function renderOrders() {
   if (!els.orderList) return;
   const unpaid = getOrderDrafts();
   const paidDate = els.paidOrderDate?.value || dateKey();
-  const paid = getHistory()
+  const paidAscending = getHistory()
     .filter((entry) => dateKey(entry.createdAt) === paidDate)
     .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+  const paidDisplayCodes = new Map(
+    paidAscending.map((transaction, index) => [transaction.id, sequentialPaidOrderCode(transaction, index + 1)]),
+  );
+  const paid = [...paidAscending].reverse();
   if (els.unpaidOrderCount) els.unpaidOrderCount.textContent = unpaid.length;
-  if (els.paidOrderCount) els.paidOrderCount.textContent = getHistory().filter((entry) => dateKey(entry.createdAt) === paidDate).length;
+  if (els.paidOrderCount) els.paidOrderCount.textContent = paidAscending.length;
   if (els.paidOrderDate) els.paidOrderDate.hidden = state.orderStatus !== "paid";
 
   const list = state.orderStatus === "paid" ? paid : unpaid;
@@ -2960,7 +2964,7 @@ function renderOrders() {
       orderCard(
         transaction,
         state.orderStatus,
-        state.orderStatus === "paid" ? sequentialPaidOrderCode(transaction, index + 1) : "",
+        state.orderStatus === "paid" ? paidDisplayCodes.get(transaction.id) : "",
       )
     )).join("")
     : `<div class="empty-state">${state.orderStatus === "paid" ? "Belum ada order yang sudah dibayar." : "Belum ada order menunggu pembayaran."}</div>`;
