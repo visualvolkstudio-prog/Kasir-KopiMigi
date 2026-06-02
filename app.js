@@ -362,6 +362,12 @@ function nextDailyOrderCode(date = new Date(), channel = state.orderChannel) {
   return `${prefix}-${number}${isOnlineChannel(channel) ? "-O" : ""}`;
 }
 
+function sequentialPaidOrderCode(transaction, sequence) {
+  const prefix = dayOrderPrefix(transaction?.createdAt || new Date());
+  const number = String(sequence || 1).padStart(3, "0");
+  return `${prefix}-${number}${isOnlineChannel(transaction?.channel) ? "-O" : ""}`;
+}
+
 function readJson(key, fallback) {
   try {
     return JSON.parse(localStorage.getItem(key)) ?? fallback;
@@ -2802,15 +2808,16 @@ function renderHistory() {
   renderDailySummary(todayTransactions, today);
 }
 
-function orderCard(transaction, kind) {
+function orderCard(transaction, kind, displayCode = "") {
   const items = transaction.items.map((item) => `${item.qty}x ${item.name}`).join(", ");
+  const orderCode = displayCode || transaction.id;
   const actions = kind === "unpaid"
     ? `
       <div class="history-actions">
         <button class="secondary-button compact" data-pay-draft="${transaction.id}" type="button">Bayar</button>
         <button class="secondary-button compact" data-edit-draft="${transaction.id}" type="button">Tambah Menu</button>
         <button class="secondary-button compact" data-reprint-order="${transaction.id}" data-reprint-kind="bill" type="button">Cetak Ulang Bill</button>
-        <button class="secondary-button compact danger-text" data-delete-draft="${transaction.id}" type="button">Hapus</button>
+        ${isOwner() ? `<button class="secondary-button compact danger-text" data-delete-draft="${transaction.id}" type="button">Hapus</button>` : ""}
       </div>
     `
     : `
@@ -2833,7 +2840,7 @@ function orderCard(transaction, kind) {
   return `
     <article class="history-card order-card-row">
       <div>
-        <strong>${transaction.id} · ${money(transaction.grandTotal)}</strong>
+        <strong>${orderCode} · ${money(transaction.grandTotal)}</strong>
         <p>${new Date(transaction.createdAt).toLocaleString("id-ID")} · ${transaction.channel || "Kasir"} · ${transaction.customer}</p>
         <p>${items}</p>
       </div>
@@ -2915,6 +2922,10 @@ async function editPaidPayment(id, paymentValue) {
 
 async function deleteDraftOrder(id) {
   if (!id) return;
+  if (!isOwner()) {
+    toast("Hapus order masuk hanya untuk Owner.");
+    return;
+  }
   saveOrderDrafts(getOrderDrafts().filter((entry) => entry.id !== id));
   if (navigator.onLine) {
     await deleteTransactionInSupabase(id).catch(() => queuePendingDelete("transaction", id));
@@ -2931,14 +2942,22 @@ function renderOrders() {
   if (!els.orderList) return;
   const unpaid = getOrderDrafts();
   const paidDate = els.paidOrderDate?.value || dateKey();
-  const paid = getHistory().filter((entry) => dateKey(entry.createdAt) === paidDate);
+  const paid = getHistory()
+    .filter((entry) => dateKey(entry.createdAt) === paidDate)
+    .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
   if (els.unpaidOrderCount) els.unpaidOrderCount.textContent = unpaid.length;
   if (els.paidOrderCount) els.paidOrderCount.textContent = getHistory().filter((entry) => dateKey(entry.createdAt) === paidDate).length;
   if (els.paidOrderDate) els.paidOrderDate.hidden = state.orderStatus !== "paid";
 
   const list = state.orderStatus === "paid" ? paid : unpaid;
   els.orderList.innerHTML = list.length
-    ? list.slice(0, 80).map((transaction) => orderCard(transaction, state.orderStatus)).join("")
+    ? list.slice(0, 80).map((transaction, index) => (
+      orderCard(
+        transaction,
+        state.orderStatus,
+        state.orderStatus === "paid" ? sequentialPaidOrderCode(transaction, index + 1) : "",
+      )
+    )).join("")
     : `<div class="empty-state">${state.orderStatus === "paid" ? "Belum ada order yang sudah dibayar." : "Belum ada order menunggu pembayaran."}</div>`;
 }
 
