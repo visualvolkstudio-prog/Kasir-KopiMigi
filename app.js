@@ -2263,20 +2263,6 @@ function customStockUsageLabel(item) {
     .join(" · ");
 }
 
-function syncCustomOrderPrice() {
-  const record = getInventory()[els.customOrderIngredient?.value];
-  const qty = Number(els.customOrderIngredientQty?.value || 0);
-  if (record && qty > 0) {
-    const buyPrice = Number(record.buyPrice || 0);
-    const calculatedPrice = Math.round(buyPrice * qty);
-    if (els.customOrderPrice) {
-      els.customOrderPrice.value = calculatedPrice ? money(calculatedPrice) : "";
-    }
-  } else {
-    if (els.customOrderPrice) els.customOrderPrice.value = "";
-  }
-}
-
 function syncCustomOrderIngredientUnit() {
   const record = getInventory()[els.customOrderIngredient?.value];
   if (els.customOrderIngredientUnit) els.customOrderIngredientUnit.value = record?.unit || "-";
@@ -2288,7 +2274,6 @@ function syncCustomOrderIngredientUnit() {
         ? "Pilih bean kopi yang akan dijual custom."
         : "Belum ada bahan kategori Bean Kopi. Atur kategori bahan baku dulu.";
   }
-  syncCustomOrderPrice();
 }
 
 function openCustomOrderModal() {
@@ -4369,7 +4354,6 @@ els.openCustomOrder?.addEventListener("click", openCustomOrderModal);
 els.cancelCustomOrder?.addEventListener("click", closeCustomOrderModal);
 els.customOrderCancelBtn?.addEventListener("click", closeCustomOrderModal);
 els.customOrderIngredient?.addEventListener("change", syncCustomOrderIngredientUnit);
-els.customOrderIngredientQty?.addEventListener("input", syncCustomOrderPrice);
 els.customOrderPrice?.addEventListener("blur", () => {
   const value = parseRupiah(els.customOrderPrice.value);
   els.customOrderPrice.value = value ? money(value) : "";
