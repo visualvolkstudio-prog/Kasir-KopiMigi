@@ -288,6 +288,13 @@ h3 { font-size: 16px; font-weight: 700; }
 
 .section-heading > div > h3 { margin-top: 3px; }
 
+.menu-section-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .menu-section,
 .checkout-panel,
 .settings-panel,
@@ -782,6 +789,14 @@ h3 { font-size: 16px; font-weight: 700; }
 .cart-item:hover { background: #edf0f7; }
 .item-controls { display: flex; align-items: center; gap: 5px; }
 
+.cart-stock-note {
+  display: block;
+  margin-top: 3px;
+  color: var(--accent-text);
+  font-size: 10.5px;
+  font-weight: 750;
+}
+
 /* ── Totals ──────────────────────────────────── */
 .totals { display: grid; gap: 7px; border-top: 1px solid var(--line); padding-top: 11px; }
 
@@ -995,71 +1010,7 @@ input:focus, select:focus {
 
 .menu-table, .bestseller-list { display: grid; gap: 7px; margin-top: 12px; }
 
-.menu-category-board {
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  align-items: start;
-  gap: 10px;
-}
-
-.menu-category-group {
-  display: grid;
-  min-width: 0;
-  border: 1px solid var(--line);
-  border-radius: 9px;
-  background: #fff;
-  overflow: hidden;
-}
-
-.menu-category-group + .menu-category-group {
-  margin-top: 0;
-}
-
-.menu-category-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 11px 13px;
-  color: var(--ink);
-  background: linear-gradient(180deg, #fff, #f8f9fd);
-  border-bottom: 1px solid var(--line);
-}
-
-.menu-category-heading span,
-.menu-category-heading strong,
-.menu-category-heading small {
-  display: block;
-  min-width: 0;
-}
-
-.menu-category-heading strong {
-  font-size: 12px;
-  font-weight: 800;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-.menu-category-heading small {
-  margin-top: 2px;
-  color: var(--muted);
-  font-size: 11px;
-  letter-spacing: 0;
-  text-transform: none;
-}
-
-.menu-category-items {
-  display: grid;
-  gap: 7px;
-  padding: 11px;
-  max-height: 520px;
-  overflow: auto;
-  animation: menuGroupIn 0.16s ease both;
-}
-
-@keyframes menuGroupIn {
-  from { opacity: 0; transform: translateY(-4px); }
-  to { opacity: 1; transform: translateY(0); }
-}
+.menu-edit-category-tabs { width: 100%; }
 
 .inventory-grid { margin-top: 16px; }
 
@@ -1119,6 +1070,11 @@ input:focus, select:focus {
 
 .stock-table { display: grid; gap: 7px; margin-top: 12px; }
 .compact-stock-list { gap: 9px; }
+
+.stock-category-tabs {
+  width: 100%;
+  margin: 0 0 12px;
+}
 .purchase-history { margin-top: 14px; }
 
 .stock-chart-list {
@@ -1137,7 +1093,21 @@ input:focus, select:focus {
   background: #fff;
   min-width: 0;
   cursor: pointer;
+  opacity: 0;
+  animation: stockRowIn 0.18s ease both;
+  animation-delay: var(--stock-row-delay, 0ms);
   transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
+}
+
+@keyframes stockRowIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .stock-chart-row:hover,
@@ -2072,6 +2042,7 @@ body.locked .login-screen { display: grid; }
 
 .order-modal { z-index: 80; background: rgba(18,20,36,0.74); }
 .order-modal.open { display: grid; }
+.custom-order-modal { z-index: 84; }
 .stock-edit-modal { z-index: 86; }
 
 .login-card {
@@ -2291,6 +2262,21 @@ body.locked .login-screen { display: grid; }
 .stock-edit-card {
   width: min(520px, calc(100vw - 24px));
   min-height: 0;
+}
+
+.custom-order-card {
+  width: min(620px, calc(100vw - 24px));
+  min-height: 0;
+}
+
+.custom-order-body {
+  display: grid;
+  gap: 12px;
+  padding: 18px;
+}
+
+.custom-order-info {
+  margin-top: 0;
 }
 
 .modal-head {
@@ -2650,6 +2636,7 @@ body.locked .login-screen { display: grid; }
   .page-head { padding: 10px 14px; flex-wrap: wrap; }
   .head-meta { width: 100%; justify-content: flex-end; }
   .section-heading { align-items: flex-start; flex-wrap: wrap; }
+  .menu-section-actions { width: 100%; justify-content: flex-start; flex-wrap: wrap; }
   .order-status-tabs,
   .order-date-filter {
     width: 100%;

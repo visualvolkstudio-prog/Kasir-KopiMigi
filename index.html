@@ -168,6 +168,45 @@
       </form>
     </section>
 
+    <section class="order-modal custom-order-modal" id="customOrderModal" aria-label="Tambah custom order" aria-hidden="true">
+      <form class="order-card custom-order-card" id="customOrderForm">
+        <div class="modal-head">
+          <div>
+            <p class="eyebrow">Jual Bean</p>
+            <h2>Bean Kopi</h2>
+          </div>
+          <button class="icon-button modal-close" id="cancelCustomOrder" type="button" title="Tutup custom order">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12" /><path d="M18 6 6 18" /></svg>
+          </button>
+        </div>
+        <div class="custom-order-body">
+          <div class="order-field-grid">
+            <label>
+              Bean kopi
+              <select id="customOrderIngredient" required></select>
+            </label>
+            <label>
+              Jumlah bahan
+              <input id="customOrderIngredientQty" type="number" min="0.01" step="0.01" placeholder="250" required />
+            </label>
+            <label>
+              Satuan
+              <input id="customOrderIngredientUnit" type="text" value="-" readonly />
+            </label>
+          </div>
+          <label>
+            Harga jual
+            <input id="customOrderPrice" type="text" inputmode="numeric" placeholder="Rp 75.000" required />
+          </label>
+          <p class="staff-drink-info custom-order-info" id="customOrderInfo">Custom Order hanya mengambil bahan kategori Bean Kopi dan tetap mengurangi stock saat checkout.</p>
+        </div>
+        <div class="modal-actions">
+          <button class="secondary-button" id="customOrderCancelBtn" type="button">Batal</button>
+          <button class="primary-button" type="submit">Tambah ke Keranjang</button>
+        </div>
+      </form>
+    </section>
+
     <section class="order-modal stock-edit-modal" id="stockEditModal" aria-label="Edit stock aktif" aria-hidden="true">
       <form class="order-card stock-edit-card" id="stockEditForm">
         <div class="modal-head">
@@ -361,9 +400,12 @@
                   <p class="eyebrow">Menu aktif</p>
                   <h3>Produk</h3>
                 </div>
-                <button class="ghost-button" id="resetFilter" type="button" title="Reset filter">
-                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18" /><path d="M7 12h10" /><path d="M10 18h4" /></svg>
-                </button>
+                <div class="menu-section-actions">
+                  <button class="secondary-button compact" id="openCustomOrder" type="button">Custom Order</button>
+                  <button class="ghost-button" id="resetFilter" type="button" title="Reset filter">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18" /><path d="M7 12h10" /><path d="M10 18h4" /></svg>
+                  </button>
+                </div>
               </div>
               <div class="menu-grid" id="menuGrid"></div>
               <input id="customerName" type="hidden" />
@@ -469,6 +511,7 @@
                   <h3>Menu & Harga</h3>
                 </div>
               </div>
+              <div class="segmented menu-edit-category-tabs" id="menuEditCategoryTabs" role="tablist" aria-label="Kategori daftar menu"></div>
               <div class="menu-table" id="menuTable"></div>
             </section>
           </div>
@@ -489,6 +532,12 @@
                   Nama bahan
                   <input id="purchaseMenuId" type="text" placeholder="Kopi beans / Syrup / SKM" required />
                 </label>
+                <label>
+                  Kategori bahan
+                  <select id="ingredientCategorySelect" required></select>
+                  <input class="hidden-field" id="ingredientCategoryCustom" type="text" placeholder="Tulis kategori bahan baru" />
+                  <input id="ingredientCategory" type="hidden" />
+                </label>
                 <div class="order-field-grid">
                   <label>
                     Jumlah acuan harga
@@ -507,7 +556,8 @@
                   Harga total acuan
                   <input id="purchaseCost" type="text" inputmode="numeric" placeholder="Rp 100.000" required />
                 </label>
-                <input id="purchaseNote" type="hidden" />
+                  <input id="purchaseNote" type="hidden" />
+                <button class="secondary-button full-button danger-text" id="deleteIngredientCategory" type="button">Hapus Kategori Terpilih</button>
                 <button class="primary-button full-button" type="submit">Simpan Harga Bahan</button>
               </form>
             </section>
@@ -520,6 +570,7 @@
                 </div>
                 <button class="secondary-button compact owner-only" id="syncTodayStockBtn" type="button">Sinkron Stok Hari Ini</button>
               </div>
+              <div class="segmented stock-category-tabs" id="stockCategoryTabs" role="tablist" aria-label="Kategori stok bahan"></div>
               <div class="stock-alert" id="stockAlert" hidden></div>
               <div class="stock-table compact-stock-list" id="stockAvailabilityList"></div>
             </section>

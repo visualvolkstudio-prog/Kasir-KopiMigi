@@ -94,6 +94,11 @@ function mapItems(transaction) {
 
 function toLocalTransaction(row, items) {
   const raw = row.raw && typeof row.raw === "object" ? row.raw : {};
+  const rawItems = Array.isArray(raw.items) ? raw.items : [];
+  const mergedItems = items.map((item) => {
+    const rawItem = rawItems.find((entry) => entry.id === item.id || entry.id === item.menu_id || entry.name === item.name) || {};
+    return { ...rawItem, ...item };
+  });
   return {
     ...raw,
     id: row.id,
@@ -109,7 +114,7 @@ function toLocalTransaction(row, items) {
     change: Number(row.change || 0),
     subtotal: Number(row.subtotal || 0),
     grandTotal: Number(row.grand_total || 0),
-    items,
+    items: mergedItems.length ? mergedItems : rawItems,
   };
 }
 
@@ -134,6 +139,7 @@ function toLocalInventory(rows) {
     map[row.id] = {
       ...raw,
       name: raw.name || row.name,
+      category: raw.category || row.category || "Lainnya",
       unit: raw.unit || row.unit || "gram",
       stock: Number(row.stock || 0),
       buyPrice: Number(row.buy_price || 0),

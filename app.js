@@ -41,6 +41,16 @@ const storageKeys = {
 
 const sessionTtlMs = 10 * 60 * 60 * 1000;
 
+const defaultIngredientCategories = [
+  "Bean Kopi",
+  "Sirup",
+  "Bubuk / Powder",
+  "Susu / Creamer",
+  "Gula",
+  "Packaging",
+  "Lainnya",
+];
+
 const boothPackagePhotoCounts = {
   single: 1,
   couple: 1,
@@ -68,6 +78,8 @@ const state = {
   boothPhotos: [],
   boothStream: null,
   activeCashier: { online: false, employee: "" },
+  menuEditCategory: "Semua",
+  stockCategory: "Semua",
   pendingEmployeeDelete: "",
   menuSaving: false,
   reportShareText: "",
@@ -162,6 +174,16 @@ const els = {
   menuGrid: document.querySelector("#menuGrid"),
   menuSearch: document.querySelector("#menuSearch"),
   resetFilter: document.querySelector("#resetFilter"),
+  openCustomOrder: document.querySelector("#openCustomOrder"),
+  customOrderModal: document.querySelector("#customOrderModal"),
+  customOrderForm: document.querySelector("#customOrderForm"),
+  cancelCustomOrder: document.querySelector("#cancelCustomOrder"),
+  customOrderCancelBtn: document.querySelector("#customOrderCancelBtn"),
+  customOrderPrice: document.querySelector("#customOrderPrice"),
+  customOrderIngredient: document.querySelector("#customOrderIngredient"),
+  customOrderIngredientQty: document.querySelector("#customOrderIngredientQty"),
+  customOrderIngredientUnit: document.querySelector("#customOrderIngredientUnit"),
+  customOrderInfo: document.querySelector("#customOrderInfo"),
   checkoutPanel: document.querySelector(".checkout-panel"),
   cartList: document.querySelector("#cartList"),
   cartTitle: document.querySelector("#cartTitle"),
@@ -238,10 +260,15 @@ const els = {
   menuTable: document.querySelector("#menuTable"),
   purchaseForm: document.querySelector("#purchaseForm"),
   purchaseMenuId: document.querySelector("#purchaseMenuId"),
+  ingredientCategorySelect: document.querySelector("#ingredientCategorySelect"),
+  ingredientCategoryCustom: document.querySelector("#ingredientCategoryCustom"),
+  ingredientCategory: document.querySelector("#ingredientCategory"),
+  deleteIngredientCategory: document.querySelector("#deleteIngredientCategory"),
   purchaseQty: document.querySelector("#purchaseQty"),
   ingredientUnit: document.querySelector("#ingredientUnit"),
   purchaseCost: document.querySelector("#purchaseCost"),
   purchaseNote: document.querySelector("#purchaseNote"),
+  stockCategoryTabs: document.querySelector("#stockCategoryTabs"),
   stockAvailabilityList: document.querySelector("#stockAvailabilityList"),
   stockAlert: document.querySelector("#stockAlert"),
   stockTable: document.querySelector("#stockTable"),
@@ -251,6 +278,7 @@ const els = {
   purchaseHistory: document.querySelector("#purchaseHistory"),
   recipeIngredientRows: document.querySelector("#recipeIngredientRows"),
   addRecipeIngredient: document.querySelector("#addRecipeIngredient"),
+  menuEditCategoryTabs: document.querySelector("#menuEditCategoryTabs"),
   cashflowExpenseForm: document.querySelector("#cashflowExpenseForm"),
   cfExpenseNote: document.querySelector("#cfExpenseNote"),
   cfIngredientQtyWrap: document.querySelector("#cfIngredientQtyWrap"),
@@ -1690,25 +1718,20 @@ function renderMenuTable() {
   const recipes = getRecipes();
   const menu = getMenu();
   const categories = [...new Set(menu.map((item) => item.category || "Tanpa Kategori"))].sort((a, b) => a.localeCompare(b, "id-ID"));
-  els.menuTable.classList.add("menu-category-board");
-  const rows = categories
-    .map((category) => {
-      const items = menu
-        .filter((item) => (item.category || "Tanpa Kategori") === category)
-        .sort((a, b) => a.name.localeCompare(b.name, "id-ID"));
+  const menuEditCategories = ["Semua", ...categories];
+  if (!menuEditCategories.includes(state.menuEditCategory)) state.menuEditCategory = "Semua";
+  if (els.menuEditCategoryTabs) {
+    els.menuEditCategoryTabs.innerHTML = menuEditCategories
+      .map((category) => `<button class="${category === state.menuEditCategory ? "active" : ""}" data-menu-edit-category="${category}" type="button">${category}</button>`)
+      .join("");
+  }
+  const items = menu
+    .filter((item) => state.menuEditCategory === "Semua" || (item.category || "Tanpa Kategori") === state.menuEditCategory)
+    .sort((a, b) => (a.category || "").localeCompare(b.category || "", "id-ID") || a.name.localeCompare(b.name, "id-ID"));
+  const rows = items
+    .map((item) => {
+      const recipeCount = recipes[item.id]?.length || 0;
       return `
-        <section class="menu-category-group">
-          <div class="menu-category-heading">
-            <span>
-              <strong>${category}</strong>
-              <small>${items.length} menu</small>
-            </span>
-          </div>
-          <div class="menu-category-items">
-          ${items
-            .map((item) => {
-              const recipeCount = recipes[item.id]?.length || 0;
-              return `
           <article class="menu-row">
             <div class="menu-row-main">
               <span class="menu-thumb">${itemVisual(item)}</span>
@@ -1723,11 +1746,6 @@ function renderMenuTable() {
             </div>
           </article>
         `;
-            })
-            .join("")}
-          </div>
-        </section>
-      `;
     })
     .join("");
 
@@ -1994,6 +2012,15 @@ function renderInventory() {
   if (!els.stockTable) return;
   const inventory = getInventory();
   const inventoryRows = Object.entries(inventory).filter(([, record]) => record?.name);
+  const stockCategories = ingredientCategories({ includeAll: true });
+  if (!stockCategories.includes(state.stockCategory)) state.stockCategory = "Semua";
+  if (els.stockCategoryTabs) {
+    els.stockCategoryTabs.innerHTML = stockCategories
+      .map((category) => `<button class="${category === state.stockCategory ? "active" : ""}" data-stock-category="${category}" type="button">${category}</button>`)
+      .join("");
+  }
+  renderIngredientCategoryOptions();
+  const visibleInventoryRows = inventoryRows.filter(([, record]) => state.stockCategory === "Semua" || ingredientCategory(record) === state.stockCategory);
   const lowRows = inventoryRows.filter(([, record]) => stockStatus(record).tone === "danger");
   if (els.stockAlert) {
     els.stockAlert.hidden = lowRows.length === 0;
@@ -2002,16 +2029,16 @@ function renderInventory() {
       : "";
   }
   if (els.stockAvailabilityList) {
-    els.stockAvailabilityList.innerHTML = inventoryRows.length
-      ? inventoryRows
-          .map(([id, record]) => {
+    els.stockAvailabilityList.innerHTML = visibleInventoryRows.length
+      ? visibleInventoryRows
+          .map(([id, record], index) => {
             const status = stockStatus(record);
             const percent = stockChartPercent(record);
             return `
-            <article class="stock-chart-row stock-${status.tone}" data-edit-active-stock="${id}" tabindex="0" role="button" aria-label="Edit stock aktif ${record.name}">
+            <article class="stock-chart-row stock-${status.tone}" data-edit-active-stock="${id}" tabindex="0" role="button" aria-label="Edit stock aktif ${record.name}" style="--stock-row-delay:${Math.min(index * 22, 180)}ms">
               <div class="stock-chart-copy">
                 <strong>${record.name}</strong>
-                <span>Sisa stok aktif · ${status.label}</span>
+                <span>${ingredientCategory(record)} · Sisa stok aktif · ${status.label}</span>
               </div>
               <div class="stock-chart-meter" aria-label="${record.name} ${percent}%">
                 <span class="stock-chart-fill" style="width:${percent}%;min-width:${percent ? 6 : 0}px"></span>
@@ -2021,7 +2048,7 @@ function renderInventory() {
           `;
           })
           .join("")
-      : `<div class="empty-state">Belum ada bahan baku.</div>`;
+      : `<div class="empty-state">Belum ada bahan baku${state.stockCategory === "Semua" ? "" : ` kategori ${state.stockCategory}`}.</div>`;
   }
   els.stockTable.innerHTML = inventoryRows.length
     ? inventoryRows
@@ -2035,7 +2062,7 @@ function renderInventory() {
             <span class="menu-thumb item-art art-coffee"></span>
             <div>
               <strong>${record.name}</strong>
-              <span>${price} · satuan ${unit} · update ${updated}</span>
+              <span>${ingredientCategory(record)} · ${price} · satuan ${unit} · update ${updated}</span>
             </div>
           </div>
           <div class="stock-row-actions">
@@ -2178,6 +2205,163 @@ function syncCfExpenseNoteField() {
   }
 }
 
+function ingredientCategory(record) {
+  return record?.category || "Lainnya";
+}
+
+function ingredientCategories({ includeAll = false } = {}) {
+  const fromInventory = Object.values(getInventory())
+    .map((record) => ingredientCategory(record))
+    .filter(Boolean);
+  const categories = [...new Set([...defaultIngredientCategories, ...fromInventory])];
+  return includeAll ? ["Semua", ...categories] : categories;
+}
+
+function syncIngredientCategoryField() {
+  if (!els.ingredientCategorySelect || !els.ingredientCategory) return;
+  const isCustom = els.ingredientCategorySelect.value === "__custom";
+  els.ingredientCategoryCustom?.classList.toggle("hidden-field", !isCustom);
+  els.ingredientCategoryCustom?.toggleAttribute("required", isCustom);
+  els.ingredientCategory.value = isCustom ? els.ingredientCategoryCustom?.value.trim() || "" : els.ingredientCategorySelect.value;
+  if (els.deleteIngredientCategory) {
+    const category = els.ingredientCategory.value;
+    const canDelete = isOwner() && category && !defaultIngredientCategories.includes(category);
+    els.deleteIngredientCategory.disabled = !canDelete;
+    els.deleteIngredientCategory.hidden = !category || category === "__custom";
+  }
+}
+
+function renderIngredientCategoryOptions(selectedCategory = els.ingredientCategory?.value || "Lainnya") {
+  if (!els.ingredientCategorySelect) return;
+  const categories = ingredientCategories();
+  const hasSelected = categories.includes(selectedCategory);
+  els.ingredientCategorySelect.innerHTML = [
+    `<option value="" disabled ${selectedCategory ? "" : "selected"}>Pilih kategori bahan</option>`,
+    ...categories.map((category) => `<option value="${category}" ${category === selectedCategory ? "selected" : ""}>${category}</option>`),
+    `<option value="__custom" ${selectedCategory && !hasSelected ? "selected" : ""}>+ Kategori baru</option>`,
+  ].join("");
+  if (els.ingredientCategoryCustom) els.ingredientCategoryCustom.value = selectedCategory && !hasSelected ? selectedCategory : "";
+  syncIngredientCategoryField();
+}
+
+function deleteSelectedIngredientCategory() {
+  if (!isOwner()) {
+    toast("Hapus kategori bahan hanya untuk Owner.");
+    return;
+  }
+  syncIngredientCategoryField();
+  const category = els.ingredientCategory?.value;
+  if (!category || defaultIngredientCategories.includes(category)) {
+    toast("Kategori default tidak bisa dihapus.");
+    return;
+  }
+  if (!window.confirm(`Hapus kategori "${category}"? Bahan di kategori ini akan dipindahkan ke Lainnya.`)) return;
+  const inventory = getInventory();
+  Object.keys(inventory).forEach((id) => {
+    if (ingredientCategory(inventory[id]) === category) {
+      inventory[id] = { ...inventory[id], category: "Lainnya", updatedAt: new Date().toISOString() };
+    }
+  });
+  state.stockCategory = "Semua";
+  if (els.ingredientCategory) els.ingredientCategory.value = "Lainnya";
+  renderIngredientCategoryOptions("Lainnya");
+  saveLocalInventoryChange(inventory);
+  renderInventory();
+  syncInventoryToCloud().catch(() => null);
+  toast(`Kategori "${category}" dihapus.`);
+}
+
+function customOrderIngredientOptions(selectedId = "") {
+  const inventory = Object.entries(getInventory()).filter(([, record]) => record?.name && ingredientCategory(record) === "Bean Kopi");
+  return inventory.length
+    ? [
+        `<option value="" disabled ${selectedId ? "" : "selected"}>Pilih bean kopi</option>`,
+        ...inventory
+          .sort(([, a], [, b]) => String(a.name || "").localeCompare(String(b.name || ""), "id-ID"))
+          .map(([id, record]) => `<option value="${id}" ${id === selectedId ? "selected" : ""}>${record.name}</option>`),
+      ].join("")
+    : `<option value="">Belum ada bahan kategori Bean Kopi</option>`;
+}
+
+function customStockUsageLabel(item) {
+  const inventory = getInventory();
+  const usage = Array.isArray(item?.customStockUsage) ? item.customStockUsage : [];
+  return usage
+    .map((entry) => {
+      const record = inventory[entry.ingredientId] || {};
+      const name = entry.ingredientName || record.name || "Bahan";
+      const unit = entry.unit || record.unit || "";
+      return `${name} ${Number(entry.qty || 0).toLocaleString("id-ID")} ${unit}`.trim();
+    })
+    .filter(Boolean)
+    .join(" · ");
+}
+
+function syncCustomOrderIngredientUnit() {
+  const record = getInventory()[els.customOrderIngredient?.value];
+  if (els.customOrderIngredientUnit) els.customOrderIngredientUnit.value = record?.unit || "-";
+  if (els.customOrderInfo) {
+    const hasBeanOptions = Object.values(getInventory()).some((item) => item?.name && ingredientCategory(item) === "Bean Kopi");
+    els.customOrderInfo.textContent = record
+      ? `Stock tersedia ${Number(record.stock || 0).toLocaleString("id-ID")} ${record.unit || ""}. Hanya bahan kategori Bean Kopi yang bisa dijual custom.`
+      : hasBeanOptions
+        ? "Pilih bean kopi yang akan dijual custom."
+        : "Belum ada bahan kategori Bean Kopi. Atur kategori bahan baku dulu.";
+  }
+}
+
+function openCustomOrderModal() {
+  if (!Object.values(getInventory()).some((record) => record?.name && ingredientCategory(record) === "Bean Kopi")) {
+    toast("Belum ada bahan kategori Bean Kopi. Atur kategori bahan baku dulu.");
+    return;
+  }
+  els.customOrderForm?.reset();
+  if (els.customOrderPrice) els.customOrderPrice.value = "";
+  if (els.customOrderIngredientQty) els.customOrderIngredientQty.value = "";
+  if (els.customOrderIngredient) els.customOrderIngredient.innerHTML = customOrderIngredientOptions();
+  syncCustomOrderIngredientUnit();
+  els.customOrderModal?.classList.add("open");
+  els.customOrderModal?.setAttribute("aria-hidden", "false");
+  els.customOrderIngredient?.focus();
+}
+
+function closeCustomOrderModal() {
+  els.customOrderModal?.classList.remove("open");
+  els.customOrderModal?.setAttribute("aria-hidden", "true");
+}
+
+function addCustomOrderToCart(event) {
+  event.preventDefault();
+  const price = parseRupiah(els.customOrderPrice?.value);
+  const ingredientId = els.customOrderIngredient?.value;
+  const ingredient = getInventory()[ingredientId];
+  const ingredientQty = Number(els.customOrderIngredientQty?.value || 0);
+  if (!price || !ingredient || ingredientCategory(ingredient) !== "Bean Kopi" || !Number.isFinite(ingredientQty) || ingredientQty <= 0) {
+    toast("Pilih bean kopi, isi jumlah bahan, dan harga jual.");
+    return;
+  }
+  const unit = ingredient.unit || "";
+  const name = `${ingredient.name} ${Number(ingredientQty).toLocaleString("id-ID")} ${unit}`.trim();
+  state.cart.push({
+    id: `custom-${stableIdFromName(name)}-${Date.now().toString(36)}`,
+    name,
+    category: "Bean Kopi",
+    price,
+    qty: 1,
+    isCustomOrder: true,
+    customStockUsage: [{
+      ingredientId,
+      ingredientName: ingredient.name,
+      qty: ingredientQty,
+      unit: ingredient.unit || "",
+    }],
+  });
+  closeCustomOrderModal();
+  renderCart();
+  renderMenuGrid();
+  toast("Custom Order ditambahkan ke keranjang.");
+}
+
 function renderCart() {
   els.checkoutPanel?.classList.toggle("has-items", state.cart.length > 0);
   els.checkoutPanel?.classList.toggle("has-booth", hasPhotoboothCart());
@@ -2190,7 +2374,8 @@ function renderCart() {
             <div class="cart-item">
               <div>
                 <strong>${item.name}</strong>
-                <span>${money(item.price)} x ${item.qty}</span>
+                <span>${money(item.price)} x ${item.qty}${item.isCustomOrder ? " · Custom" : ""}</span>
+                ${item.customStockUsage ? `<small class="cart-stock-note">${customStockUsageLabel(item)}</small>` : ""}
               </div>
               <div class="item-controls">
                 <button class="qty-button" data-action="decrease" data-id="${item.id}" type="button">-</button>
@@ -2229,7 +2414,7 @@ function openOrderModal() {
             <article class="modal-order-row">
               <div class="modal-order-copy">
                 <strong>${item.name}</strong>
-                <span>${item.category} · ${money(item.price)}</span>
+                <span>${item.category} · ${money(item.price)}${item.customStockUsage ? ` · ${customStockUsageLabel(item)}` : ""}</span>
               </div>
               <div class="modal-order-qty">${item.qty}x</div>
               <strong class="modal-order-price">${money(item.price * item.qty)}</strong>
@@ -2456,7 +2641,15 @@ function currentTransaction(draft = false) {
     sendToBooth: hasPhotoboothCart(),
     paid,
     change: Math.max(0, paid - total.grandTotal),
-    items: state.cart.map(({ id, name, category, price, qty }) => ({ id, name, category, price, qty })),
+    items: state.cart.map(({ id, name, category, price, qty, isCustomOrder, customStockUsage }) => ({
+      id,
+      name,
+      category,
+      price,
+      qty,
+      ...(isCustomOrder ? { isCustomOrder: true } : {}),
+      ...(customStockUsage ? { customStockUsage } : {}),
+    })),
     ...total,
   };
 }
@@ -2466,6 +2659,10 @@ function requiredIngredientsForItems(items) {
   return items.reduce((required, item) => {
     (recipes[item.id] || []).forEach((recipe) => {
       required[recipe.ingredientId] = (required[recipe.ingredientId] || 0) + Number(recipe.qty || 0) * Number(item.qty || 0);
+    });
+    (item.customStockUsage || []).forEach((usage) => {
+      if (!usage.ingredientId) return;
+      required[usage.ingredientId] = (required[usage.ingredientId] || 0) + Number(usage.qty || 0) * Number(item.qty || 0);
     });
     return required;
   }, {});
@@ -3895,6 +4092,7 @@ async function saveMenu(event) {
     const synced = await persistMenuSettings();
     resetMenuForm();
     state.category = "Semua";
+    state.menuEditCategory = data.category || "Semua";
     renderAll();
     toast(synced ? "Menu tersimpan dan tersinkron." : "Menu tersimpan lokal.");
   } catch (error) {
@@ -3912,13 +4110,15 @@ function savePurchase(event) {
     return;
   }
   const itemName = els.purchaseMenuId.value.trim();
+  syncIngredientCategoryField();
+  const category = els.ingredientCategory?.value.trim() || "Lainnya";
   const unit = els.ingredientUnit.value.trim();
   const qty = Number(els.purchaseQty.value || 0);
   const cost = parseRupiah(els.purchaseCost.value);
   const editingId = els.purchaseForm.dataset.editingStockId || "";
 
-  if (!itemName || !unit || !Number.isFinite(qty) || qty <= 0 || cost <= 0) {
-    toast("Nama bahan, jumlah, satuan, dan harga total perlu diisi.");
+  if (!itemName || !category || !unit || !Number.isFinite(qty) || qty <= 0 || cost <= 0) {
+    toast("Nama bahan, kategori, jumlah, satuan, dan harga total perlu diisi.");
     return;
   }
 
@@ -3928,6 +4128,7 @@ function savePurchase(event) {
   inventory[ingredientId] = {
     ...current,
     name: itemName,
+    category,
     unit,
     stock: Number(current.stock || 0),
     buyPrice: cost / qty,
@@ -3942,6 +4143,8 @@ function savePurchase(event) {
   els.purchaseQty.value = "";
   els.ingredientUnit.value = "gram";
   els.purchaseCost.value = "";
+  if (els.ingredientCategory) els.ingredientCategory.value = category;
+  renderIngredientCategoryOptions(category);
   renderAll();
   syncInventoryToCloud().catch(() => null);
   toast(`Bahan "${itemName}" tersimpan.`);
@@ -4179,6 +4382,26 @@ els.categoryTabs.addEventListener("click", (event) => {
   state.category = button.dataset.category;
   renderCategories();
   renderMenuGrid();
+});
+
+els.openCustomOrder?.addEventListener("click", openCustomOrderModal);
+els.cancelCustomOrder?.addEventListener("click", closeCustomOrderModal);
+els.customOrderCancelBtn?.addEventListener("click", closeCustomOrderModal);
+els.customOrderIngredient?.addEventListener("change", syncCustomOrderIngredientUnit);
+els.customOrderPrice?.addEventListener("blur", () => {
+  const value = parseRupiah(els.customOrderPrice.value);
+  els.customOrderPrice.value = value ? money(value) : "";
+});
+els.customOrderForm?.addEventListener("submit", addCustomOrderToCart);
+
+els.ingredientCategorySelect?.addEventListener("change", syncIngredientCategoryField);
+els.ingredientCategoryCustom?.addEventListener("input", syncIngredientCategoryField);
+els.deleteIngredientCategory?.addEventListener("click", deleteSelectedIngredientCategory);
+els.stockCategoryTabs?.addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-stock-category]");
+  if (!button) return;
+  state.stockCategory = button.dataset.stockCategory;
+  renderInventory();
 });
 
 els.menuGrid.addEventListener("click", (event) => {
@@ -4511,6 +4734,7 @@ els.cashflowExpenseForm?.addEventListener("submit", (event) => {
     inventory[ingredientId] = {
       ...ingredient,
       name: ingredient.name,
+      category: ingredientCategory(ingredient),
       unit,
       stock: Number(ingredient.stock || 0) + qty,
       buyPrice: amount / qty,
@@ -4594,6 +4818,8 @@ els.stockTable?.addEventListener("click", (event) => {
     const record = inventory[id];
     if (!record) return;
     els.purchaseMenuId.value = record.name;
+    if (els.ingredientCategory) els.ingredientCategory.value = ingredientCategory(record);
+    renderIngredientCategoryOptions(ingredientCategory(record));
     els.purchaseQty.value = 1;
     els.ingredientUnit.value = record.unit || "gram";
     els.purchaseCost.value = record.buyPrice ? money(record.buyPrice) : "";
@@ -4657,6 +4883,12 @@ els.menuPrice.addEventListener("blur", () => {
 els.purchaseCost?.addEventListener("blur", () => {
   const value = parseRupiah(els.purchaseCost.value);
   els.purchaseCost.value = value ? money(value) : "";
+});
+els.menuEditCategoryTabs?.addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-menu-edit-category]");
+  if (!button) return;
+  state.menuEditCategory = button.dataset.menuEditCategory;
+  renderMenuTable();
 });
 els.menuTable.addEventListener("click", async (event) => {
   const editButton = event.target.closest("button[data-edit-menu]");
