@@ -86,6 +86,7 @@ const state = {
   reportShareText: "",
   logoutAfterOrder: false,
   pendingLogin: null,
+  orderProcessing: false,
   pendingSyncCount: 0,
   printerDevice: null,
   printerCharacteristic: null,
@@ -1184,8 +1185,17 @@ function getOrderDrafts() {
   return readJson(storageKeys.orderDrafts, []);
 }
 
+function dedupeTransactionsById(list = []) {
+  const map = new Map();
+  (Array.isArray(list) ? list : []).forEach((entry) => {
+    if (!entry?.id) return;
+    map.set(entry.id, map.has(entry.id) ? { ...map.get(entry.id), ...entry } : entry);
+  });
+  return [...map.values()].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+}
+
 function saveOrderDrafts(drafts) {
-  writeJson(storageKeys.orderDrafts, drafts);
+  writeJson(storageKeys.orderDrafts, dedupeTransactionsById(drafts).slice(0, 200));
 }
 
 function patchLocalOrderDraft(id, patch) {
@@ -2531,66 +2541,72 @@ function addToCart(id) {
 
 async function startOrder(event) {
   event.preventDefault();
-  if (!state.cart.length) return;
-  if (!validateStockForCart()) return;
-  if (state.orderType === "staff_drink" && staffDrinkUsedToday()) {
-    window.alert(`Jatah kopi gratis untuk ${activeEmployeeName()} hari ini sudah digunakan.`);
-    return;
+  if (state.orderProcessing) return;
+  setOrderProcessing(true, "Mencetak...");
+  try {
+    if (!state.cart.length) return;
+    if (!validateStockForCart()) return;
+    if (state.orderType === "staff_drink" && staffDrinkUsedToday()) {
+      window.alert(`Jatah kopi gratis untuk ${activeEmployeeName()} hari ini sudah digunakan.`);
+      return;
+    }
+    if (state.orderType === "staff_drink" && staffDrinkItemCount() !== 1) {
+      window.alert("Staff Drink hanya bisa diproses untuk 1 item.");
+      return;
+    }
+    els.customerName.value = els.orderCustomerName.value.trim();
+    els.tableNumber.value = els.orderTableNumber.value.trim();
+    closeOrderModal();
+    const transaction = currentTransaction(false);
+    if (state.payment === "Tunai" && transaction.paid < transaction.grandTotal) {
+      toast("Nominal tunai belum cukup.");
+      return;
+    }
+    transaction.boothCode = createBoothQueue(transaction);
+    clearPendingDelete("transaction", transaction.id);
+    const stockChanged = deductStockForTransaction(transaction);
+    if (stockChanged) transaction.stockSyncedAt = transaction.createdAt;
+    const history = getHistory();
+    history.unshift(transaction);
+    writeJson(storageKeys.history, history.slice(0, 300));
+    const offlineRecord = {
+      ...transaction,
+      localId: transaction.id,
+      idempotencyKey: transaction.id,
+      syncStatus: "PENDING_SYNC",
+      printStatus: "PRINT_PENDING",
+    };
+    await saveOfflineTransaction(offlineRecord).catch(() => null);
+    if (navigator.onLine) await syncPendingTransactions({ pull: false }).catch(() => null);
+    const printed = await printReceipt(transaction, "paid");
+    transaction.printStatus = printed ? "PRINTED" : "PRINT_FAILED";
+    patchLocalHistoryTransaction(transaction.id, { printStatus: transaction.printStatus });
+    await saveOfflineTransaction(
+      { ...transaction, localId: transaction.id, idempotencyKey: transaction.id },
+      { syncStatus: "PENDING_SYNC", printStatus: transaction.printStatus },
+    ).catch(() => null);
+    if (navigator.onLine) await syncPendingTransactions({ pull: false }).catch(() => null);
+    state.cart = [];
+    state.pendingBoothCode = "";
+    els.paidAmount.value = "";
+    els.customerName.value = "";
+    els.tableNumber.value = "";
+    els.boothPackage.value = "classic";
+    if (els.orderShift) els.orderShift.value = currentShiftName();
+    setOrderChannel("Kasir");
+    resetOrderAdjustments();
+    if (state.activeDraftId) {
+      saveOrderDrafts(getOrderDrafts().filter((entry) => entry.id !== state.activeDraftId));
+      state.activeDraftId = "";
+    }
+    renderAll();
+    syncPendingTransactions();
+    if (stockChanged) syncInventoryToCloud().catch(() => null);
+    toast(transaction.boothCode ? `Checkout selesai. Kode photobooth: ${transaction.boothCode}` : "Checkout selesai.");
+    completeDeferredShiftLogout();
+  } finally {
+    setOrderProcessing(false);
   }
-  if (state.orderType === "staff_drink" && staffDrinkItemCount() !== 1) {
-    window.alert("Staff Drink hanya bisa diproses untuk 1 item.");
-    return;
-  }
-  els.customerName.value = els.orderCustomerName.value.trim();
-  els.tableNumber.value = els.orderTableNumber.value.trim();
-  closeOrderModal();
-  const transaction = currentTransaction(false);
-  if (state.payment === "Tunai" && transaction.paid < transaction.grandTotal) {
-    toast("Nominal tunai belum cukup.");
-    return;
-  }
-  transaction.boothCode = createBoothQueue(transaction);
-  clearPendingDelete("transaction", transaction.id);
-  const stockChanged = deductStockForTransaction(transaction);
-  if (stockChanged) transaction.stockSyncedAt = transaction.createdAt;
-  const history = getHistory();
-  history.unshift(transaction);
-  writeJson(storageKeys.history, history.slice(0, 300));
-  const offlineRecord = {
-    ...transaction,
-    localId: transaction.id,
-    idempotencyKey: transaction.id,
-    syncStatus: "PENDING_SYNC",
-    printStatus: "PRINT_PENDING",
-  };
-  await saveOfflineTransaction(offlineRecord).catch(() => null);
-  if (navigator.onLine) await syncPendingTransactions({ pull: false }).catch(() => null);
-  const printed = await printReceipt(transaction, "paid");
-  transaction.printStatus = printed ? "PRINTED" : "PRINT_FAILED";
-  patchLocalHistoryTransaction(transaction.id, { printStatus: transaction.printStatus });
-  await saveOfflineTransaction(
-    { ...transaction, localId: transaction.id, idempotencyKey: transaction.id },
-    { syncStatus: "PENDING_SYNC", printStatus: transaction.printStatus },
-  ).catch(() => null);
-  if (navigator.onLine) await syncPendingTransactions({ pull: false }).catch(() => null);
-  state.cart = [];
-  state.pendingBoothCode = "";
-  els.paidAmount.value = "";
-  els.customerName.value = "";
-  els.tableNumber.value = "";
-  els.boothPackage.value = "classic";
-  if (els.orderShift) els.orderShift.value = currentShiftName();
-  setOrderChannel("Kasir");
-  resetOrderAdjustments();
-  if (state.activeDraftId) {
-    saveOrderDrafts(getOrderDrafts().filter((entry) => entry.id !== state.activeDraftId));
-    state.activeDraftId = "";
-  }
-  renderAll();
-  syncPendingTransactions();
-  if (stockChanged) syncInventoryToCloud().catch(() => null);
-  toast(transaction.boothCode ? `Checkout selesai. Kode photobooth: ${transaction.boothCode}` : "Checkout selesai.");
-  completeDeferredShiftLogout();
 }
 
 function changeQty(id, delta) {
@@ -3017,6 +3033,25 @@ function createBoothQueue(transaction) {
   return upsertPendingBoothSession(transaction);
 }
 
+function setOrderProcessing(active, label = "Memproses...") {
+  state.orderProcessing = active;
+  const submitButton = els.orderForm?.querySelector('button[type="submit"]');
+  [els.billOrderBtn, submitButton, els.clearCart, els.cancelOrderModal].forEach((button) => {
+    if (button) button.disabled = active;
+  });
+  if (submitButton) {
+    if (active) {
+      submitButton.dataset.idleText = submitButton.dataset.idleText || submitButton.textContent;
+      submitButton.textContent = label;
+    } else if (submitButton.dataset.idleText) {
+      submitButton.textContent = submitButton.dataset.idleText;
+    }
+  }
+  if (els.billOrderBtn) {
+    els.billOrderBtn.textContent = active ? "Menyimpan..." : "Cetak Bill";
+  }
+}
+
 function checkout() {
   if (!state.cart.length) {
     toast("Keranjang masih kosong.");
@@ -3054,42 +3089,48 @@ function clearActiveOrder({ silent = false } = {}) {
 }
 
 async function printBill() {
-  if (!state.cart.length) {
-    toast("Keranjang masih kosong.");
-    return;
+  if (state.orderProcessing) return;
+  setOrderProcessing(true, "Menyimpan...");
+  try {
+    if (!state.cart.length) {
+      toast("Keranjang masih kosong.");
+      return;
+    }
+    els.customerName.value = els.orderCustomerName.value.trim();
+    els.tableNumber.value = els.orderTableNumber.value.trim();
+    const draft = currentTransaction(true);
+    clearPendingDelete("transaction", draft.id);
+    draft.payment = "Bill";
+    draft.paid = 0;
+    draft.change = 0;
+    const drafts = getOrderDrafts().filter((entry) => entry.id !== draft.id);
+    drafts.unshift(draft);
+    saveOrderDrafts(drafts.slice(0, 200));
+    await saveOfflineTransaction({
+      ...draft,
+      localId: draft.id,
+      idempotencyKey: draft.id,
+      syncStatus: "PENDING_SYNC",
+      printStatus: "PRINT_PENDING",
+    }).catch(() => null);
+    if (navigator.onLine) await syncPendingTransactions({ pull: false }).catch(() => null);
+    const printed = await printReceipt(draft, "bill");
+    const printStatus = printed ? "PRINTED" : "PRINT_FAILED";
+    draft.printStatus = printStatus;
+    patchLocalOrderDraft(draft.id, { printStatus });
+    await saveOfflineTransaction(
+      { ...draft, localId: draft.id, idempotencyKey: draft.id },
+      { syncStatus: "PENDING_SYNC", printStatus },
+    ).catch(() => null);
+    if (navigator.onLine) await syncPendingTransactions({ pull: false }).catch(() => null);
+    clearActiveOrder({ silent: true });
+    renderOrders();
+    renderPendingSync();
+    toast("Bill dicetak dan masuk ke Order Belum Dibayar.");
+    completeDeferredShiftLogout();
+  } finally {
+    setOrderProcessing(false);
   }
-  els.customerName.value = els.orderCustomerName.value.trim();
-  els.tableNumber.value = els.orderTableNumber.value.trim();
-  const draft = currentTransaction(true);
-  clearPendingDelete("transaction", draft.id);
-  draft.payment = "Bill";
-  draft.paid = 0;
-  draft.change = 0;
-  const drafts = getOrderDrafts().filter((entry) => entry.id !== draft.id);
-  drafts.unshift(draft);
-  saveOrderDrafts(drafts.slice(0, 200));
-  await saveOfflineTransaction({
-    ...draft,
-    localId: draft.id,
-    idempotencyKey: draft.id,
-    syncStatus: "PENDING_SYNC",
-    printStatus: "PRINT_PENDING",
-  }).catch(() => null);
-  if (navigator.onLine) await syncPendingTransactions({ pull: false }).catch(() => null);
-  const printed = await printReceipt(draft, "bill");
-  const printStatus = printed ? "PRINTED" : "PRINT_FAILED";
-  draft.printStatus = printStatus;
-  patchLocalOrderDraft(draft.id, { printStatus });
-  await saveOfflineTransaction(
-    { ...draft, localId: draft.id, idempotencyKey: draft.id },
-    { syncStatus: "PENDING_SYNC", printStatus },
-  ).catch(() => null);
-  if (navigator.onLine) await syncPendingTransactions({ pull: false }).catch(() => null);
-  clearActiveOrder({ silent: true });
-  renderOrders();
-  renderPendingSync();
-  toast("Bill dicetak dan masuk ke Order Belum Dibayar.");
-  completeDeferredShiftLogout();
 }
 
 function renderHistory() {
@@ -3263,7 +3304,9 @@ async function deleteDraftOrder(id) {
 
 function renderOrders() {
   if (!els.orderList) return;
-  const unpaid = getOrderDrafts();
+  const savedUnpaid = getOrderDrafts();
+  const unpaid = dedupeTransactionsById(savedUnpaid);
+  if (unpaid.length !== savedUnpaid.length) saveOrderDrafts(unpaid);
   const paidDate = els.paidOrderDate?.value || dateKey();
   const paidAscending = getHistory()
     .filter((entry) => dateKey(entry.createdAt) === paidDate)
