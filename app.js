@@ -2882,7 +2882,7 @@ async function escPosLogoBytes() {
   canvas.width = width;
   canvas.height = height;
   const ctx = canvas.getContext("2d", { willReadFrequently: true });
-  ctx.fillStyle = "#fff";
+  ctx.fillStyle = "#faf8ff";
   ctx.fillRect(0, 0, width, height);
   ctx.drawImage(image, 0, 0, width, height);
 
@@ -3845,7 +3845,7 @@ function renderRevenueChart(history) {
   });
 
   ctx.clearRect(0, 0, w, h);
-  ctx.fillStyle = "#ffffff";
+  ctx.fillStyle = "#faf8ff";
   ctx.fillRect(0, 0, w, h);
 
   if (!source.length) {
@@ -3928,7 +3928,7 @@ function renderRevenueChart(history) {
     ctx.arc(xFor(index), yFor(entry.total), 4, 0, Math.PI * 2);
     ctx.fillStyle = "#2f7a46";
     ctx.fill();
-    ctx.strokeStyle = "#ffffff";
+    ctx.strokeStyle = "#faf8ff";
     ctx.lineWidth = 2;
     ctx.stroke();
   });
@@ -4148,7 +4148,7 @@ function drawBoothCanvas() {
   const canvas = els.boothCanvas;
   if (!canvas) return;
   const ctx = canvas.getContext("2d");
-  ctx.fillStyle = "#ffffff";
+  ctx.fillStyle = "#faf8ff";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.fillStyle = "#171717";
   ctx.font = "700 34px system-ui";
