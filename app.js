@@ -263,7 +263,6 @@ const els = {
   ingredientCategorySelect: document.querySelector("#ingredientCategorySelect"),
   ingredientCategoryCustom: document.querySelector("#ingredientCategoryCustom"),
   ingredientCategory: document.querySelector("#ingredientCategory"),
-  deleteIngredientCategory: document.querySelector("#deleteIngredientCategory"),
   purchaseQty: document.querySelector("#purchaseQty"),
   ingredientUnit: document.querySelector("#ingredientUnit"),
   purchaseCost: document.querySelector("#purchaseCost"),
@@ -2223,12 +2222,6 @@ function syncIngredientCategoryField() {
   els.ingredientCategoryCustom?.classList.toggle("hidden-field", !isCustom);
   els.ingredientCategoryCustom?.toggleAttribute("required", isCustom);
   els.ingredientCategory.value = isCustom ? els.ingredientCategoryCustom?.value.trim() || "" : els.ingredientCategorySelect.value;
-  if (els.deleteIngredientCategory) {
-    const category = els.ingredientCategory.value;
-    const canDelete = isOwner() && category && !defaultIngredientCategories.includes(category);
-    els.deleteIngredientCategory.disabled = !canDelete;
-    els.deleteIngredientCategory.hidden = !category || category === "__custom";
-  }
 }
 
 function renderIngredientCategoryOptions(selectedCategory = els.ingredientCategory?.value || "Lainnya") {
@@ -2242,33 +2235,6 @@ function renderIngredientCategoryOptions(selectedCategory = els.ingredientCatego
   ].join("");
   if (els.ingredientCategoryCustom) els.ingredientCategoryCustom.value = selectedCategory && !hasSelected ? selectedCategory : "";
   syncIngredientCategoryField();
-}
-
-function deleteSelectedIngredientCategory() {
-  if (!isOwner()) {
-    toast("Hapus kategori bahan hanya untuk Owner.");
-    return;
-  }
-  syncIngredientCategoryField();
-  const category = els.ingredientCategory?.value;
-  if (!category || defaultIngredientCategories.includes(category)) {
-    toast("Kategori default tidak bisa dihapus.");
-    return;
-  }
-  if (!window.confirm(`Hapus kategori "${category}"? Bahan di kategori ini akan dipindahkan ke Lainnya.`)) return;
-  const inventory = getInventory();
-  Object.keys(inventory).forEach((id) => {
-    if (ingredientCategory(inventory[id]) === category) {
-      inventory[id] = { ...inventory[id], category: "Lainnya", updatedAt: new Date().toISOString() };
-    }
-  });
-  state.stockCategory = "Semua";
-  if (els.ingredientCategory) els.ingredientCategory.value = "Lainnya";
-  renderIngredientCategoryOptions("Lainnya");
-  saveLocalInventoryChange(inventory);
-  renderInventory();
-  syncInventoryToCloud().catch(() => null);
-  toast(`Kategori "${category}" dihapus.`);
 }
 
 function customOrderIngredientOptions(selectedId = "") {
@@ -4396,7 +4362,6 @@ els.customOrderForm?.addEventListener("submit", addCustomOrderToCart);
 
 els.ingredientCategorySelect?.addEventListener("change", syncIngredientCategoryField);
 els.ingredientCategoryCustom?.addEventListener("input", syncIngredientCategoryField);
-els.deleteIngredientCategory?.addEventListener("click", deleteSelectedIngredientCategory);
 els.stockCategoryTabs?.addEventListener("click", (event) => {
   const button = event.target.closest("button[data-stock-category]");
   if (!button) return;
