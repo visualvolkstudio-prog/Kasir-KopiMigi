@@ -2536,6 +2536,7 @@ body.locked .login-screen { display: grid; }
     position: sticky;
     top: 0;
     z-index: 30;
+    width: 100%;
     height: auto;
     min-height: 0;
     display: grid;
@@ -2633,7 +2634,14 @@ body.locked .login-screen { display: grid; }
   .cashflow-entry-grid,
   .cashflow-entry-grid:has(#cfIngredientQtyWrap:not([hidden])),
   .cashflow-entry-grid #cfIngredientQtyWrap:not([hidden]) { grid-template-columns: 1fr; }
-  .page-head { padding: 10px 14px; flex-wrap: wrap; }
+  .page-head {
+    position: relative;
+    top: auto;
+    padding: 10px 14px;
+    flex-wrap: wrap;
+    box-shadow: none;
+    border-bottom: 1px solid var(--line);
+  }
   .head-meta { width: 100%; justify-content: flex-end; }
   .section-heading { align-items: flex-start; flex-wrap: wrap; }
   .menu-section-actions { width: 100%; justify-content: flex-start; flex-wrap: wrap; }
