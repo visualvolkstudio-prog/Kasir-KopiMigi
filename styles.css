@@ -67,6 +67,7 @@ body {
   background: var(--paper);
   color: var(--ink);
   -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
 }
 
 body.locked .app-shell {
@@ -981,6 +982,15 @@ input:focus, select:focus {
   grid-template-columns: minmax(320px, 420px) minmax(0, 1fr);
   gap: var(--panel-gap);
   align-items: start;
+}
+
+.pos-grid > *,
+.management-grid > *,
+.analytics-grid > *,
+.evaluation-grid > *,
+.photobooth-grid > *,
+.daily-sales-grid > * {
+  min-width: 0;
 }
 
 .inventory-grid {
@@ -2529,7 +2539,10 @@ body.locked .login-screen { display: grid; }
   .app-shell {
     grid-template-columns: 1fr;
     grid-template-rows: auto minmax(0, 1fr);
+    width: 100%;
+    max-width: 100vw;
     min-height: 100dvh;
+    overflow-x: clip;
   }
 
   .sidebar {
@@ -2537,6 +2550,7 @@ body.locked .login-screen { display: grid; }
     top: 0;
     z-index: 30;
     width: 100%;
+    max-width: 100vw;
     height: auto;
     min-height: 0;
     display: grid;
@@ -2552,11 +2566,22 @@ body.locked .login-screen { display: grid; }
 
   .brand-block {
     min-width: 0;
+    width: auto;
     padding: 0;
     border-bottom: 0;
     flex: 0 0 auto;
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: 10px;
   }
 
+  .brand-block > div:not(.brand-mark) { display: block; }
+  .brand-block::after { content: none; }
+  .brand-mark {
+    width: 34px;
+    height: 34px;
+    border-radius: 9px;
+  }
   .brand-block .eyebrow { font-size: 9px; }
   .brand-block h1 { font-size: 14px; }
 
@@ -2568,27 +2593,29 @@ body.locked .login-screen { display: grid; }
     order: initial;
     overflow-x: auto;
     overflow-y: hidden;
-    display: grid;
-    grid-auto-flow: column;
-    grid-auto-columns: minmax(76px, 1fr);
+    display: flex;
+    flex-direction: row;
     align-items: center;
     gap: 4px;
     scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
   }
 
   .nav-tabs::-webkit-scrollbar { display: none; }
 
   .nav-tab {
-    width: 100%;
-    min-width: 0;
+    width: auto;
+    flex: 0 0 auto;
+    min-width: max-content;
     height: 44px;
     justify-content: center;
-    padding: 8px 6px;
+    padding: 8px 10px;
     gap: 6px;
     overflow: hidden;
   }
 
   .nav-label {
+    display: block;
     min-width: 0;
     max-width: 100%;
     overflow: hidden;
@@ -2603,6 +2630,13 @@ body.locked .login-screen { display: grid; }
 
   .shift-card { display: none; }
   .view-panel { padding: var(--content-pad-y) var(--content-pad-x); }
+  .workspace,
+  .page-head,
+  .view-panel {
+    width: 100%;
+    max-width: 100vw;
+    min-width: 0;
+  }
 
   .topbar,
   .pos-grid,
@@ -2642,7 +2676,19 @@ body.locked .login-screen { display: grid; }
     box-shadow: none;
     border-bottom: 1px solid var(--line);
   }
-  .head-meta { width: 100%; justify-content: flex-end; }
+  .head-meta {
+    width: 100%;
+    min-width: 0;
+    justify-content: flex-end;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .head-meta::-webkit-scrollbar { display: none; }
+  .workday-meta,
+  .active-employee-card,
+  .printer-toggle {
+    flex: 0 0 auto;
+  }
   .section-heading { align-items: flex-start; flex-wrap: wrap; }
   .menu-section-actions { width: 100%; justify-content: flex-start; flex-wrap: wrap; }
   .order-status-tabs,
@@ -2660,9 +2706,28 @@ body.locked .login-screen { display: grid; }
 }
 
 @media (max-width: 520px) {
+  .app-shell .sidebar {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .app-shell .brand-block {
+    width: 100%;
+  }
+
+  .app-shell .nav-tabs {
+    width: 100%;
+  }
+
   .menu-grid { grid-template-columns: 1fr 1fr; }
-  .nav-tab { padding: 8px 4px; font-size: 11.5px; justify-content: center; }
-  .tab-icon { display: none; }
+  .nav-tab { padding: 8px 10px; font-size: 11.5px; justify-content: center; }
+  .tab-icon { width: 16px; height: 16px; }
+  .recipe-ingredient-row {
+    grid-template-columns: minmax(0, 1fr) minmax(72px, 0.7fr) auto;
+  }
+  .recipe-ingredient-row label:first-child {
+    grid-column: 1 / -1;
+  }
   .checkout-actions, .button-row, .modal-actions, .modal-action-primary { flex-direction: column; }
   .checkout-actions button, .button-row button, .modal-actions button, .modal-action-primary { width: 100%; }
   .modal-order-row { grid-template-columns: 1fr auto; }
