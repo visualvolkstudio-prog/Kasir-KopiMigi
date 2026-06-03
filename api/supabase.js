@@ -76,6 +76,7 @@ function mapTransaction(transaction) {
     change: toNumber(transaction.change),
     subtotal: toNumber(transaction.subtotal),
     grand_total: toNumber(transaction.grandTotal),
+    deleted_at: null,
     raw: transaction,
   };
 }
@@ -248,7 +249,10 @@ async function syncTransaction(body) {
 }
 
 async function getTransactions() {
-  const transactions = await supabaseFetch("transactions?select=*&deleted_at=is.null&order=created_at.desc&limit=500");
+  const [transactions, deletedTransactions] = await Promise.all([
+    supabaseFetch("transactions?select=*&deleted_at=is.null&order=created_at.desc&limit=500"),
+    supabaseFetch("transactions?select=id,created_at,deleted_at&deleted_at=not.is.null&order=created_at.desc&limit=500"),
+  ]);
   const ids = transactions.map((row) => row.id).filter(Boolean);
   const items = ids.length
     ? await supabaseFetch(`transaction_items?select=*&transaction_id=in.(${ids.map(encodeURIComponent).join(",")})`)
@@ -272,6 +276,7 @@ async function getTransactions() {
     payload: {
       success: true,
       transactions: transactions.map((row) => toLocalTransaction(row, itemsByTransaction.get(row.id) || [])),
+      deletedTransactions,
     },
   };
 }
@@ -293,8 +298,9 @@ async function deleteTransaction(body) {
 }
 
 async function bootstrapData() {
-  const [transactions, items, expenses, inventory, employees, settingsRows] = await Promise.all([
+  const [transactions, deletedTransactions, items, expenses, inventory, employees, settingsRows] = await Promise.all([
     supabaseFetch("transactions?select=*&deleted_at=is.null&order=created_at.desc&limit=500"),
+    supabaseFetch("transactions?select=id,created_at,deleted_at&deleted_at=not.is.null&order=created_at.desc&limit=500"),
     supabaseFetch("transaction_items?select=*"),
     supabaseFetch("cashflow_expenses?select=*&order=created_at.desc&limit=500"),
     supabaseFetch("inventory?select=*&order=name.asc"),
@@ -320,6 +326,7 @@ async function bootstrapData() {
     payload: {
       success: true,
       history: transactions.map((row) => toLocalTransaction(row, itemsByTransaction.get(row.id) || [])),
+      deletedTransactions,
       cashflowExpenses: expenses.map(toLocalExpense),
       inventory: toLocalInventory(inventory),
       employees: employees.map((row) => row.name),

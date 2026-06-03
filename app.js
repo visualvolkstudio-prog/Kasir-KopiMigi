@@ -29,6 +29,7 @@ const storageKeys = {
   orderDrafts: "kopishop-pos-order-drafts",
   cashflowExpenses: "kopishop-pos-cashflow-expenses",
   pendingDeletes: "kopishop-pos-pending-deletes",
+  deletedTransactions: "kopishop-pos-deleted-transactions",
   activeView: "kasir-migi-active-view",
   shiftActions: "kasir-migi-shift-actions",
   shiftAssignments: "kasir-migi-shift-assignments",
@@ -397,7 +398,8 @@ function nextDailyOrderCode(date = new Date(), channel = state.orderChannel) {
   const prefix = dayOrderPrefix(date);
   const today = dateKey(date);
   const existing = [...getHistory(), ...getOrderDrafts()].filter((entry) => dateKey(entry.createdAt) === today);
-  const highest = existing.reduce((max, entry) => Math.max(max, orderSequenceFromId(entry.id, prefix)), 0);
+  const deleted = getDeletedTransactionTombstones().filter((entry) => dateKey(entry.createdAt) === today);
+  const highest = [...existing, ...deleted].reduce((max, entry) => Math.max(max, orderSequenceFromId(entry.id, prefix)), 0);
   const number = String(highest + 1).padStart(3, "0");
   return `${prefix}-${number}${onlineChannelSuffix(channel)}`;
 }
@@ -1314,6 +1316,41 @@ function savePendingDeletes(deletes) {
   writeJson(storageKeys.pendingDeletes, deletes);
 }
 
+function clearPendingDelete(type, id) {
+  savePendingDeletes(getPendingDeletes().filter((entry) => !(entry.type === type && entry.id === id)));
+}
+
+function getDeletedTransactionTombstones() {
+  return readJson(storageKeys.deletedTransactions, []);
+}
+
+function saveDeletedTransactionTombstones(tombstones) {
+  writeJson(storageKeys.deletedTransactions, tombstones.slice(0, 500));
+}
+
+function rememberDeletedTransaction(id, createdAt = new Date().toISOString()) {
+  if (!id) return;
+  const tombstones = getDeletedTransactionTombstones().filter((entry) => entry.id !== id);
+  tombstones.unshift({ id, createdAt: createdAt || new Date().toISOString(), deletedAt: new Date().toISOString() });
+  saveDeletedTransactionTombstones(tombstones);
+}
+
+function mergeDeletedTransactionTombstones(entries = []) {
+  const map = new Map(getDeletedTransactionTombstones().map((entry) => [entry.id, entry]));
+  entries.forEach((entry) => {
+    const id = entry?.id;
+    if (!id) return;
+    map.set(id, {
+      id,
+      createdAt: entry.createdAt || entry.created_at || new Date().toISOString(),
+      deletedAt: entry.deletedAt || entry.deleted_at || new Date().toISOString(),
+    });
+  });
+  saveDeletedTransactionTombstones(
+    [...map.values()].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)),
+  );
+}
+
 function queuePendingDelete(type, id) {
   const deletes = getPendingDeletes();
   if (deletes.some((entry) => entry.type === type && entry.id === id)) return;
@@ -1594,7 +1631,7 @@ function isStaffDrinkTransaction(transaction) {
 }
 
 function revenueTransactions(list) {
-  return (list || []).filter((transaction) => !isStaffDrinkTransaction(transaction));
+  return (list || []).filter((transaction) => transaction?.status !== "unpaid" && !isStaffDrinkTransaction(transaction));
 }
 
 function staffDrinkUsedToday(employee = activeEmployeeName(), date = dateKey()) {
@@ -2513,6 +2550,7 @@ async function startOrder(event) {
     return;
   }
   transaction.boothCode = createBoothQueue(transaction);
+  clearPendingDelete("transaction", transaction.id);
   const stockChanged = deductStockForTransaction(transaction);
   if (stockChanged) transaction.stockSyncedAt = transaction.createdAt;
   const history = getHistory();
@@ -3023,6 +3061,7 @@ async function printBill() {
   els.customerName.value = els.orderCustomerName.value.trim();
   els.tableNumber.value = els.orderTableNumber.value.trim();
   const draft = currentTransaction(true);
+  clearPendingDelete("transaction", draft.id);
   draft.payment = "Bill";
   draft.paid = 0;
   draft.change = 0;
@@ -3148,6 +3187,8 @@ async function deletePaidTransaction(id) {
     toast("Hapus transaksi sudah dibayar hanya untuk Owner.");
     return;
   }
+  const transaction = getHistory().find((entry) => entry.id === id);
+  rememberDeletedTransaction(id, transaction?.createdAt);
   if (navigator.onLine) {
     try {
       await deleteTransactionInSupabase(id);
@@ -3206,6 +3247,8 @@ async function deleteDraftOrder(id) {
     toast("Hapus order masuk hanya untuk Owner.");
     return;
   }
+  const draft = getOrderDrafts().find((entry) => entry.id === id);
+  rememberDeletedTransaction(id, draft?.createdAt);
   saveOrderDrafts(getOrderDrafts().filter((entry) => entry.id !== id));
   if (navigator.onLine) {
     await deleteTransactionInSupabase(id).catch(() => queuePendingDelete("transaction", id));
@@ -3404,12 +3447,35 @@ async function pullSettingsFromSupabase({ render = false } = {}) {
   return true;
 }
 
-function cacheCloudTransactions(transactions = []) {
+function sortTransactionsNewestFirst(transactions = []) {
+  return [...transactions].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+}
+
+function cacheCloudTransactions(transactions = [], localPending = []) {
   const list = Array.isArray(transactions) ? transactions : [];
-  const unpaid = list.filter((entry) => entry?.status === "unpaid");
-  const paid = list.filter((entry) => entry?.status !== "unpaid");
+  const pendingDeletes = new Set(getPendingDeletes().filter((entry) => entry.type === "transaction").map((entry) => entry.id));
+  const byId = new Map();
+
+  sortTransactionsNewestFirst(list).forEach((entry) => {
+    if (!entry?.id || pendingDeletes.has(entry.id)) return;
+    byId.set(entry.id, entry);
+  });
+
+  sortTransactionsNewestFirst(localPending).forEach((entry) => {
+    if (!entry?.id || pendingDeletes.has(entry.id)) return;
+    byId.set(entry.id, byId.has(entry.id) ? { ...byId.get(entry.id), ...entry } : entry);
+  });
+
+  const merged = sortTransactionsNewestFirst([...byId.values()]);
+  const unpaid = merged.filter((entry) => entry?.status === "unpaid");
+  const paid = merged.filter((entry) => entry?.status !== "unpaid");
   writeJson(storageKeys.history, paid.slice(0, 500));
   saveOrderDrafts(unpaid.slice(0, 200));
+}
+
+async function cacheCloudTransactionsWithPending(transactions = []) {
+  const pending = await pendingOfflineTransactions().catch(() => []);
+  cacheCloudTransactions(transactions, pending);
 }
 
 async function pullTransactionsFromSupabase({ render = true } = {}) {
@@ -3418,7 +3484,8 @@ async function pullTransactionsFromSupabase({ render = true } = {}) {
   if (!result?.success || !Array.isArray(result.transactions)) {
     throw new Error(result?.error || "Pull transaksi gagal.");
   }
-  cacheCloudTransactions(result.transactions);
+  if (Array.isArray(result.deletedTransactions)) mergeDeletedTransactionTombstones(result.deletedTransactions);
+  await cacheCloudTransactionsWithPending(result.transactions);
   if (render) {
     renderHistory();
     renderOrders();
@@ -3453,7 +3520,8 @@ async function loadCloudData() {
   const data = await postSupabaseAction("bootstrap-data");
   if (!data?.success) throw new Error(data?.error || "Load data cloud gagal.");
 
-  if (Array.isArray(data.history)) cacheCloudTransactions(data.history);
+  if (Array.isArray(data.deletedTransactions)) mergeDeletedTransactionTombstones(data.deletedTransactions);
+  if (Array.isArray(data.history)) await cacheCloudTransactionsWithPending(data.history);
   if (Array.isArray(data.cashflowExpenses)) writeJson(storageKeys.cashflowExpenses, data.cashflowExpenses.slice(0, 500));
   if (data.inventory && typeof data.inventory === "object") applyCloudInventory(data.inventory);
   if (Array.isArray(data.employees)) saveEmployeeRoster(data.employees);

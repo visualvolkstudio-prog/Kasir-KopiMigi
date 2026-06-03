@@ -1,4 +1,4 @@
-const CACHE_NAME = "kasir-migi-v18";
+const CACHE_NAME = "kasir-migi-v20";
 const APP_SHELL = [
   "/",
   "/index.html",
@@ -9,7 +9,10 @@ const APP_SHELL = [
   "/assets/logo-migi.svg",
   "/assets/logo-migi-print.png",
   "/assets/logo-migi.png",
+  "/assets/logo-miginew.png",
+  "/assets/logo-miginew-transparent.png",
   "/assets/logo-paw.png",
+  "/assets/logo-paw-blue-transparent.png",
   "/assets/pwa-icon-192.png",
   "/assets/pwa-icon-512.png",
   "/photobooth/",
