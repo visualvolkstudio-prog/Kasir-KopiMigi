@@ -80,6 +80,7 @@ const state = {
   boothStream: null,
   activeCashier: { online: false, employee: "" },
   menuEditCategory: "Semua",
+  menuEditSearch: "",
   stockCategory: "Semua",
   pendingEmployeeDelete: "",
   menuSaving: false,
@@ -260,6 +261,7 @@ const els = {
   menuImagePreview: document.querySelector("#menuImagePreview"),
   cancelMenuEdit: document.querySelector("#cancelMenuEdit"),
   menuTable: document.querySelector("#menuTable"),
+  menuEditSearch: document.querySelector("#menuEditSearch"),
   purchaseForm: document.querySelector("#purchaseForm"),
   purchaseMenuId: document.querySelector("#purchaseMenuId"),
   ingredientCategorySelect: document.querySelector("#ingredientCategorySelect"),
@@ -1657,6 +1659,18 @@ function staffDrinkItemCount() {
   return state.cart.reduce((sum, item) => sum + Number(item.qty || 0), 0);
 }
 
+function canAddStaffDrinkItem(id = "") {
+  if (state.orderType !== "staff_drink") return true;
+  if (!state.cart.length) return true;
+  return state.cart.length === 1 && state.cart[0]?.id === id && Number(state.cart[0]?.qty || 0) < 1;
+}
+
+function staffDrinkItemsLabel(transaction) {
+  const firstItem = transaction?.items?.[0];
+  if (!firstItem) return "1x Staff Drink";
+  return `1x ${firstItem.name}`;
+}
+
 function syncOrderTypeUi() {
   const staffDrink = state.orderType === "staff_drink";
   const staffDrinkAvailable = staffDrinkItemCount() === 1;
@@ -1780,6 +1794,16 @@ function renderMenuTable() {
   }
   const items = menu
     .filter((item) => state.menuEditCategory === "Semua" || (item.category || "Tanpa Kategori") === state.menuEditCategory)
+    .filter((item) => {
+      const query = state.menuEditSearch.trim().toLowerCase();
+      if (!query) return true;
+      return [
+        item.name,
+        item.category,
+        money(item.price),
+        String(item.price || ""),
+      ].some((value) => String(value || "").toLowerCase().includes(query));
+    })
     .sort((a, b) => (a.category || "").localeCompare(b.category || "", "id-ID") || a.name.localeCompare(b.name, "id-ID"));
   const rows = items
     .map((item) => {
@@ -1802,7 +1826,7 @@ function renderMenuTable() {
     })
     .join("");
 
-  els.menuTable.innerHTML = rows || `<div class="empty-state">Belum ada menu.</div>`;
+  els.menuTable.innerHTML = rows || `<div class="empty-state">${state.menuEditSearch ? "Menu tidak ditemukan." : "Belum ada menu."}</div>`;
 }
 
 function ingredientOptions(selectedId = "") {
@@ -2400,7 +2424,7 @@ function renderCart() {
               <div class="item-controls">
                 <button class="qty-button" data-action="decrease" data-id="${item.id}" type="button">-</button>
                 <strong>${item.qty}</strong>
-                <button class="qty-button" data-action="increase" data-id="${item.id}" type="button">+</button>
+                <button class="qty-button" data-action="increase" data-id="${item.id}" type="button" ${state.orderType === "staff_drink" ? "disabled" : ""}>+</button>
               </div>
             </div>
           `,
@@ -2529,6 +2553,10 @@ function removePendingBoothSession() {
 function addToCart(id) {
   const item = getMenu().find((entry) => entry.id === id);
   if (!item) return;
+  if (!canAddStaffDrinkItem(id)) {
+    toast("Staff Drink hanya untuk 1 item.");
+    return;
+  }
   const existing = state.cart.find((entry) => entry.id === id);
   if (existing) existing.qty += 1;
   else state.cart.push({ ...item, qty: 1 });
@@ -2554,6 +2582,7 @@ async function startOrder(event) {
       window.alert("Staff Drink hanya bisa diproses untuk 1 item.");
       return;
     }
+    if (!ensurePrinterReadyForOrderPrint()) return;
     els.customerName.value = els.orderCustomerName.value.trim();
     els.tableNumber.value = els.orderTableNumber.value.trim();
     closeOrderModal();
@@ -2602,7 +2631,11 @@ async function startOrder(event) {
     renderAll();
     syncPendingTransactions();
     if (stockChanged) syncInventoryToCloud().catch(() => null);
-    toast(transaction.boothCode ? `Checkout selesai. Kode photobooth: ${transaction.boothCode}` : "Checkout selesai.");
+    if (printed) {
+      toast(transaction.boothCode ? `Checkout selesai. Kode photobooth: ${transaction.boothCode}` : "Checkout selesai.");
+    } else {
+      toast(transaction.boothCode ? `Checkout tersimpan. Kode photobooth: ${transaction.boothCode}. Sambungkan printer lalu cetak ulang.` : "Checkout tersimpan. Sambungkan printer lalu cetak ulang.");
+    }
     completeDeferredShiftLogout();
   } finally {
     setOrderProcessing(false);
@@ -2612,6 +2645,10 @@ async function startOrder(event) {
 function changeQty(id, delta) {
   const item = state.cart.find((entry) => entry.id === id);
   if (!item) return;
+  if (state.orderType === "staff_drink" && delta > 0) {
+    toast("Staff Drink hanya untuk 1 item.");
+    return;
+  }
   item.qty += delta;
   if (item.qty <= 0) state.cart = state.cart.filter((entry) => entry.id !== id);
   syncPhotoboothCodeFromCart();
@@ -2842,8 +2879,8 @@ async function printReceipt(transaction, kind = "paid") {
   if (state.printerCharacteristic) {
     return printThermalReceipt(transaction, kind);
   }
-  window.print();
-  return true;
+  promptPrinterConnection();
+  return false;
 }
 
 function receiptText(transaction, kind = "paid") {
@@ -3011,11 +3048,22 @@ async function printThermalReceipt(transaction, kind = "paid") {
     return true;
   } catch (error) {
     state.printerCharacteristic = null;
-    setPrinterStatus("Terputus", "disconnected", "Cetak gagal. Sambungkan ulang printer.");
     toast(`Cetak Bluetooth gagal: ${error.message}`);
-    window.print();
+    promptPrinterConnection();
     return false;
   }
+}
+
+function promptPrinterConnection() {
+  setPrinterStatus("Belum tersambung", "disconnected", "Hei fokus, printernya belum nyambung. Sambungkan printer dulu lalu cetak ulang.");
+  togglePrinterDropdown(true);
+  window.alert("Hei fokus, printernya belum nyambung. Klik Sambungkan Printer dulu, lalu cetak ulang.");
+}
+
+function ensurePrinterReadyForOrderPrint() {
+  if (state.printerCharacteristic) return true;
+  promptPrinterConnection();
+  return false;
 }
 
 function generateBoothCode() {
@@ -3053,6 +3101,7 @@ function setOrderProcessing(active, label = "Memproses...") {
 }
 
 function checkout() {
+  if (state.orderProcessing) return;
   if (!state.cart.length) {
     toast("Keranjang masih kosong.");
     return;
@@ -3090,12 +3139,13 @@ function clearActiveOrder({ silent = false } = {}) {
 
 async function printBill() {
   if (state.orderProcessing) return;
-  setOrderProcessing(true, "Menyimpan...");
+  setOrderProcessing(true, "Mengecek...");
   try {
     if (!state.cart.length) {
       toast("Keranjang masih kosong.");
       return;
     }
+    if (!ensurePrinterReadyForOrderPrint()) return;
     els.customerName.value = els.orderCustomerName.value.trim();
     els.tableNumber.value = els.orderTableNumber.value.trim();
     const draft = currentTransaction(true);
@@ -3126,7 +3176,7 @@ async function printBill() {
     clearActiveOrder({ silent: true });
     renderOrders();
     renderPendingSync();
-    toast("Bill dicetak dan masuk ke Order Belum Dibayar.");
+    toast(printed ? "Bill dicetak dan masuk ke Order Belum Dibayar." : "Bill disimpan. Sambungkan printer lalu cetak ulang.");
     completeDeferredShiftLogout();
   } finally {
     setOrderProcessing(false);
@@ -3776,7 +3826,7 @@ function dailyReportText(todayTransactions, reportDateValue = selectedDailyDate(
     ...shiftLines,
     "",
     "Konsumsi Karyawan:",
-    ...(staffDrinks.length ? staffDrinks.map((entry) => `- ${transactionEmployeeDisplay(entry)}: ${entry.items.map((item) => `${item.qty}x ${item.name}`).join(", ")} (${money(entry.originalTotal || entry.subtotal || 0)})`) : ["- Belum ada Staff Drink"]),
+    ...(staffDrinks.length ? staffDrinks.map((entry) => `- ${transactionEmployeeDisplay(entry)}: ${staffDrinkItemsLabel(entry)} (${money(entry.originalTotal || entry.subtotal || 0)})`) : ["- Belum ada Staff Drink"]),
     `Nilai konsumsi: ${money(staffValue)}`,
     "",
     "Rincian Orderan per Kategori:",
@@ -4535,6 +4585,10 @@ els.paymentMethods.addEventListener("click", (event) => {
 els.orderTypeTabs?.addEventListener("click", (event) => {
   const button = event.target.closest("button[data-order-type]");
   if (!button) return;
+  if (button.dataset.orderType === "staff_drink" && staffDrinkItemCount() !== 1) {
+    toast("Staff Drink hanya bisa dipilih untuk tepat 1 item.");
+    return;
+  }
   state.orderType = button.dataset.orderType || "normal";
   if (state.orderType === "staff_drink") {
     state.discountType = "none";
@@ -4971,6 +5025,10 @@ els.menuEditCategoryTabs?.addEventListener("click", (event) => {
   const button = event.target.closest("button[data-menu-edit-category]");
   if (!button) return;
   state.menuEditCategory = button.dataset.menuEditCategory;
+  renderMenuTable();
+});
+els.menuEditSearch?.addEventListener("input", (event) => {
+  state.menuEditSearch = event.target.value;
   renderMenuTable();
 });
 els.menuTable.addEventListener("click", async (event) => {

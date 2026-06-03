@@ -521,6 +521,7 @@ h3 { font-size: 16px; font-weight: 700; }
 
 .search-field:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(0, 52, 155,0.12); }
 .search-field input { border: 0; outline: 0; width: 100%; background: transparent; min-height: unset; padding: 0; font-size: 14px; }
+.menu-edit-search-field { margin: 14px 0 12px; }
 
 .sync-status-card {
   display: grid;
