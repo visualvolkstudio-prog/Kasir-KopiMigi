@@ -335,6 +335,13 @@ function isOnlineChannel(channel) {
   return ["GoFood", "GrabFood", "ShopeeFood"].includes(channel);
 }
 
+function onlineChannelSuffix(channel) {
+  if (channel === "GoFood") return "-G";
+  if (channel === "GrabFood") return "-GB";
+  if (channel === "ShopeeFood") return "-S";
+  return isOnlineChannel(channel) ? "-O" : "";
+}
+
 function autoShiftName(value = new Date()) {
   const date = value instanceof Date ? value : new Date(value);
   return date.getHours() >= 17 ? "Shift 2" : "Shift 1";
@@ -382,7 +389,7 @@ function dutyRoleLabel(value = currentDutyRole()) {
 }
 
 function orderSequenceFromId(id, prefix) {
-  const match = String(id || "").match(new RegExp(`^${prefix}-(\\d+)(?:-O)?$`));
+  const match = String(id || "").match(new RegExp(`^${prefix}-(\\d+)(?:-O|-G|-GB|-S)?$`));
   return match ? Number(match[1]) : 0;
 }
 
@@ -392,13 +399,13 @@ function nextDailyOrderCode(date = new Date(), channel = state.orderChannel) {
   const existing = [...getHistory(), ...getOrderDrafts()].filter((entry) => dateKey(entry.createdAt) === today);
   const highest = existing.reduce((max, entry) => Math.max(max, orderSequenceFromId(entry.id, prefix)), 0);
   const number = String(highest + 1).padStart(3, "0");
-  return `${prefix}-${number}${isOnlineChannel(channel) ? "-O" : ""}`;
+  return `${prefix}-${number}${onlineChannelSuffix(channel)}`;
 }
 
 function sequentialPaidOrderCode(transaction, sequence) {
   const prefix = dayOrderPrefix(transaction?.createdAt || new Date());
   const number = String(sequence || 1).padStart(3, "0");
-  return `${prefix}-${number}${isOnlineChannel(transaction?.channel) ? "-O" : ""}`;
+  return `${prefix}-${number}${onlineChannelSuffix(transaction?.channel)}`;
 }
 
 function paidOrderDisplayCodes(transactions = []) {
@@ -423,7 +430,7 @@ function receiptDisplayCode(transaction, kind = "paid") {
 
 function receiptTableLabel(transaction, displayCode) {
   const value = String(transaction?.table || "").trim();
-  if (!value || value === transaction?.id || /^[A-Z]+-\d{3}(?:-O)?$/.test(value)) return displayCode;
+  if (!value || value === transaction?.id || /^[A-Z]+-\d{3}(?:-O|-G|-GB|-S)?$/.test(value)) return displayCode;
   return value;
 }
 
