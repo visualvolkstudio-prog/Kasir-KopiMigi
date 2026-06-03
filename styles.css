@@ -2629,7 +2629,7 @@ body.locked .login-screen { display: grid; }
   .cashflow-controls input { width: min(180px, 100%); }
   .cashflow-filter-tabs { width: 100%; }
   .daily-summary { grid-template-columns: 1fr; }
-  .recipe-ingredient-row { grid-template-columns: 1fr; }
+  .recipe-ingredient-row { grid-template-columns: minmax(0, 1.2fr) 78px 54px auto; }
   .cashflow-entry-grid,
   .cashflow-entry-grid:has(#cfIngredientQtyWrap:not([hidden])),
   .cashflow-entry-grid #cfIngredientQtyWrap:not([hidden]) { grid-template-columns: 1fr; }
