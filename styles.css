@@ -195,6 +195,10 @@ h3 { font-size: 16px; font-weight: 700; }
   flex: 0 0 auto;
 }
 
+.tab-icon .ph {
+  font-size: 19px;
+}
+
 /* Shift card */
 .shift-card {
   margin: 10px;
@@ -847,6 +851,14 @@ h3 { font-size: 16px; font-weight: 700; }
 button, input, select { font: inherit; }
 button { cursor: pointer; }
 
+.ph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  font-size: 1.1em;
+}
+
 .primary-button, .secondary-button {
   border: 0;
   border-radius: 9px;
@@ -900,6 +912,18 @@ button { cursor: pointer; }
 .text-link-button { text-decoration: none; }
 
 .compact { min-height: 34px; font-size: 12.5px; }
+
+.primary-button .ph,
+.secondary-button .ph {
+  font-size: 17px;
+  flex: 0 0 auto;
+}
+
+.icon-button .ph,
+.ghost-button .ph,
+.printer-toggle .ph {
+  font-size: 19px;
+}
 
 .qty-button,
 .icon-button,

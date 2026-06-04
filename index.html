@@ -12,7 +12,8 @@
     <link rel="manifest" href="/manifest.json?v=20" />
     <link rel="icon" href="/assets/favicon-migi.png?v=18" />
     <link rel="apple-touch-icon" href="/assets/pwa-icon-512.png?v=18" />
-    <link rel="stylesheet" href="styles.css?v=12" />
+    <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css" />
+    <link rel="stylesheet" href="styles.css?v=13" />
   </head>
   <body>
     <section class="login-screen" id="loginScreen" aria-label="Login kasir">
@@ -34,7 +35,7 @@
             <input id="loginShift" type="text" value="Shift 1" readonly />
           </label>
           <label>
-            Karyawan
+            Petugas
             <select id="loginEmployee"></select>
           </label>
           <label id="loginDutyRoleWrap">
@@ -58,7 +59,7 @@
             <h2>Order Aktif</h2>
           </div>
           <button class="icon-button modal-close" id="cancelOrderModal" type="button" title="Tutup order">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12" /><path d="M18 6 6 18" /></svg>
+            <i class="ph ph-x" aria-hidden="true"></i>
           </button>
         </div>
         <div class="order-modal-grid">
@@ -176,7 +177,7 @@
             <h2>Bean Kopi</h2>
           </div>
           <button class="icon-button modal-close" id="cancelCustomOrder" type="button" title="Tutup custom order">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12" /><path d="M18 6 6 18" /></svg>
+            <i class="ph ph-x" aria-hidden="true"></i>
           </button>
         </div>
         <div class="custom-order-body">
@@ -215,7 +216,7 @@
             <h2>Edit Stock Bahan</h2>
           </div>
           <button class="icon-button modal-close" id="cancelStockEdit" type="button" title="Tutup edit stock">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12" /><path d="M18 6 6 18" /></svg>
+            <i class="ph ph-x" aria-hidden="true"></i>
           </button>
         </div>
         <div class="stock-edit-body">
@@ -256,7 +257,7 @@
             <h2>Hapus Karyawan?</h2>
           </div>
           <button class="icon-button modal-close" id="cancelEmployeeDelete" type="button" title="Batal hapus">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12" /><path d="M18 6 6 18" /></svg>
+            <i class="ph ph-x" aria-hidden="true"></i>
           </button>
         </div>
         <div class="confirm-body">
@@ -285,43 +286,43 @@
         <nav class="nav-tabs" aria-label="Tampilan">
           <button class="nav-tab active" data-view="pos" type="button">
             <span class="tab-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24"><path d="M4 7h16v12H4z" /><path d="M8 7V5h8v2" /><path d="M8 12h8" /><path d="M8 16h4" /></svg>
+              <i class="ph ph-cash-register"></i>
             </span>
             <span class="nav-label">Kasir</span>
           </button>
           <button class="nav-tab" data-view="orders" type="button">
             <span class="tab-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24"><path d="M7 4h10" /><path d="M6 8h12" /><path d="M5 12h14v8H5z" /><path d="M9 16h6" /></svg>
+              <i class="ph ph-receipt"></i>
             </span>
             <span class="nav-label">Order</span>
           </button>
           <button class="nav-tab" data-view="menu" type="button">
             <span class="tab-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24"><path d="M4 7h16" /><path d="M4 12h16" /><path d="M4 17h16" /><path d="M8 4v16" /></svg>
+              <i class="ph ph-list-bullets"></i>
             </span>
             <span class="nav-label">Menu</span>
           </button>
           <button class="nav-tab" data-view="stock" type="button">
             <span class="tab-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24"><path d="M4 8h16" /><path d="M6 8v12h12V8" /><path d="M9 4h6l1 4H8z" /><path d="M9 13h6" /></svg>
+              <i class="ph ph-basket"></i>
             </span>
             <span class="nav-label">Bahan Baku</span>
           </button>
           <button class="nav-tab" data-view="cashflow" type="button">
             <span class="tab-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24"><path d="M12 2v20"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+              <i class="ph ph-currency-dollar"></i>
             </span>
             <span class="nav-label">Arus Kas</span>
           </button>
           <button class="nav-tab" data-view="analytics" type="button">
             <span class="tab-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24"><path d="M4 19V5" /><path d="M4 19h16" /><path d="M8 15v-4" /><path d="M12 15V8" /><path d="M16 15v-6" /></svg>
+              <i class="ph ph-chart-bar"></i>
             </span>
             <span class="nav-label">Analitik</span>
           </button>
           <button class="nav-tab" data-view="settings" type="button">
             <span class="tab-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24"><path d="M12 15.5A3.5 3.5 0 1 0 12 8.5a3.5 3.5 0 0 0 0 7Z" /><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.2a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.2a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3h.1a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.2a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8v.1a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.2a1.6 1.6 0 0 0-1.4 1Z" /></svg>
+              <i class="ph ph-gear-six"></i>
             </span>
             <span class="nav-label">Pengaturan</span>
           </button>
@@ -333,8 +334,7 @@
           <strong id="shiftTotal">Rp0</strong>
           <span id="shiftCount">0 transaksi</span>
           <div class="shift-actions">
-            <button class="secondary-button compact" id="closeShiftBtn" type="button">Tutup Shift</button>
-            <button class="secondary-button compact" id="switchShiftBtn" type="button">Ganti Shift</button>
+            <button class="secondary-button compact" id="closeShiftBtn" type="button">Siapkan Laporan Shift</button>
           </div>
         </div>
       </aside>
@@ -350,16 +350,11 @@
               <strong id="activeEmployeeHeader">Admin</strong>
             </div>
             <button class="printer-toggle fullscreen-toggle" id="fullscreenToggle" type="button" title="Fullscreen" aria-label="Fullscreen">
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M8 4H5a1 1 0 0 0-1 1v3" />
-                <path d="M16 4h3a1 1 0 0 1 1 1v3" />
-                <path d="M20 16v3a1 1 0 0 1-1 1h-3" />
-                <path d="M8 20H5a1 1 0 0 1-1-1v-3" />
-              </svg>
+              <i class="ph ph-corners-out" aria-hidden="true"></i>
             </button>
             <div class="printer-menu-wrap">
               <button class="printer-toggle disconnected" id="printerToggle" type="button" title="Printer termal" aria-expanded="false">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9V3h12v6" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><path d="M6 14h12v7H6z" /><path d="M8 17h8" /></svg>
+                <i class="ph ph-printer" aria-hidden="true"></i>
               </button>
               <div class="printer-dropdown" id="printerDropdown">
                 <div class="printer-dropdown-head">
@@ -387,7 +382,7 @@
         <section class="view-panel active" id="view-pos">
           <div class="topbar">
             <label class="search-field">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m21 21-4.3-4.3" /><circle cx="11" cy="11" r="7" /></svg>
+              <i class="ph ph-magnifying-glass" aria-hidden="true"></i>
               <input id="menuSearch" type="search" placeholder="Cari menu, paket, atau kategori" />
             </label>
             <div class="segmented" role="tablist" aria-label="Kategori menu" id="categoryTabs"></div>
@@ -403,7 +398,7 @@
                 <div class="menu-section-actions">
                   <button class="secondary-button compact" id="openCustomOrder" type="button">Custom Order</button>
                   <button class="ghost-button" id="resetFilter" type="button" title="Reset filter">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18" /><path d="M7 12h10" /><path d="M10 18h4" /></svg>
+                    <i class="ph ph-funnel-simple" aria-hidden="true"></i>
                   </button>
                 </div>
               </div>
@@ -418,7 +413,7 @@
                   <h3 id="cartTitle">Keranjang kosong</h3>
                 </div>
                 <button class="ghost-button" id="clearCartPanel" type="button" title="Batalkan order">
-                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12" /><path d="M18 6 6 18" /></svg>
+                  <i class="ph ph-x" aria-hidden="true"></i>
                 </button>
               </div>
               <div class="cart-list" id="cartList"></div>
@@ -427,7 +422,7 @@
                 <div class="grand"><span>Total</span><strong id="cartGrandTotal">Rp0</strong></div>
               </div>
               <button class="primary-button full-button" id="checkoutBtn" type="button">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg>
+                <i class="ph ph-caret-right" aria-hidden="true"></i>
                 Process Order
               </button>
             </aside>
@@ -512,7 +507,7 @@
                 </div>
               </div>
               <label class="search-field menu-edit-search-field">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m21 21-4.3-4.3" /><circle cx="11" cy="11" r="7" /></svg>
+                <i class="ph ph-magnifying-glass" aria-hidden="true"></i>
                 <input id="menuEditSearch" type="search" placeholder="Cari menu aktif, kategori, atau harga" />
               </label>
               <div class="segmented menu-edit-category-tabs" id="menuEditCategoryTabs" role="tablist" aria-label="Kategori daftar menu"></div>
@@ -738,11 +733,11 @@
                 </div>
                 <div class="report-actions">
                   <button class="secondary-button compact" id="copyDailyReport" type="button">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 8h10v12H8z" /><path d="M6 16H4V4h10v2" /></svg>
+                    <i class="ph ph-copy" aria-hidden="true"></i>
                     Copy
                   </button>
                   <button class="secondary-button compact whatsapp-button" id="shareDailyReport" type="button">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19l1.2-3.5A7 7 0 1 1 8.5 18z" /><path d="M9 9c.5 2.5 2.3 4.3 5 5" /></svg>
+                    <i class="ph ph-whatsapp-logo" aria-hidden="true"></i>
                     WhatsApp
                   </button>
                   <span class="report-share-status" id="dailyReportShareStatus"></span>
@@ -791,14 +786,14 @@
               <p class="employee-active-note" id="employeeActiveNote">Transaksi berikutnya akan memakai nama petugas aktif ini.</p>
               <form class="employee-add-form" id="employeeAddForm">
                 <label>
-                  Tambah karyawan
-                  <input id="employeeNewName" type="text" placeholder="Nama karyawan" />
+                  Tambah petugas
+                  <input id="employeeNewName" type="text" placeholder="Nama karyawan/helper" />
                 </label>
                 <button class="secondary-button" type="submit">Tambah</button>
               </form>
               <div class="employee-list" id="employeeList"></div>
               <button class="secondary-button" id="logoutBtn" type="button">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 17l5-5-5-5" /><path d="M15 12H3" /><path d="M14 4h5v16h-5" /></svg>
+                <i class="ph ph-sign-out" aria-hidden="true"></i>
                 Logout
               </button>
             </section>
@@ -833,6 +828,6 @@
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-    <script src="app.js?v=15"></script>
+    <script src="app.js?v=18"></script>
   </body>
 </html>

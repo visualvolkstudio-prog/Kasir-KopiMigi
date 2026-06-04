@@ -218,7 +218,6 @@ const els = {
   shiftCount: document.querySelector("#shiftCount"),
   activeShiftLabel: document.querySelector("#activeShiftLabel"),
   closeShiftBtn: document.querySelector("#closeShiftBtn"),
-  switchShiftBtn: document.querySelector("#switchShiftBtn"),
   historyList: document.querySelector("#historyList"),
   dailySummary: document.querySelector("#dailySummary"),
   dailyReportText: document.querySelector("#dailyReportText"),
@@ -355,13 +354,15 @@ function normalizeShift(value) {
   return value === "Shift 2" ? "Shift 2" : "Shift 1";
 }
 
-function getActiveShift() {
+function getActiveShift(value = new Date()) {
   const auth = getAuth();
-  return normalizeShift(auth?.shift || autoShiftName());
+  const automaticShift = autoShiftName(value);
+  const sessionShift = normalizeShift(auth?.shift || automaticShift);
+  return auth?.loggedIn && sessionShift !== automaticShift ? automaticShift : sessionShift;
 }
 
-function currentShiftName() {
-  return getActiveShift();
+function currentShiftName(value = new Date()) {
+  return getActiveShift(value);
 }
 
 function shiftScheduleText(value = new Date()) {
@@ -931,6 +932,16 @@ function updateAuthShift(shift) {
   return true;
 }
 
+function syncActiveShiftWithClock(now = new Date()) {
+  const auth = getAuth();
+  if (!auth?.loggedIn) return false;
+  const automaticShift = autoShiftName(now);
+  if (normalizeShift(auth.shift) === automaticShift) return false;
+  const changed = updateAuthShift(automaticShift);
+  if (changed && auth.role === "cashier") registerShiftAssignment(auth.employee, automaticShift, auth.dutyRole || "karyawan");
+  return changed;
+}
+
 function shiftSummaryLines(shift = getActiveShift(), date = dateKey()) {
   const transactions = getHistory().filter((entry) => dateKey(entry.createdAt) === date && (entry.shift || "Shift 1") === shift);
   const normal = revenueTransactions(transactions);
@@ -996,22 +1007,24 @@ function markReportReady(action, label, text) {
   if (els.shareDailyReport) els.shareDailyReport.title = label;
 }
 
-function closeActiveShift() {
-  window.alert(shiftSummaryLines().join("\n"));
-}
-
-function switchActiveShift() {
+async function closeActiveShift() {
   if (!isOwner()) {
-    toast("Ganti shift hanya untuk Owner.");
+    toast("Laporan shift hanya untuk Owner.");
     return;
   }
-  closeActiveShift();
-  const nextShift = getActiveShift() === "Shift 1" ? "Shift 2" : "Shift 1";
-  updateAuthShift(nextShift);
-  if (els.orderShift) els.orderShift.value = nextShift;
-  renderHistory();
-  updateEmployeeHeaderState();
-  toast(`${nextShift} sekarang aktif.`);
+  const shift = currentShiftName();
+  const text = shiftReportText(shift, dateKey());
+  state.reportShareText = text;
+  if (els.dailyReportText) els.dailyReportText.textContent = text;
+  if (els.dailyReportShareStatus) els.dailyReportShareStatus.textContent = `Laporan ${shift} siap dikirim`;
+  if (els.shareDailyReport) els.shareDailyReport.title = `Laporan ${shift}`;
+  setActiveView("analytics");
+  try {
+    await navigator.clipboard.writeText(text);
+    toast(`Laporan ${shift} dicopy.`);
+  } catch {
+    toast(`Laporan ${shift} siap di tab Analitik.`);
+  }
 }
 
 function updateEmployeeHeaderState(now = new Date()) {
@@ -1065,7 +1078,7 @@ function runShiftScheduleChecks(now = new Date()) {
   }
 
   if (!isLoggedIn() || !isCashier()) return;
-  const activeShift = getActiveShift();
+  const activeShift = normalizeShift(getAuth()?.shift || autoShiftName(now));
 
   if (activeShift === "Shift 1" && hour === 16 && minute === 50 && markShiftActionOnce("shift-1-warning", now)) {
     toast("Shift 1 hampir selesai. Siapkan tutup shift.");
@@ -1119,10 +1132,18 @@ function updateClock() {
     toast("Sesi login habis. Silakan masuk lagi.");
     return;
   }
-  if (els.loginShift && !isLoggedIn()) els.loginShift.value = autoShiftName(now);
-  if (els.orderShift) els.orderShift.value = currentShiftName();
-  updateEmployeeHeaderState(now);
   runShiftScheduleChecks(now);
+  if (els.loginShift && !isLoggedIn()) els.loginShift.value = autoShiftName(now);
+  const shifted = syncActiveShiftWithClock(now);
+  if (els.orderShift) els.orderShift.value = currentShiftName();
+  if (shifted) {
+    renderEmployeeControls();
+    renderHistory();
+    renderOrders();
+    renderAnalytics();
+    toast(`${currentShiftName(now)} otomatis aktif mengikuti jam.`);
+  }
+  updateEmployeeHeaderState(now);
 }
 
 function getMenu() {
@@ -2441,8 +2462,8 @@ function renderCart() {
   els.cartGrandTotal.textContent = money(total.grandTotal);
   els.checkoutBtn.disabled = !state.cart.length;
   els.checkoutBtn.innerHTML = state.cart.length
-    ? `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg>${state.activeDraftId ? "Update Bill" : "Process Order"}`
-    : `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg>Pilih Menu`;
+    ? `<i class="ph ph-caret-right" aria-hidden="true"></i>${state.activeDraftId ? "Update Bill" : "Process Order"}`
+    : `<i class="ph ph-caret-right" aria-hidden="true"></i>Pilih Menu`;
   syncOrderTypeUi();
 }
 
@@ -3495,10 +3516,10 @@ async function syncInventoryToCloud() {
   return true;
 }
 
-async function syncEmployeesToCloud() {
+async function syncEmployeesToCloud({ restoreNames = [] } = {}) {
   if (!navigator.onLine) return;
   const employees = getEmployeeRoster();
-  await postSupabaseAction("sync-employees", { employees });
+  await postSupabaseAction("sync-employees", { employees, restoreNames });
 }
 
 async function deleteEmployeeInCloud(name) {
@@ -4703,7 +4724,6 @@ els.pendingSyncList?.addEventListener("click", async (event) => {
 els.manualSyncBtn?.addEventListener("click", () => refreshOnlineData({ render: true }).catch(() => null));
 els.manualSyncOrdersBtn?.addEventListener("click", () => refreshOnlineData({ render: true }).catch(() => null));
 els.closeShiftBtn?.addEventListener("click", closeActiveShift);
-els.switchShiftBtn?.addEventListener("click", switchActiveShift);
 window.addEventListener("online", updateConnectionStatus);
 window.addEventListener("offline", updateConnectionStatus);
 window.addEventListener("storage", (event) => {
@@ -4752,7 +4772,7 @@ els.employeeAddForm?.addEventListener("submit", (event) => {
   if (auth?.loggedIn) writeJson(storageKeys.auth, { ...auth, employee: name });
   if (els.employeeNewName) els.employeeNewName.value = "";
   renderEmployeeControls();
-  syncEmployeesToCloud().catch(() => null);
+  syncEmployeesToCloud({ restoreNames: [name] }).catch(() => null);
   toast(`${name} ditambahkan ke daftar karyawan.`);
 });
 els.employeeList?.addEventListener("click", (event) => {

@@ -298,7 +298,7 @@ async function deleteTransaction(body) {
 }
 
 async function bootstrapData() {
-  const [transactions, deletedTransactions, items, expenses, inventory, employees, settingsRows] = await Promise.all([
+  const [transactions, deletedTransactions, items, expenses, inventory, employees, settingsRows, deletedEmployeeRows] = await Promise.all([
     supabaseFetch("transactions?select=*&deleted_at=is.null&order=created_at.desc&limit=500"),
     supabaseFetch("transactions?select=id,created_at,deleted_at&deleted_at=not.is.null&order=created_at.desc&limit=500"),
     supabaseFetch("transaction_items?select=*"),
@@ -306,8 +306,12 @@ async function bootstrapData() {
     supabaseFetch("inventory?select=*&order=name.asc"),
     supabaseFetch("employees?select=*&active=eq.true&order=name.asc"),
     supabaseFetch("app_settings?select=*&key=eq.global&limit=1").catch(() => []),
+    supabaseFetch("app_settings?select=*&key=eq.deleted_employees&limit=1").catch(() => []),
   ]);
   const settingsRow = Array.isArray(settingsRows) ? settingsRows[0] : null;
+  const deletedEmployeeValue = Array.isArray(deletedEmployeeRows) ? deletedEmployeeRows[0]?.value : [];
+  const deletedEmployeeKeys = new Set((Array.isArray(deletedEmployeeValue) ? deletedEmployeeValue : []).map((entry) => entry.key || employeeKey(entry.name)).filter(Boolean));
+  const activeEmployees = employees.filter((row) => !deletedEmployeeKeys.has(employeeKey(row.name)));
   const itemsByTransaction = items.reduce((map, item) => {
     const list = map.get(item.transaction_id) || [];
     list.push({
@@ -329,7 +333,7 @@ async function bootstrapData() {
       deletedTransactions,
       cashflowExpenses: expenses.map(toLocalExpense),
       inventory: toLocalInventory(inventory),
-      employees: employees.map((row) => row.name),
+      employees: activeEmployees.map((row) => row.name),
       settingsFound: Boolean(settingsRow),
       settings: settingsRow?.value || {},
     },
@@ -362,7 +366,13 @@ async function syncInventory(body) {
 }
 
 async function syncEmployees(body) {
-  const deleted = new Set((await getDeletedEmployeeRows()).map((entry) => entry.key || employeeKey(entry.name)).filter(Boolean));
+  const restoreKeys = new Set((Array.isArray(body?.restoreNames) ? body.restoreNames : []).map(employeeKey).filter(Boolean));
+  let deletedRows = await getDeletedEmployeeRows();
+  if (restoreKeys.size) {
+    deletedRows = deletedRows.filter((entry) => !restoreKeys.has(entry.key || employeeKey(entry.name)));
+    await saveDeletedEmployeeRows(deletedRows);
+  }
+  const deleted = new Set(deletedRows.map((entry) => entry.key || employeeKey(entry.name)).filter(Boolean));
   const rows = collectEmployeeRows(body).filter((row) => !deleted.has(employeeKey(row.name)));
 
   const activeNames = new Set(rows.map((row) => row.name));
