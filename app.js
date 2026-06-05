@@ -87,6 +87,8 @@ const state = {
   menuEditSearch: "",
   stockCategory: "Semua",
   pendingEmployeeDelete: "",
+  editingTransactionId: "",
+  editingTransactionItems: [],
   menuSaving: false,
   reportShareText: "",
   logoutAfterOrder: false,
@@ -168,6 +170,18 @@ const els = {
   employeeDeleteName: document.querySelector("#employeeDeleteName"),
   cancelEmployeeDelete: document.querySelector("#cancelEmployeeDelete"),
   employeeDeleteCancelBtn: document.querySelector("#employeeDeleteCancelBtn"),
+  transactionEditModal: document.querySelector("#transactionEditModal"),
+  transactionEditForm: document.querySelector("#transactionEditForm"),
+  transactionEditCloseBtn: document.querySelector("#transactionEditCloseBtn"),
+  transactionEditCancelBtn: document.querySelector("#transactionEditCancelBtn"),
+  transactionEditCode: document.querySelector("#transactionEditCode"),
+  transactionEditOldTotal: document.querySelector("#transactionEditOldTotal"),
+  transactionEditNewTotal: document.querySelector("#transactionEditNewTotal"),
+  transactionEditItems: document.querySelector("#transactionEditItems"),
+  transactionEditAddMenu: document.querySelector("#transactionEditAddMenu"),
+  transactionEditAddBtn: document.querySelector("#transactionEditAddBtn"),
+  transactionEditPayment: document.querySelector("#transactionEditPayment"),
+  transactionEditReason: document.querySelector("#transactionEditReason"),
   logoutBtn: document.querySelector("#logoutBtn"),
   fullscreenToggle: document.querySelector("#fullscreenToggle"),
   printerToggle: document.querySelector("#printerToggle"),
@@ -1827,6 +1841,31 @@ function totals() {
   };
 }
 
+function subtotalForItems(items = []) {
+  return mergeLineItems(items).reduce((sum, item) => sum + Number(item.price || 0) * Number(item.qty || 0), 0);
+}
+
+function discountForTransaction(transaction, subtotal) {
+  if (isStaffDrinkTransaction(transaction)) return 0;
+  const type = transaction?.discountType;
+  const value = Number(transaction?.discountValue || 0);
+  if (!type || type === "none" || !Number.isFinite(value) || value <= 0) return 0;
+  const amount = type === "percent" ? subtotal * Math.min(value, 100) / 100 : value;
+  return Math.min(subtotal, Math.round(amount));
+}
+
+function totalsForEditedTransaction(transaction, items) {
+  const subtotal = subtotalForItems(items);
+  const staffDrink = isStaffDrinkTransaction(transaction);
+  const discountTotal = staffDrink ? 0 : discountForTransaction(transaction, subtotal);
+  return {
+    subtotal,
+    originalTotal: subtotal,
+    discountTotal,
+    grandTotal: staffDrink ? 0 : Math.max(0, subtotal - discountTotal),
+  };
+}
+
 function isStaffDrinkTransaction(transaction) {
   return transaction?.isStaffDrink === true || transaction?.orderType === "staff_drink";
 }
@@ -3021,6 +3060,40 @@ function deductStockForTransaction(transaction) {
   return changed;
 }
 
+function stockDeltaByIngredient(oldItems = [], newItems = []) {
+  const oldRequired = requiredIngredientsForItems(oldItems);
+  const newRequired = requiredIngredientsForItems(newItems);
+  const ids = new Set([...Object.keys(oldRequired), ...Object.keys(newRequired)]);
+  return [...ids].reduce((delta, id) => {
+    const diff = Number(newRequired[id] || 0) - Number(oldRequired[id] || 0);
+    if (diff) delta[id] = diff;
+    return delta;
+  }, {});
+}
+
+function applyStockDeltaForEdit(oldItems = [], newItems = [], timestamp = new Date().toISOString()) {
+  const delta = stockDeltaByIngredient(oldItems, newItems);
+  const entries = Object.entries(delta);
+  if (!entries.length) return { changed: false };
+  const inventory = getInventory();
+  const missing = entries.find(([ingredientId, qty]) => qty > 0 && Number(inventory[ingredientId]?.stock || 0) < qty);
+  if (missing) {
+    const [ingredientId, qty] = missing;
+    const ingredient = inventory[ingredientId] || {};
+    return {
+      changed: false,
+      error: `Stok ${ingredient.name || "bahan"} tidak cukup untuk koreksi. Butuh tambahan ${Number(qty).toLocaleString("id-ID")} ${ingredient.unit || ""}.`,
+    };
+  }
+  entries.forEach(([ingredientId, qty]) => {
+    if (!inventory[ingredientId]) return;
+    inventory[ingredientId].stock = Math.max(0, Number(inventory[ingredientId].stock || 0) - Number(qty || 0));
+    inventory[ingredientId].updatedAt = timestamp;
+  });
+  saveLocalInventoryChange(inventory);
+  return { changed: true };
+}
+
 async function syncTodayStockFromSales() {
   if (!isOwner()) {
     toast("Sinkron stok hanya untuk Owner.");
@@ -3491,6 +3564,7 @@ function orderCard(transaction, kind, displayCode = "") {
     `
     : `
       <div class="history-actions">
+        ${isOwner() ? `<button class="secondary-button compact" data-edit-transaction="${transaction.id}" type="button">Edit Struk</button>` : ""}
         <button class="secondary-button compact" data-reprint-order="${transaction.id}" data-reprint-kind="paid" type="button">Cetak Ulang Struk</button>
         ${
           isStaffDrinkTransaction(transaction)
@@ -3594,6 +3668,143 @@ async function editPaidPayment(id, paymentValue) {
   if (navigator.onLine) await syncPendingTransactions({ pull: false }).catch(() => null);
   renderAll();
   toast("Metode pembayaran diperbarui.");
+}
+
+function editedTransaction() {
+  return getHistory().find((entry) => entry.id === state.editingTransactionId) || null;
+}
+
+function renderTransactionEditModal() {
+  const transaction = editedTransaction();
+  if (!transaction) return;
+  state.editingTransactionItems = mergeLineItems(state.editingTransactionItems);
+  const items = state.editingTransactionItems;
+  const totals = totalsForEditedTransaction(transaction, items);
+  if (els.transactionEditCode) els.transactionEditCode.textContent = transaction.id;
+  if (els.transactionEditOldTotal) els.transactionEditOldTotal.textContent = money(Number(transaction.grandTotal || 0));
+  if (els.transactionEditNewTotal) els.transactionEditNewTotal.textContent = money(totals.grandTotal);
+  if (els.transactionEditPayment) els.transactionEditPayment.value = transaction.payment === "QRIS" ? "QRIS" : "Tunai";
+  if (els.transactionEditItems) {
+    els.transactionEditItems.innerHTML = items.length
+      ? items.map((item, index) => `
+        <article class="transaction-edit-row">
+          <div>
+            <strong>${escapeHtml(item.name)}</strong>
+            <span>${escapeHtml(item.category || "Lainnya")} · ${money(item.price)}${item.customStockUsage ? ` · ${escapeHtml(customStockUsageLabel(item))}` : ""}</span>
+          </div>
+          <div class="transaction-edit-qty">
+            <button class="qty-button" data-edit-item-decrease="${index}" type="button">-</button>
+            <strong>${item.qty}</strong>
+            <button class="qty-button" data-edit-item-increase="${index}" type="button">+</button>
+            <button class="secondary-button compact danger-text" data-edit-item-remove="${index}" type="button">Hapus</button>
+          </div>
+        </article>
+      `).join("")
+      : `<div class="empty-state">Minimal harus ada satu item.</div>`;
+  }
+  if (els.transactionEditAddMenu) {
+    els.transactionEditAddMenu.innerHTML = [
+      `<option value="">Pilih menu</option>`,
+      ...getMenu().map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.name)} · ${money(item.price)}</option>`),
+    ].join("");
+  }
+}
+
+function openTransactionEditModal(id) {
+  if (!isOwner()) {
+    toast("Edit struk hanya untuk Owner.");
+    return;
+  }
+  const transaction = getHistory().find((entry) => entry.id === id);
+  if (!transaction) return toast("Transaksi tidak ditemukan.");
+  if (transaction.status !== "paid") return toast("Hanya transaksi sudah dibayar yang bisa dikoreksi.");
+  if (isStaffDrinkTransaction(transaction)) return toast("Staff Drink belum bisa diedit lewat koreksi struk.");
+  state.editingTransactionId = id;
+  state.editingTransactionItems = mergeLineItems(transaction.items || []).map((item) => ({ ...item }));
+  if (els.transactionEditReason) els.transactionEditReason.value = "";
+  renderTransactionEditModal();
+  els.transactionEditModal?.classList.add("open");
+  els.transactionEditModal?.setAttribute("aria-hidden", "false");
+}
+
+function closeTransactionEditModal() {
+  state.editingTransactionId = "";
+  state.editingTransactionItems = [];
+  els.transactionEditModal?.classList.remove("open");
+  els.transactionEditModal?.setAttribute("aria-hidden", "true");
+}
+
+function changeEditingItem(index, delta) {
+  const item = state.editingTransactionItems[index];
+  if (!item) return;
+  item.qty = Number(item.qty || 0) + delta;
+  if (item.qty <= 0) state.editingTransactionItems.splice(index, 1);
+  renderTransactionEditModal();
+}
+
+function addEditingMenuItem() {
+  const id = els.transactionEditAddMenu?.value || "";
+  const item = getMenu().find((entry) => entry.id === id);
+  if (!item) return toast("Pilih menu dulu.");
+  const existing = state.editingTransactionItems.find((entry) => entry.id === item.id);
+  if (existing) existing.qty += 1;
+  else state.editingTransactionItems.push({ ...item, qty: 1 });
+  renderTransactionEditModal();
+}
+
+async function saveTransactionEdit(event) {
+  event.preventDefault();
+  if (!isOwner()) return toast("Edit struk hanya untuk Owner.");
+  const reason = els.transactionEditReason?.value.trim();
+  if (!reason) return toast("Alasan koreksi wajib diisi.");
+  const history = getHistory();
+  const index = history.findIndex((entry) => entry.id === state.editingTransactionId);
+  if (index < 0) return toast("Transaksi tidak ditemukan.");
+  const transaction = history[index];
+  const items = mergeLineItems(state.editingTransactionItems).filter((item) => Number(item.qty || 0) > 0);
+  if (!items.length) return toast("Transaksi harus punya minimal satu item.");
+  const now = new Date().toISOString();
+  const stockResult = applyStockDeltaForEdit(transaction.items || [], items, now);
+  if (stockResult.error) return toast(stockResult.error);
+  const nextTotals = totalsForEditedTransaction(transaction, items);
+  const payment = els.transactionEditPayment?.value === "QRIS" ? "QRIS" : "Tunai";
+  const paid = payment === "QRIS" ? nextTotals.grandTotal : Math.max(nextTotals.grandTotal, Number(transaction.paid || 0));
+  const editEntry = {
+    editedAt: now,
+    editedBy: "Owner",
+    reason,
+    previousItems: mergeLineItems(transaction.items || []),
+    previousGrandTotal: Number(transaction.grandTotal || 0),
+    previousPayment: transaction.payment || "",
+  };
+  const next = {
+    ...transaction,
+    ...nextTotals,
+    items,
+    payment,
+    paid,
+    change: payment === "Tunai" ? Math.max(0, paid - nextTotals.grandTotal) : 0,
+    editedAt: now,
+    editedBy: "Owner",
+    editReason: reason,
+    editHistory: [...(Array.isArray(transaction.editHistory) ? transaction.editHistory : []), editEntry].slice(-20),
+    stockSyncedAt: stockResult.changed ? now : transaction.stockSyncedAt,
+  };
+  history[index] = next;
+  writeJson(storageKeys.history, history.slice(0, 500));
+  await saveOfflineTransaction(
+    { ...next, localId: next.id, idempotencyKey: next.id },
+    { syncStatus: "PENDING_SYNC", printStatus: next.printStatus || "PRINT_PENDING" },
+  ).catch(() => null);
+  if (navigator.onLine) {
+    await Promise.allSettled([
+      syncPendingTransactions({ pull: false }),
+      stockResult.changed ? syncInventoryToCloud() : Promise.resolve(false),
+    ]);
+  }
+  closeTransactionEditModal();
+  renderAll();
+  toast("Koreksi struk tersimpan. Laporan dan stok sudah diperbarui.");
 }
 
 async function deleteDraftOrder(id) {
@@ -5088,6 +5299,7 @@ els.orderList?.addEventListener("click", (event) => {
   const deleteButton = event.target.closest("button[data-delete-draft]");
   const reprintButton = event.target.closest("button[data-reprint-order]");
   const deleteTransactionButton = event.target.closest("button[data-delete-transaction]");
+  const editTransactionButton = event.target.closest("button[data-edit-transaction]");
   if (payButton) {
     payDraftOrder(payButton.dataset.payDraft);
     return;
@@ -5098,6 +5310,10 @@ els.orderList?.addEventListener("click", (event) => {
   }
   if (deleteTransactionButton) {
     deletePaidTransaction(deleteTransactionButton.dataset.deleteTransaction);
+    return;
+  }
+  if (editTransactionButton) {
+    openTransactionEditModal(editTransactionButton.dataset.editTransaction);
     return;
   }
   if (reprintButton) {
@@ -5211,6 +5427,29 @@ els.employeeDeleteForm?.addEventListener("submit", (event) => {
 });
 els.cancelEmployeeDelete?.addEventListener("click", closeEmployeeDeleteModal);
 els.employeeDeleteCancelBtn?.addEventListener("click", closeEmployeeDeleteModal);
+els.transactionEditCloseBtn?.addEventListener("click", closeTransactionEditModal);
+els.transactionEditCancelBtn?.addEventListener("click", closeTransactionEditModal);
+els.transactionEditForm?.addEventListener("submit", saveTransactionEdit);
+els.transactionEditAddBtn?.addEventListener("click", addEditingMenuItem);
+els.transactionEditItems?.addEventListener("click", (event) => {
+  const decrease = event.target.closest("[data-edit-item-decrease]");
+  const increase = event.target.closest("[data-edit-item-increase]");
+  const remove = event.target.closest("[data-edit-item-remove]");
+  if (decrease) {
+    changeEditingItem(Number(decrease.dataset.editItemDecrease), -1);
+    return;
+  }
+  if (increase) {
+    changeEditingItem(Number(increase.dataset.editItemIncrease), 1);
+    return;
+  }
+  if (remove) {
+    const index = Number(remove.dataset.editItemRemove);
+    state.editingTransactionItems.splice(index, 1);
+    renderTransactionEditModal();
+  }
+});
+els.transactionEditPayment?.addEventListener("change", renderTransactionEditModal);
 els.logoutBtn.addEventListener("click", logout);
 els.testLogoPrint?.addEventListener("click", testLogoPrint);
 els.billOrderBtn.addEventListener("click", printBill);

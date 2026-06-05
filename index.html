@@ -13,7 +13,7 @@
     <link rel="icon" href="/assets/favicon-migi.png?v=18" />
     <link rel="apple-touch-icon" href="/assets/pwa-icon-512.png?v=18" />
     <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css" />
-    <link rel="stylesheet" href="styles.css?v=16" />
+    <link rel="stylesheet" href="styles.css?v=17" />
   </head>
   <body>
     <section class="login-screen" id="loginScreen" aria-label="Login kasir">
@@ -260,6 +260,62 @@
         <div class="modal-actions">
           <button class="secondary-button" id="employeeDeleteCancelBtn" type="button">Batal</button>
           <button class="primary-button danger-button" type="submit">Hapus</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="order-modal transaction-edit-modal" id="transactionEditModal" aria-label="Edit struk" aria-hidden="true">
+      <form class="order-card transaction-edit-card" id="transactionEditForm">
+        <div class="modal-head">
+          <div>
+            <p class="eyebrow">Owner</p>
+            <h2>Edit Struk</h2>
+          </div>
+          <button class="icon-button modal-close" id="transactionEditCloseBtn" type="button" title="Tutup edit struk">
+            <i class="ph ph-x" aria-hidden="true"></i>
+          </button>
+        </div>
+        <div class="transaction-edit-body">
+          <div class="transaction-edit-meta">
+            <div>
+              <span>Kode struk</span>
+              <strong id="transactionEditCode">-</strong>
+            </div>
+            <div>
+              <span>Total lama</span>
+              <strong id="transactionEditOldTotal">Rp0</strong>
+            </div>
+            <div>
+              <span>Total baru</span>
+              <strong id="transactionEditNewTotal">Rp0</strong>
+            </div>
+          </div>
+          <div class="transaction-edit-list" id="transactionEditItems"></div>
+          <div class="transaction-edit-add">
+            <label>
+              Tambah menu
+              <select id="transactionEditAddMenu"></select>
+            </label>
+            <button class="secondary-button" id="transactionEditAddBtn" type="button">Tambah</button>
+          </div>
+          <div class="order-field-grid">
+            <label>
+              Pembayaran
+              <select id="transactionEditPayment">
+                <option value="Tunai">Tunai</option>
+                <option value="QRIS">QRIS</option>
+              </select>
+            </label>
+            <label>
+              Alasan koreksi
+              <input id="transactionEditReason" type="text" placeholder="contoh: salah input jumlah" required />
+            </label>
+          </div>
+          <p class="transaction-edit-warning">Perubahan ini akan mengubah laporan, summary, dan stok bahan baku.</p>
+        </div>
+        <div class="modal-actions">
+          <button class="secondary-button" id="transactionEditCancelBtn" type="button">Batal</button>
+          <button class="primary-button" type="submit">Simpan Koreksi</button>
         </div>
       </form>
     </section>
@@ -865,6 +921,6 @@
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-    <script src="app.js?v=23"></script>
+    <script src="app.js?v=24"></script>
   </body>
 </html>
