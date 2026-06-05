@@ -2269,6 +2269,11 @@ body.locked .login-screen { display: grid; }
   color: var(--danger);
 }
 
+.employee-row-status.leave {
+  background: #f4edf7;
+  color: #8a4a92;
+}
+
 .employee-list {
   display: grid;
   gap: 8px;
@@ -2288,6 +2293,11 @@ body.locked .login-screen { display: grid; }
 .employee-list-row.active {
   border-color: rgba(0, 52, 155, 0.42);
   background: rgba(0, 52, 155, 0.08);
+}
+
+.employee-list-row.leave {
+  border-color: rgba(138, 74, 146, 0.24);
+  background: rgba(138, 74, 146, 0.06);
 }
 
 .employee-list-row span {

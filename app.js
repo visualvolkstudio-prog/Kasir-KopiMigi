@@ -19,6 +19,7 @@ const storageKeys = {
   auth: "kasir-migi-auth",
   employee: "kasir-migi-employee",
   employees: "kasir-migi-employees",
+  employeeLeaves: "kasir-migi-employee-leaves",
   deletedEmployees: "kasir-migi-deleted-employees",
   sessionShift: "kasir-migi-session-shift",
   activeShift: "kasir-migi-active-shift",
@@ -542,6 +543,37 @@ function saveEmployeeRoster(names) {
   return roster;
 }
 
+function getEmployeeLeaveMap() {
+  const value = readJson(storageKeys.employeeLeaves, {});
+  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+}
+
+function saveEmployeeLeaveMap(map, { dirty = true } = {}) {
+  writeJson(storageKeys.employeeLeaves, map && typeof map === "object" && !Array.isArray(map) ? map : {});
+  if (dirty) markSettingsDirty();
+}
+
+function isEmployeeOnLeave(name) {
+  const row = getEmployeeLeaveMap()[employeeDeleteKey(name)];
+  return Boolean(row?.onLeave);
+}
+
+function setEmployeeLeaveStatus(name, onLeave) {
+  const key = employeeDeleteKey(name);
+  if (!key) return;
+  const map = getEmployeeLeaveMap();
+  if (onLeave) {
+    map[key] = { name, onLeave: true, updatedAt: new Date().toISOString() };
+  } else {
+    delete map[key];
+  }
+  saveEmployeeLeaveMap(map);
+}
+
+function clearEmployeeLeaveStatus(name) {
+  setEmployeeLeaveStatus(name, false);
+}
+
 function getShiftAssignments() {
   return readJson(storageKeys.shiftAssignments, []);
 }
@@ -608,7 +640,9 @@ function registerShiftAssignment(employee, shift, dutyRole = "karyawan") {
 
 function activeEmployeeName() {
   if (currentRole() === "owner") return "Owner";
-  return localStorage.getItem(storageKeys.employee) || getEmployeeRoster()[0] || "";
+  const saved = localStorage.getItem(storageKeys.employee) || "";
+  if (saved && !isEmployeeOnLeave(saved) && getEmployeeRoster().includes(saved)) return saved;
+  return getEmployeeRoster().find((name) => !isEmployeeOnLeave(name)) || "";
 }
 
 function getAuth() {
@@ -677,13 +711,14 @@ function transactionEmployeeDisplay(transaction) {
 
 function renderEmployeeControls() {
   const roster = getEmployeeRoster();
+  const availableRoster = roster.filter((name) => !isEmployeeOnLeave(name));
   const selectedLoginShift = autoShiftName();
   const helperDay = isHelperDay();
   const selectedDutyRole = normalizeDutyRole(els.loginDutyRole?.value || "karyawan");
   els.loginForm?.classList.toggle("helper-day", helperDay);
-  const activeCandidate = roster.includes(activeEmployeeName()) ? activeEmployeeName() : roster[0];
+  const activeCandidate = availableRoster.includes(activeEmployeeName()) ? activeEmployeeName() : availableRoster[0] || "";
   const active = isEmployeeUsedInOtherShift(activeCandidate, selectedLoginShift)
-    ? roster.find((name) => !isEmployeeUsedInOtherShift(name, selectedLoginShift)) || activeCandidate
+    ? availableRoster.find((name) => !isEmployeeUsedInOtherShift(name, selectedLoginShift)) || activeCandidate
     : activeCandidate;
   const owner = isLoggedIn() && isOwner();
   const displayName = owner
@@ -721,12 +756,16 @@ function renderEmployeeControls() {
       .map((name) => {
         const safeName = escapeHtml(name);
         const encodedName = encodeURIComponent(name);
+        const onLeave = isEmployeeOnLeave(name);
         const rowActive = owner ? state.activeCashier.online && state.activeCashier.employee === name : name === active;
+        const statusLabel = onLeave ? "Libur" : rowActive ? "Aktif" : "Tidak aktif";
+        const statusClass = onLeave ? "leave" : rowActive ? "active" : "";
         return `
-          <article class="employee-list-row ${rowActive ? "active" : ""}">
+          <article class="employee-list-row ${rowActive ? "active" : ""} ${onLeave ? "leave" : ""}">
             <span>${safeName}</span>
             <div>
-              <small class="employee-row-status ${rowActive ? "active" : ""}">${rowActive ? "Aktif" : "Tidak aktif"}</small>
+              <small class="employee-row-status ${statusClass}">${statusLabel}</small>
+              <button class="secondary-button compact" data-toggle-employee-leave="${encodedName}" type="button">${onLeave ? "Aktifkan" : "Libur"}</button>
               <button class="secondary-button compact danger-text" data-delete-employee="${encodedName}" type="button" ${roster.length <= 1 ? "disabled" : ""}>Hapus</button>
             </div>
           </article>
@@ -738,8 +777,9 @@ function renderEmployeeControls() {
     const options = roster.length
       ? roster.map((name) => {
           const usedShift = usedShiftForEmployee(name);
-          const disabled = Boolean(usedShift && usedShift !== selectedLoginShift);
-          const label = disabled ? `${name} (Sudah bertugas di ${usedShift})` : name;
+          const onLeave = isEmployeeOnLeave(name);
+          const disabled = onLeave || Boolean(usedShift && usedShift !== selectedLoginShift);
+          const label = onLeave ? `${name} (libur)` : disabled ? `${name} (Sudah bertugas di ${usedShift})` : name;
           const option = new Option(label, name);
           option.disabled = disabled;
           return option;
@@ -747,7 +787,8 @@ function renderEmployeeControls() {
       : [new Option("Belum ada karyawan", "")];
     if (!roster.length) options[0].disabled = true;
     els.loginEmployee.replaceChildren(...options);
-    els.loginEmployee.value = active || "";
+    const selectable = options.find((option) => !option.disabled);
+    els.loginEmployee.value = active || selectable?.value || "";
   }
   if (els.loginDutyRoleWrap) els.loginDutyRoleWrap.hidden = !helperDay;
   if (els.loginDutyRole) {
@@ -829,6 +870,11 @@ async function finishLogin(role, employee, shift, dutyRole = "karyawan") {
   const normalizedDutyRole = role === "cashier" ? normalizeDutyRole(dutyRole) : "owner";
   if (role === "cashier" && !employee) {
     toast("Pilih karyawan dulu. Jika kosong, tambahkan dari akun Owner.");
+    return false;
+  }
+  if (role === "cashier" && isEmployeeOnLeave(employee)) {
+    toast(`${employee} sedang libur. Pilih karyawan lain.`);
+    renderEmployeeControls();
     return false;
   }
   if (role === "cashier" && isEmployeeUsedInOtherShift(employee, shift)) {
@@ -1346,6 +1392,7 @@ function getSettingsPayload() {
     menu: getMenu(),
     recipes: getRecipes(),
     discountVouchers: getDiscountVouchers(),
+    employeeLeaves: getEmployeeLeaveMap(),
   };
 }
 
@@ -1374,6 +1421,10 @@ function applyCloudSettings(settings) {
   }
   if (Array.isArray(settings.discountVouchers)) {
     saveDiscountVouchers(settings.discountVouchers, { dirty: false });
+    changed = true;
+  }
+  if (settings.employeeLeaves && typeof settings.employeeLeaves === "object" && !Array.isArray(settings.employeeLeaves)) {
+    saveEmployeeLeaveMap(settings.employeeLeaves, { dirty: false });
     changed = true;
   }
   return changed;
@@ -2214,8 +2265,9 @@ function confirmEmployeeDelete() {
   const name = state.pendingEmployeeDelete;
   if (!name) return;
   rememberDeletedEmployee(name);
+  clearEmployeeLeaveStatus(name);
   const roster = saveEmployeeRoster(getEmployeeRoster().filter((entry) => entry !== name));
-  const fallback = roster[0] || "";
+  const fallback = roster.find((entry) => !isEmployeeOnLeave(entry)) || "";
   if (localStorage.getItem(storageKeys.employee) === name) {
     if (fallback) localStorage.setItem(storageKeys.employee, fallback);
     else localStorage.removeItem(storageKeys.employee);
@@ -2228,9 +2280,30 @@ function confirmEmployeeDelete() {
   closeEmployeeDeleteModal();
   renderEmployeeControls();
   deleteEmployeeInCloud(name)
-    .then(() => syncEmployeesToCloud())
-    .catch(() => syncEmployeesToCloud().catch(() => null));
+    .then(() => Promise.all([syncEmployeesToCloud(), syncSettingsToCloud({ force: true })]))
+    .catch(() => Promise.all([syncEmployeesToCloud().catch(() => null), syncSettingsToCloud({ force: true }).catch(() => null)]));
   toast(`${name} dihapus dari daftar karyawan.`);
+}
+
+async function toggleEmployeeLeave(name) {
+  if (!isOwner()) {
+    toast("Status libur hanya untuk Owner.");
+    return;
+  }
+  const onLeave = !isEmployeeOnLeave(name);
+  setEmployeeLeaveStatus(name, onLeave);
+  if (onLeave && localStorage.getItem(storageKeys.employee) === name) {
+    const fallback = getEmployeeRoster().find((entry) => entry !== name && !isEmployeeOnLeave(entry)) || "";
+    if (fallback) localStorage.setItem(storageKeys.employee, fallback);
+    else localStorage.removeItem(storageKeys.employee);
+  }
+  renderEmployeeControls();
+  try {
+    await syncSettingsToCloud({ force: true });
+    toast(onLeave ? `${name} ditandai libur.` : `${name} aktif kembali.`);
+  } catch {
+    toast(onLeave ? `${name} ditandai libur lokal, tapi sync belum berhasil.` : `${name} aktif lokal, tapi sync belum berhasil.`);
+  }
 }
 
 function setPriceListOpen(open) {
@@ -5068,6 +5141,7 @@ els.employeeAddForm?.addEventListener("submit", (event) => {
   const name = els.employeeNewName?.value.trim();
   if (!name) return;
   forgetDeletedEmployee(name);
+  clearEmployeeLeaveStatus(name);
   const roster = saveEmployeeRoster([...getEmployeeRoster(), name]);
   localStorage.setItem(storageKeys.employee, name);
   const auth = readJson(storageKeys.auth, null);
@@ -5078,7 +5152,17 @@ els.employeeAddForm?.addEventListener("submit", (event) => {
   toast(`${name} ditambahkan ke daftar karyawan.`);
 });
 els.employeeList?.addEventListener("click", (event) => {
+  const leaveButton = event.target.closest("button[data-toggle-employee-leave]");
   const deleteButton = event.target.closest("button[data-delete-employee]");
+  if (leaveButton) {
+    if (!isOwner()) {
+      toast("Status libur hanya untuk Owner.");
+      return;
+    }
+    const name = decodeURIComponent(leaveButton.dataset.toggleEmployeeLeave);
+    toggleEmployeeLeave(name);
+    return;
+  }
   if (deleteButton) {
     if (!isOwner()) {
       toast("Hapus karyawan hanya untuk Owner.");
