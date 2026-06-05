@@ -28,6 +28,7 @@ const storageKeys = {
   recipes: "kopishop-pos-recipes",
   orderDrafts: "kopishop-pos-order-drafts",
   cashflowExpenses: "kopishop-pos-cashflow-expenses",
+  discountVouchers: "kasir-migi-discount-vouchers",
   pendingDeletes: "kopishop-pos-pending-deletes",
   deletedTransactions: "kopishop-pos-deleted-transactions",
   activeView: "kasir-migi-active-view",
@@ -70,6 +71,8 @@ const state = {
   discountType: "none",
   discountValue: 0,
   discountNote: "",
+  discountVoucherId: "",
+  pendingDiscountVoucherId: "",
   orderChannel: "Kasir",
   orderStatus: "unpaid",
   paidOrderCategory: "Semua",
@@ -199,9 +202,19 @@ const els = {
   orderTypeTabs: document.querySelector("#orderTypeTabs"),
   staffDrinkInfo: document.querySelector("#staffDrinkInfo"),
   discountBox: document.querySelector("#discountBox"),
-  discountType: document.querySelector("#discountType"),
-  discountValue: document.querySelector("#discountValue"),
-  discountNote: document.querySelector("#discountNote"),
+  discountVoucherSelect: document.querySelector("#discountVoucherSelect"),
+  applyDiscountVoucher: document.querySelector("#applyDiscountVoucher"),
+  clearDiscountVoucher: document.querySelector("#clearDiscountVoucher"),
+  voucherDiscountInfo: document.querySelector("#voucherDiscountInfo"),
+  monthDiscountTotal: document.querySelector("#monthDiscountTotal"),
+  monthDiscountCount: document.querySelector("#monthDiscountCount"),
+  discountAnalyticsList: document.querySelector("#discountAnalyticsList"),
+  discountVoucherForm: document.querySelector("#discountVoucherForm"),
+  voucherCode: document.querySelector("#voucherCode"),
+  voucherType: document.querySelector("#voucherType"),
+  voucherValue: document.querySelector("#voucherValue"),
+  voucherNote: document.querySelector("#voucherNote"),
+  discountVoucherList: document.querySelector("#discountVoucherList"),
   paidAmountLabel: document.querySelector("#paidAmountLabel"),
   paidAmount: document.querySelector("#paidAmount"),
   changeDue: document.querySelector("#changeDue"),
@@ -1298,10 +1311,41 @@ function saveRecipes(recipes) {
   writeJson(storageKeys.recipes, recipes);
 }
 
+function normalizeVoucherCode(code = "") {
+  return String(code || "")
+    .trim()
+    .replace(/\s+/g, "-")
+    .toUpperCase();
+}
+
+function getDiscountVouchers() {
+  return readJson(storageKeys.discountVouchers, []);
+}
+
+function saveDiscountVouchers(vouchers, { dirty = true } = {}) {
+  writeJson(storageKeys.discountVouchers, Array.isArray(vouchers) ? vouchers.slice(0, 100) : []);
+  if (dirty) markSettingsDirty();
+}
+
+function activeDiscountVouchers() {
+  return getDiscountVouchers().filter((voucher) => voucher && voucher.active !== false);
+}
+
+function voucherById(id = "") {
+  return activeDiscountVouchers().find((voucher) => voucher.id === id) || null;
+}
+
+function voucherLabel(voucher) {
+  if (!voucher) return "";
+  const value = voucher.type === "percent" ? `${Number(voucher.value || 0)}%` : money(Number(voucher.value || 0));
+  return `${voucher.code} - ${value}`;
+}
+
 function getSettingsPayload() {
   return {
     menu: getMenu(),
     recipes: getRecipes(),
+    discountVouchers: getDiscountVouchers(),
   };
 }
 
@@ -1326,6 +1370,10 @@ function applyCloudSettings(settings) {
   }
   if (settings.recipes && typeof settings.recipes === "object" && !Array.isArray(settings.recipes)) {
     saveRecipes(settings.recipes);
+    changed = true;
+  }
+  if (Array.isArray(settings.discountVouchers)) {
+    saveDiscountVouchers(settings.discountVouchers, { dirty: false });
     changed = true;
   }
   return changed;
@@ -1639,12 +1687,81 @@ function normalizeDiscountValue(value = "") {
   return Number.isFinite(number) ? Math.max(0, number) : 0;
 }
 
+function parseVoucherValue(value = "", type = "percent") {
+  if (type === "nominal") return parseRupiah(value);
+  const number = Number(String(value || "0").replace(",", "."));
+  return Number.isFinite(number) ? Math.max(0, number) : 0;
+}
+
+function appliedVoucher() {
+  return voucherById(state.discountVoucherId);
+}
+
+function canUseDiscount() {
+  return isLoggedIn() && state.orderType === "normal" && activeDiscountVouchers().length > 0;
+}
+
+function clearDiscountState() {
+  state.discountType = "none";
+  state.discountValue = 0;
+  state.discountNote = "";
+  state.discountVoucherId = "";
+  state.pendingDiscountVoucherId = "";
+  if (els.discountVoucherSelect) els.discountVoucherSelect.value = "";
+  if (els.voucherDiscountInfo) els.voucherDiscountInfo.textContent = activeDiscountVouchers().length
+    ? "Pilih voucher lalu tekan Apply."
+    : "Belum ada voucher aktif.";
+}
+
 function discountAmount(subtotal) {
-  if (state.orderType === "staff_drink" || state.discountType === "none") return 0;
-  const value = Number(state.discountValue || 0);
+  const voucher = appliedVoucher();
+  if (state.orderType === "staff_drink" || !voucher) return 0;
+  const value = Number(voucher.value || 0);
   if (!Number.isFinite(value) || value <= 0) return 0;
-  const amount = state.discountType === "percent" ? subtotal * Math.min(value, 100) / 100 : value;
+  const amount = voucher.type === "percent" ? subtotal * Math.min(value, 100) / 100 : value;
   return Math.min(subtotal, Math.round(amount));
+}
+
+function applyDiscountVoucher(id = "") {
+  const voucher = voucherById(id);
+  if (!voucher) {
+    clearDiscountState();
+    renderCart();
+    return false;
+  }
+  state.discountVoucherId = voucher.id;
+  state.pendingDiscountVoucherId = "";
+  state.discountType = voucher.type;
+  state.discountValue = Number(voucher.value || 0);
+  state.discountNote = `Voucher ${voucher.code}${voucher.note ? ` - ${voucher.note}` : ""}`;
+  if (els.discountVoucherSelect) els.discountVoucherSelect.value = voucher.id;
+  renderCart();
+  return true;
+}
+
+function renderDiscountVoucherControls() {
+  const vouchers = activeDiscountVouchers();
+  if (els.discountVoucherSelect) {
+    const selected = state.discountVoucherId || state.pendingDiscountVoucherId;
+    els.discountVoucherSelect.innerHTML = [
+      `<option value="">Tanpa voucher</option>`,
+      ...vouchers.map((voucher) => `<option value="${escapeHtml(voucher.id)}">${escapeHtml(voucherLabel(voucher))}</option>`),
+    ].join("");
+    els.discountVoucherSelect.value = vouchers.some((voucher) => voucher.id === selected) ? selected : "";
+  }
+  const voucher = appliedVoucher();
+  const pendingVoucher = !voucher ? voucherById(state.pendingDiscountVoucherId) : null;
+  if (els.voucherDiscountInfo) {
+    els.voucherDiscountInfo.textContent = voucher
+      ? `${voucherLabel(voucher)} diterapkan${voucher.note ? ` - ${voucher.note}` : ""}.`
+      : pendingVoucher
+        ? `${voucherLabel(pendingVoucher)} dipilih. Tekan Apply untuk memakai voucher.`
+      : vouchers.length
+        ? "Pilih voucher lalu tekan Apply."
+        : "Belum ada voucher aktif.";
+  }
+  if (els.applyDiscountVoucher) els.applyDiscountVoucher.disabled = !vouchers.length;
+  if (els.clearDiscountVoucher) els.clearDiscountVoucher.disabled = !state.discountVoucherId && !state.pendingDiscountVoucherId;
 }
 
 function totals() {
@@ -1674,6 +1791,25 @@ function staffDrinkUsedToday(employee = activeEmployeeName(), date = dateKey()) 
     transaction.staffDrinkDate === date &&
     (transaction.employeeId === employeeId || transaction.employee === employee)
   ));
+}
+
+async function staffDrinkUsedTodayRemote(employee = activeEmployeeName(), date = dateKey()) {
+  if (!navigator.onLine) return false;
+  const result = await postSupabaseAction("check-staff-drink", {
+    employee,
+    employeeId: employeeIdFromName(employee),
+    date,
+  });
+  return Boolean(result?.used);
+}
+
+async function staffDrinkAlreadyUsedToday(employee = activeEmployeeName(), date = dateKey()) {
+  if (staffDrinkUsedToday(employee, date)) return true;
+  if (!navigator.onLine) return false;
+  await syncPendingTransactions({ pull: false }).catch(() => null);
+  if (await staffDrinkUsedTodayRemote(employee, date).catch(() => false)) return true;
+  await pullTransactionsFromSupabase({ render: false }).catch(() => null);
+  return staffDrinkUsedToday(employee, date);
 }
 
 function staffDrinkItemCount() {
@@ -1707,13 +1843,15 @@ function syncOrderTypeUi() {
     button.classList.toggle("active", button.dataset.orderType === state.orderType);
   });
   const staffDrinkActive = state.orderType === "staff_drink";
+  if (!canUseDiscount()) clearDiscountState();
+  renderDiscountVoucherControls();
   if (els.staffDrinkInfo) {
     els.staffDrinkInfo.hidden = !staffDrinkActive && (staffDrinkAvailable || !state.cart.length);
     els.staffDrinkInfo.textContent = staffDrinkAvailable
       ? "Staff Drink hanya bisa digunakan 1 kali per hari per karyawan dan maksimal 1 item."
       : "Staff Drink hanya bisa dipilih untuk tepat 1 item.";
   }
-  if (els.discountBox) els.discountBox.hidden = staffDrinkActive;
+  if (els.discountBox) els.discountBox.hidden = !canUseDiscount();
   if (els.paymentMethods) els.paymentMethods.hidden = staffDrinkActive;
   if (staffDrinkActive) state.payment = "Staff Drink";
   else if (state.payment === "Staff Drink") state.payment = "Tunai";
@@ -1732,12 +1870,7 @@ function syncOrderTypeUi() {
 
 function resetOrderAdjustments() {
   state.orderType = "normal";
-  state.discountType = "none";
-  state.discountValue = 0;
-  state.discountNote = "";
-  if (els.discountType) els.discountType.value = "none";
-  if (els.discountValue) els.discountValue.value = "";
-  if (els.discountNote) els.discountNote.value = "";
+  clearDiscountState();
   if (els.paidAmount) {
     els.paidAmount.disabled = false;
     els.paidAmount.value = "";
@@ -2595,12 +2728,12 @@ async function startOrder(event) {
   try {
     if (!state.cart.length) return;
     if (!validateStockForCart()) return;
-    if (state.orderType === "staff_drink" && staffDrinkUsedToday()) {
-      window.alert(`Jatah kopi gratis untuk ${activeEmployeeName()} hari ini sudah digunakan.`);
-      return;
-    }
     if (state.orderType === "staff_drink" && staffDrinkItemCount() !== 1) {
       window.alert("Staff Drink hanya bisa diproses untuk 1 item.");
+      return;
+    }
+    if (state.orderType === "staff_drink" && await staffDrinkAlreadyUsedToday()) {
+      window.alert(`Jatah kopi gratis untuk ${activeEmployeeName()} hari ini sudah digunakan.`);
       return;
     }
     if (!ensurePrinterReadyForOrderPrint()) return;
@@ -2700,6 +2833,8 @@ function currentTransaction(draft = false) {
   const displayedOrderCode = els.orderTableNumber.value.trim();
   const generatedId = state.activeDraftId && !draft ? state.activeDraftId : displayedOrderCode || nextDailyOrderCode(now, state.orderChannel);
   const orderType = staffDrink ? "staff_drink" : "normal";
+  const voucher = orderType === "normal" ? appliedVoucher() : null;
+  const discountAllowed = Boolean(voucher);
   return {
     id: generatedId,
     createdAt: now.toISOString(),
@@ -2714,10 +2849,12 @@ function currentTransaction(draft = false) {
     orderType,
     isStaffDrink: staffDrink,
     staffDrinkDate: staffDrink ? dateKey(now) : "",
-    discountType: orderType === "normal" ? state.discountType : undefined,
-    discountValue: orderType === "normal" ? Number(state.discountValue || 0) : 0,
-    discountTotal: orderType === "normal" ? total.discountTotal : 0,
-    discountNote: orderType === "normal" ? state.discountNote : "",
+    discountVoucherId: discountAllowed ? voucher.id : "",
+    discountCode: discountAllowed ? voucher.code : "",
+    discountType: discountAllowed ? voucher.type : undefined,
+    discountValue: discountAllowed ? Number(voucher.value || 0) : 0,
+    discountTotal: discountAllowed ? total.discountTotal : 0,
+    discountNote: discountAllowed ? state.discountNote : "",
     originalTotal: total.originalTotal,
     payment: staffDrink ? "Staff Drink" : state.payment,
     boothPackage: hasPhotoboothCart() ? els.boothPackage.value : "none",
@@ -3937,6 +4074,148 @@ function filteredMonthHistory() {
   return getHistory().filter((entry) => entry.createdAt.slice(0, 7) === month);
 }
 
+function discountTypeLabel(type = "") {
+  if (type === "percent") return "Persen";
+  if (type === "nominal") return "Nominal";
+  return "Diskon";
+}
+
+function renderDiscountAnalytics(discountedTransactions = []) {
+  if (!els.discountAnalyticsList) return;
+  if (!discountedTransactions.length) {
+    els.discountAnalyticsList.innerHTML = `<div class="empty-state">Belum ada diskon di bulan ini.</div>`;
+    return;
+  }
+  const byType = [...discountedTransactions.reduce((map, entry) => {
+    const label = discountTypeLabel(entry.discountType);
+    const current = map.get(label) || { label, count: 0, total: 0 };
+    current.count += 1;
+    current.total += Number(entry.discountTotal || 0);
+    map.set(label, current);
+    return map;
+  }, new Map()).values()];
+  const byCode = [...discountedTransactions.reduce((map, entry) => {
+    const label = entry.discountCode || entry.discountNote || "Voucher";
+    const current = map.get(label) || { label, count: 0, total: 0 };
+    current.count += 1;
+    current.total += Number(entry.discountTotal || 0);
+    map.set(label, current);
+    return map;
+  }, new Map()).values()]
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 4);
+  const noteRows = [...discountedTransactions.reduce((map, entry) => {
+    const note = String(entry.discountNote || "Tanpa catatan").trim() || "Tanpa catatan";
+    const current = map.get(note) || { label: note, count: 0, total: 0 };
+    current.count += 1;
+    current.total += Number(entry.discountTotal || 0);
+    map.set(note, current);
+    return map;
+  }, new Map()).values()]
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 3);
+  const rows = [
+    ...byCode.map((item) => ({ ...item, meta: `${item.count} transaksi · voucher` })),
+    ...byType.map((item) => ({ ...item, meta: `${item.count} transaksi` })),
+    ...noteRows.map((item) => ({ ...item, meta: `${item.count} transaksi · catatan` })),
+  ];
+  els.discountAnalyticsList.innerHTML = rows
+    .map((item) => `
+      <article class="discount-analytics-row">
+        <div>
+          <b>${escapeHtml(item.label)}</b>
+          <span>${escapeHtml(item.meta)}</span>
+        </div>
+        <strong>${money(item.total)}</strong>
+      </article>
+    `)
+    .join("");
+}
+
+function renderDiscountVoucherList() {
+  if (!els.discountVoucherList) return;
+  const vouchers = getDiscountVouchers();
+  if (!vouchers.length) {
+    els.discountVoucherList.innerHTML = `<div class="empty-state">Belum ada voucher. Buat voucher pertama dari form di atas.</div>`;
+    return;
+  }
+  els.discountVoucherList.innerHTML = vouchers
+    .map((voucher) => `
+      <article class="discount-analytics-row voucher-row ${voucher.active === false ? "inactive" : ""}">
+        <div>
+          <b>${escapeHtml(voucherLabel(voucher))}</b>
+          <span>${escapeHtml(voucher.note || "Tanpa catatan")} · ${voucher.active === false ? "Nonaktif" : "Aktif"}</span>
+        </div>
+        <div class="voucher-row-actions">
+          <button class="secondary-button compact" data-toggle-voucher="${escapeHtml(voucher.id)}" type="button">${voucher.active === false ? "Aktifkan" : "Nonaktifkan"}</button>
+          <button class="secondary-button compact danger-text" data-delete-voucher="${escapeHtml(voucher.id)}" type="button">Hapus</button>
+        </div>
+      </article>
+    `)
+    .join("");
+}
+
+async function saveDiscountVoucher(event) {
+  event.preventDefault();
+  if (!isOwner()) {
+    toast("Voucher hanya bisa dibuat Owner.");
+    return;
+  }
+  const code = normalizeVoucherCode(els.voucherCode?.value || "");
+  const type = els.voucherType?.value === "nominal" ? "nominal" : "percent";
+  const value = parseVoucherValue(els.voucherValue?.value || "", type);
+  const note = els.voucherNote?.value.trim() || "";
+  if (!code) return toast("Kode voucher perlu diisi.");
+  if (!value) return toast("Nilai voucher perlu diisi.");
+  if (type === "percent" && value > 100) return toast("Diskon persen maksimal 100%.");
+
+  const vouchers = getDiscountVouchers();
+  const id = idFromName(code);
+  const existingIndex = vouchers.findIndex((voucher) => voucher.id === id || voucher.code === code);
+  const row = {
+    id,
+    code,
+    type,
+    value,
+    note,
+    active: true,
+    createdAt: existingIndex >= 0 ? vouchers[existingIndex].createdAt || new Date().toISOString() : new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+  if (existingIndex >= 0) vouchers[existingIndex] = { ...vouchers[existingIndex], ...row };
+  else vouchers.unshift(row);
+  saveDiscountVouchers(vouchers);
+  try {
+    await syncSettingsToCloud({ force: true });
+    await pullSettingsFromSupabase({ render: false });
+    toast("Voucher tersimpan dan tersinkron.");
+  } catch {
+    toast("Voucher tersimpan lokal, tapi sync cloud belum berhasil.");
+  }
+  els.discountVoucherForm?.reset();
+  clearDiscountState();
+  renderAll();
+}
+
+async function mutateDiscountVoucher(id, updater) {
+  if (!isOwner()) return toast("Voucher hanya bisa diubah Owner.");
+  const vouchers = getDiscountVouchers();
+  const index = vouchers.findIndex((voucher) => voucher.id === id);
+  if (index < 0) return;
+  const next = updater(vouchers[index], vouchers);
+  const result = Array.isArray(next)
+    ? next
+    : vouchers.map((voucher, entryIndex) => (entryIndex === index ? next : voucher));
+  saveDiscountVouchers(result);
+  if (state.discountVoucherId === id && (!next || next.active === false || Array.isArray(next))) clearDiscountState();
+  renderAll();
+  try {
+    await syncSettingsToCloud({ force: true });
+  } catch {
+    toast("Voucher berubah lokal, tapi sync cloud belum berhasil.");
+  }
+}
+
 function renderAnalytics() {
   const monthHistory = filteredMonthHistory();
   const staffDrinks = monthHistory.filter(isStaffDrinkTransaction);
@@ -3944,6 +4223,8 @@ function renderAnalytics() {
   const revenue = history.reduce((sum, entry) => sum + entry.grandTotal, 0);
   const monthTunai = history.filter((entry) => entry.payment === "Tunai").reduce((sum, entry) => sum + Number(entry.grandTotal || 0), 0);
   const monthQris = history.filter((entry) => entry.payment === "QRIS").reduce((sum, entry) => sum + Number(entry.grandTotal || 0), 0);
+  const discountedTransactions = history.filter((entry) => Number(entry.discountTotal || 0) > 0);
+  const discountTotal = discountedTransactions.reduce((sum, entry) => sum + Number(entry.discountTotal || 0), 0);
   const uniqueDays = new Set(history.map((entry) => entry.createdAt.slice(0, 10))).size || 1;
   const itemCount = history.reduce((sum, entry) => sum + entry.items.reduce((inner, item) => inner + item.qty, 0), 0);
   const products = new Map();
@@ -3961,6 +4242,8 @@ function renderAnalytics() {
   els.monthRevenue.textContent = money(revenue);
   if (els.monthTunaiRevenue) els.monthTunaiRevenue.textContent = money(monthTunai);
   if (els.monthQrisRevenue) els.monthQrisRevenue.textContent = money(monthQris);
+  if (els.monthDiscountTotal) els.monthDiscountTotal.textContent = money(discountTotal);
+  if (els.monthDiscountCount) els.monthDiscountCount.textContent = `${discountedTransactions.length}`;
   els.avgDailyRevenue.textContent = money(Math.round(revenue / uniqueDays));
   els.monthTransactions.textContent = String(history.length);
   els.monthItems.textContent = String(itemCount);
@@ -3978,6 +4261,8 @@ function renderAnalytics() {
     : `<div class="empty-state">Belum ada best seller di bulan ini.</div>`;
 
   renderRevenueChart(history);
+  renderDiscountVoucherList();
+  renderDiscountAnalytics(discountedTransactions);
   renderInsights({ history, bestsellers, revenue, itemCount, staffDrinks });
 }
 
@@ -4612,37 +4897,38 @@ els.orderTypeTabs?.addEventListener("click", (event) => {
   }
   state.orderType = button.dataset.orderType || "normal";
   if (state.orderType === "staff_drink") {
+    clearDiscountState();
+  }
+  renderCart();
+});
+
+els.discountVoucherSelect?.addEventListener("change", () => {
+  const selected = els.discountVoucherSelect?.value || "";
+  if (selected !== state.discountVoucherId) {
     state.discountType = "none";
     state.discountValue = 0;
     state.discountNote = "";
-    if (els.discountType) els.discountType.value = "none";
-    if (els.discountValue) els.discountValue.value = "";
-    if (els.discountNote) els.discountNote.value = "";
+    state.discountVoucherId = "";
+    state.pendingDiscountVoucherId = selected;
   }
+  if (els.discountVoucherSelect) els.discountVoucherSelect.value = selected;
+  renderDiscountVoucherControls();
   renderCart();
 });
 
-els.discountType?.addEventListener("change", () => {
-  state.discountType = els.discountType.value || "none";
-  state.discountValue = 0;
-  if (els.discountValue) els.discountValue.value = "";
-  renderCart();
-});
-
-els.discountValue?.addEventListener("input", () => {
-  state.discountValue = normalizeDiscountValue(els.discountValue.value);
-  renderCart();
-});
-
-els.discountValue?.addEventListener("blur", () => {
-  if (state.discountType === "nominal") {
-    const value = normalizeDiscountValue(els.discountValue.value);
-    els.discountValue.value = value ? money(value) : "";
+els.applyDiscountVoucher?.addEventListener("click", () => {
+  const voucherId = els.discountVoucherSelect?.value || state.pendingDiscountVoucherId || "";
+  if (!voucherId) {
+    clearDiscountState();
+    renderCart();
+    return toast("Pilih voucher dulu.");
   }
+  if (applyDiscountVoucher(voucherId)) toast("Voucher diterapkan.");
 });
 
-els.discountNote?.addEventListener("input", () => {
-  state.discountNote = els.discountNote.value.trim();
+els.clearDiscountVoucher?.addEventListener("click", () => {
+  clearDiscountState();
+  renderCart();
 });
 
 els.orderChannels?.addEventListener("click", (event) => {
@@ -4672,6 +4958,22 @@ els.chartRangeTabs?.addEventListener("click", (event) => {
   state.chartRange = button.dataset.chartRange;
   els.chartRangeTabs.querySelectorAll("button[data-chart-range]").forEach((entry) => entry.classList.toggle("active", entry === button));
   renderAnalytics();
+});
+
+els.discountVoucherForm?.addEventListener("submit", saveDiscountVoucher);
+
+els.discountVoucherList?.addEventListener("click", (event) => {
+  const toggleButton = event.target.closest("button[data-toggle-voucher]");
+  const deleteButton = event.target.closest("button[data-delete-voucher]");
+  if (toggleButton) {
+    const id = toggleButton.dataset.toggleVoucher;
+    mutateDiscountVoucher(id, (voucher) => ({ ...voucher, active: voucher.active === false, updatedAt: new Date().toISOString() }));
+    return;
+  }
+  if (deleteButton) {
+    const id = deleteButton.dataset.deleteVoucher;
+    mutateDiscountVoucher(id, (_voucher, vouchers) => vouchers.filter((entry) => entry.id !== id));
+  }
 });
 
 els.orderList?.addEventListener("click", (event) => {

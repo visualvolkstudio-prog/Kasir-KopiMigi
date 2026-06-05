@@ -220,10 +220,61 @@ async function rememberDeletedEmployee(name) {
   await saveDeletedEmployeeRows(rows);
 }
 
+function isStaffDrinkPayload(transaction = {}) {
+  return transaction.isStaffDrink === true || transaction.orderType === "staff_drink";
+}
+
+function staffDrinkMatches(transaction = {}, body = {}) {
+  const date = String(body.date || "").trim();
+  const employee = String(body.employee || "").trim();
+  const employeeId = String(body.employeeId || "").trim();
+  const transactionEmployeeId = String(transaction.employeeId || "").trim();
+  const transactionEmployee = String(transaction.employee || "").trim();
+  if (!isStaffDrinkPayload(transaction)) return false;
+  if (date && transaction.staffDrinkDate !== date) return false;
+  return Boolean(
+    (employeeId && transactionEmployeeId && transactionEmployeeId === employeeId) ||
+    (employee && transactionEmployee && transactionEmployee.toLowerCase() === employee.toLowerCase()),
+  );
+}
+
+async function findStaffDrinkUsage(body = {}) {
+  const rows = await supabaseFetch("transactions?select=*&deleted_at=is.null&order=created_at.desc&limit=500");
+  const excludeId = String(body.excludeId || "").trim();
+  return rows.find((row) => {
+    if (excludeId && row.id === excludeId) return false;
+    const raw = row.raw && typeof row.raw === "object" ? row.raw : {};
+    return staffDrinkMatches(raw, body);
+  });
+}
+
+async function checkStaffDrink(body) {
+  const existing = await findStaffDrinkUsage(body);
+  return {
+    status: 200,
+    payload: {
+      success: true,
+      used: Boolean(existing),
+      transaction: existing ? { id: existing.id, createdAt: existing.created_at, employee: existing.raw?.employee || existing.employee || "" } : null,
+    },
+  };
+}
+
 async function syncTransaction(body) {
   const transaction = body.transaction || body;
   const row = mapTransaction(transaction);
   if (!row.id) return { status: 400, payload: { success: false, error: "Transaction id wajib ada." } };
+  if (isStaffDrinkPayload(transaction)) {
+    const duplicate = await findStaffDrinkUsage({
+      date: transaction.staffDrinkDate,
+      employee: transaction.employee,
+      employeeId: transaction.employeeId,
+      excludeId: row.id,
+    });
+    if (duplicate) {
+      return { status: 409, payload: { success: false, error: "Staff Drink karyawan ini sudah digunakan hari ini.", duplicateId: duplicate.id } };
+    }
+  }
 
   await supabaseFetch("transactions?on_conflict=id", {
     method: "POST",
@@ -537,6 +588,8 @@ async function dispatch(body, req) {
       return syncTransaction(body);
     case "get-transactions":
       return getTransactions();
+    case "check-staff-drink":
+      return checkStaffDrink(body);
     case "delete-transaction":
       return deleteTransaction(body);
     case "bootstrap-data":

@@ -13,7 +13,7 @@
     <link rel="icon" href="/assets/favicon-migi.png?v=18" />
     <link rel="apple-touch-icon" href="/assets/pwa-icon-512.png?v=18" />
     <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css" />
-    <link rel="stylesheet" href="styles.css?v=13" />
+    <link rel="stylesheet" href="styles.css?v=15" />
   </head>
   <body>
     <section class="login-screen" id="loginScreen" aria-label="Login kasir">
@@ -128,25 +128,18 @@
                 <button data-payment="QRIS" type="button">QRIS</button>
               </div>
               <div class="discount-box" id="discountBox">
-                <p class="eyebrow">Custom Discount</p>
-                <div class="order-field-grid">
-                  <label>
-                    Tipe diskon
-                    <select id="discountType">
-                      <option value="none">Tanpa diskon</option>
-                      <option value="percent">Persen (%)</option>
-                      <option value="nominal">Nominal (Rp)</option>
-                    </select>
-                  </label>
-                  <label>
-                    Nilai
-                    <input id="discountValue" type="text" inputmode="numeric" placeholder="0" />
-                  </label>
-                </div>
+                <p class="eyebrow">Voucher Diskon</p>
                 <label>
-                  Catatan diskon
-                  <input id="discountNote" type="text" placeholder="Promo, owner approval, dll" />
+                  Pilih voucher
+                  <select id="discountVoucherSelect">
+                    <option value="">Tanpa voucher</option>
+                  </select>
                 </label>
+                <div class="voucher-apply-row">
+                  <button class="secondary-button compact" id="applyDiscountVoucher" type="button">Apply</button>
+                  <button class="secondary-button compact" id="clearDiscountVoucher" type="button">Hapus</button>
+                </div>
+                <p class="voucher-discount-info" id="voucherDiscountInfo">Voucher dibuat Owner di tab Analitik.</p>
               </div>
               <label>
                 <span id="paidAmountLabel">Dibayar</span>
@@ -714,6 +707,8 @@
             <article class="metric-card"><span>Rata-rata / hari jualan</span><strong id="avgDailyRevenue">Rp0</strong></article>
             <article class="metric-card"><span>Transaksi</span><strong id="monthTransactions">0</strong></article>
             <article class="metric-card"><span>Item terjual</span><strong id="monthItems">0</strong></article>
+            <article class="metric-card owner-analytics-only"><span>Diskon bulan ini</span><strong id="monthDiscountTotal">Rp0</strong></article>
+            <article class="metric-card owner-analytics-only"><span>Transaksi diskon</span><strong id="monthDiscountCount">0</strong></article>
           </div>
           <section class="history-panel chart-panel">
             <div class="section-heading">
@@ -723,6 +718,48 @@
               </div>
             </div>
             <canvas id="revenueChart" width="980" height="360"></canvas>
+          </section>
+          <section class="history-panel discount-analytics-panel owner-analytics-only">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">Owner</p>
+                <h3>Voucher Diskon</h3>
+              </div>
+            </div>
+            <form class="voucher-form" id="discountVoucherForm">
+              <label>
+                Kode voucher
+                <input id="voucherCode" type="text" placeholder="contoh: MIGI10" />
+              </label>
+              <div class="voucher-field-grid">
+                <label>
+                  Tipe
+                  <select id="voucherType">
+                    <option value="percent">Persen (%)</option>
+                    <option value="nominal">Nominal (Rp)</option>
+                  </select>
+                </label>
+                <label>
+                  Nilai
+                  <input id="voucherValue" type="text" inputmode="numeric" placeholder="10 atau Rp 5.000" />
+                </label>
+              </div>
+              <label>
+                Catatan
+                <input id="voucherNote" type="text" placeholder="Promo pelajar, loyalty, dll" />
+              </label>
+              <button class="primary-button" id="saveVoucherBtn" type="submit">Simpan Voucher</button>
+            </form>
+            <div class="discount-analytics-list" id="discountVoucherList"></div>
+          </section>
+          <section class="history-panel discount-analytics-panel owner-analytics-only">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">Owner</p>
+                <h3>Analitik Pemakaian Voucher</h3>
+              </div>
+            </div>
+            <div class="discount-analytics-list" id="discountAnalyticsList"></div>
           </section>
           <div class="analytics-grid daily-sales-grid">
             <section class="history-panel">
@@ -828,6 +865,6 @@
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-    <script src="app.js?v=18"></script>
+    <script src="app.js?v=21"></script>
   </body>
 </html>

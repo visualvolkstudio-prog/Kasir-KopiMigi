@@ -422,6 +422,14 @@ h3 { font-size: 16px; font-weight: 700; }
   display: none !important;
 }
 
+.owner-analytics-only {
+  display: none !important;
+}
+
+.role-owner .owner-analytics-only {
+  display: block !important;
+}
+
 /* ── Printer ─────────────────────────────────── */
 .printer-menu-wrap { position: relative; min-width: 0; }
 
@@ -1470,6 +1478,72 @@ input:focus, select:focus {
 .bestseller-row {
   grid-template-columns: auto minmax(0, 1fr) auto;
 }
+
+.discount-analytics-panel {
+  margin: 0 0 16px;
+}
+
+.discount-analytics-list {
+  display: grid;
+  gap: 10px;
+}
+
+.voucher-form {
+  display: grid;
+  gap: 10px;
+  margin: 0 0 14px;
+}
+
+.voucher-field-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px;
+}
+
+.voucher-apply-row,
+.voucher-row-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.voucher-discount-info {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.discount-analytics-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: var(--soft);
+}
+
+.discount-analytics-row.inactive {
+  opacity: 0.62;
+}
+
+.discount-analytics-row b,
+.discount-analytics-row strong {
+  display: block;
+}
+
+.discount-analytics-row span {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 11.5px;
+  overflow-wrap: anywhere;
+}
+
 .bestseller-row > strong {
   width: 32px;
   height: 32px;
@@ -2690,6 +2764,14 @@ body.locked .login-screen { display: grid; }
   .cashflow-controls input { width: min(180px, 100%); }
   .cashflow-filter-tabs { width: 100%; }
   .daily-summary { grid-template-columns: 1fr; }
+  .voucher-field-grid,
+  .discount-analytics-row {
+    grid-template-columns: 1fr;
+  }
+  .voucher-row-actions,
+  .voucher-apply-row {
+    justify-content: flex-start;
+  }
   .recipe-ingredient-row { grid-template-columns: minmax(0, 1.2fr) 78px 54px auto; }
   .cashflow-entry-grid,
   .cashflow-entry-grid:has(#cfIngredientQtyWrap:not([hidden])),
