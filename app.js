@@ -2568,6 +2568,37 @@ function customStockUsageLabel(item) {
     .join(" · ");
 }
 
+function lineItemMergeKey(item = {}) {
+  const stockUsage = Array.isArray(item.customStockUsage) && item.customStockUsage.length
+    ? JSON.stringify(item.customStockUsage.map((entry) => ({
+        ingredientId: entry.ingredientId || "",
+        qty: Number(entry.qty || 0),
+        unit: entry.unit || "",
+      })))
+    : "";
+  return [
+    String(item.name || "").trim().toLowerCase(),
+    String(item.category || "").trim().toLowerCase(),
+    Number(item.price || 0),
+    item.isCustomOrder ? "custom" : "menu",
+    stockUsage,
+  ].join("|");
+}
+
+function mergeLineItems(items = []) {
+  const merged = new Map();
+  (Array.isArray(items) ? items : []).forEach((item) => {
+    if (!item) return;
+    const key = lineItemMergeKey(item);
+    const qty = Number(item.qty || 0);
+    if (!key || qty <= 0) return;
+    const current = merged.get(key);
+    if (current) current.qty += qty;
+    else merged.set(key, { ...item, qty });
+  });
+  return [...merged.values()];
+}
+
 function syncCustomOrderIngredientUnit() {
   const record = getInventory()[els.customOrderIngredient?.value];
   if (els.customOrderIngredientUnit) els.customOrderIngredientUnit.value = record?.unit || "-";
@@ -2634,6 +2665,7 @@ function addCustomOrderToCart(event) {
 }
 
 function renderCart() {
+  state.cart = mergeLineItems(state.cart);
   els.checkoutPanel?.classList.toggle("has-items", state.cart.length > 0);
   els.checkoutPanel?.classList.toggle("has-booth", hasPhotoboothCart());
   els.orderModal?.classList.toggle("has-booth", hasPhotoboothCart());
@@ -2900,6 +2932,7 @@ function setOrderChannel(channel = "Kasir") {
 
 function currentTransaction(draft = false) {
   const total = totals();
+  const transactionItems = mergeLineItems(state.cart);
   const staffDrink = !draft && state.orderType === "staff_drink";
   const paid = staffDrink ? 0 : parseRupiah(els.paidAmount.value);
   const now = new Date();
@@ -2936,7 +2969,7 @@ function currentTransaction(draft = false) {
     sendToBooth: hasPhotoboothCart(),
     paid,
     change: Math.max(0, paid - total.grandTotal),
-    items: state.cart.map(({ id, name, category, price, qty, isCustomOrder, customStockUsage }) => ({
+    items: transactionItems.map(({ id, name, category, price, qty, isCustomOrder, customStockUsage }) => ({
       id,
       name,
       category,
@@ -3039,7 +3072,7 @@ async function syncTodayStockFromSales() {
 
 function groupedReceiptItems(items = []) {
   const groups = new Map();
-  items.forEach((item) => {
+  mergeLineItems(items).forEach((item) => {
     const category = item.category || "Lainnya";
     if (!groups.has(category)) groups.set(category, []);
     groups.get(category).push(item);
@@ -3425,7 +3458,7 @@ function renderHistory() {
                 <div>
                   <strong>${transaction.id} · ${money(transaction.grandTotal)}${isStaffDrinkTransaction(transaction) ? " · Staff Drink" : ""}</strong>
                   <p>${new Date(transaction.createdAt).toLocaleString("id-ID")} · ${transaction.shift || "Shift 1"} · ${transactionEmployeeDisplay(transaction)} · ${transaction.customer} · ${transaction.payment}${transaction.discountTotal ? ` · Diskon ${money(transaction.discountTotal)}` : ""}${transaction.boothCode ? ` · Booth ${transaction.boothCode}` : ""}</p>
-                  <p>${transaction.items.map((item) => `${item.qty}x ${item.name}`).join(", ")}</p>
+                  <p>${mergeLineItems(transaction.items).map((item) => `${item.qty}x ${item.name}`).join(", ")}</p>
                 </div>
               </article>
             `,
@@ -3445,7 +3478,7 @@ function renderHistory() {
 }
 
 function orderCard(transaction, kind, displayCode = "") {
-  const items = transaction.items.map((item) => `${item.qty}x ${item.name}`).join(", ");
+  const items = mergeLineItems(transaction.items).map((item) => `${item.qty}x ${item.name}`).join(", ");
   const orderCode = displayCode || transaction.id;
   const actions = kind === "unpaid"
     ? `
@@ -3644,7 +3677,7 @@ async function renderPendingSync() {
                 <div>
                   <strong>${entry.id} · ${money(entry.grandTotal || 0)}</strong>
                   <p>${new Date(entry.createdAt).toLocaleString("id-ID")} · ${entry.syncStatus} · ${entry.printStatus}</p>
-                  <p>${entry.items?.map((item) => `${item.qty}x ${item.name}`).join(", ") || "-"}</p>
+                  <p>${entry.items ? mergeLineItems(entry.items).map((item) => `${item.qty}x ${item.name}`).join(", ") : "-"}</p>
                 </div>
                 <div class="history-actions">
                   <button class="secondary-button compact" data-reprint-offline="${entry.localId}" type="button">Print Ulang</button>
