@@ -366,6 +366,28 @@ function isOnlineChannel(channel) {
   return ["GoFood", "GrabFood", "ShopeeFood"].includes(channel);
 }
 
+function paymentReportMethods() {
+  return ["Tunai", "QRIS", "GoFood", "GrabFood", "ShopeeFood"];
+}
+
+function transactionPaymentMethod(transaction = {}) {
+  if (isOnlineChannel(transaction.channel)) return transaction.channel;
+  return transaction.payment || "Tunai";
+}
+
+function transactionPaymentTotal(transaction = {}) {
+  const amount = Number(transaction.grandTotal || 0);
+  return isOnlineChannel(transaction.channel) ? amount : Number(transaction.grandTotal || 0);
+}
+
+function paymentTotalsFor(transactions = []) {
+  return revenueTransactions(transactions).reduce((map, entry) => {
+    const method = transactionPaymentMethod(entry);
+    map.set(method, (map.get(method) || 0) + transactionPaymentTotal(entry));
+    return map;
+  }, new Map());
+}
+
 function onlineChannelSuffix(channel) {
   if (channel === "GoFood") return "-G";
   if (channel === "GrabFood") return "-GB";
@@ -1019,15 +1041,13 @@ function shiftSummaryLines(shift = getActiveShift(), date = dateKey()) {
   const transactions = getHistory().filter((entry) => dateKey(entry.createdAt) === date && (entry.shift || "Shift 1") === shift);
   const normal = revenueTransactions(transactions);
   const staffDrinks = transactions.filter(isStaffDrinkTransaction);
-  const tunai = normal.filter((entry) => entry.payment === "Tunai").reduce((sum, entry) => sum + Number(entry.grandTotal || 0), 0);
-  const qris = normal.filter((entry) => entry.payment === "QRIS").reduce((sum, entry) => sum + Number(entry.grandTotal || 0), 0);
+  const paymentTotals = paymentTotalsFor(normal);
   const discount = normal.reduce((sum, entry) => sum + Number(entry.discountTotal || 0), 0);
   return [
     `Summary ${shift}`,
     `Petugas: ${activeEmployeeName()}`,
     `Total transaksi: ${normal.length}`,
-    `Tunai: ${money(tunai)}`,
-    `QRIS: ${money(qris)}`,
+    ...paymentReportMethods().map((method) => `${method}: ${money(paymentTotals.get(method) || 0)}`),
     `Staff Drink: ${staffDrinks.length}`,
     `Diskon: ${money(discount)}`,
   ];
@@ -1048,8 +1068,7 @@ function shiftReportText(shift, reportDateValue = dateKey()) {
   const normal = revenueTransactions(transactions);
   const staffDrinks = transactions.filter(isStaffDrinkTransaction);
   const revenue = normal.reduce((sum, entry) => sum + Number(entry.grandTotal || 0), 0);
-  const tunai = normal.filter((entry) => entry.payment === "Tunai").reduce((sum, entry) => sum + Number(entry.grandTotal || 0), 0);
-  const qris = normal.filter((entry) => entry.payment === "QRIS").reduce((sum, entry) => sum + Number(entry.grandTotal || 0), 0);
+  const paymentTotals = paymentTotalsFor(normal);
   const discount = normal.reduce((sum, entry) => sum + Number(entry.discountTotal || 0), 0);
   const employees = [...new Set(transactions.map(transactionEmployeeDisplay).filter(Boolean))];
   const itemCount = normal.reduce((sum, entry) => sum + entry.items.reduce((inner, item) => inner + item.qty, 0), 0);
@@ -1062,8 +1081,7 @@ function shiftReportText(shift, reportDateValue = dateKey()) {
     `Total Penjualan: ${money(revenue)}`,
     `Transaksi Normal: ${normal.length}`,
     `Item terjual: ${itemCount}`,
-    `Tunai: ${money(tunai)}`,
-    `QRIS: ${money(qris)}`,
+    ...paymentReportMethods().map((method) => `${method}: ${money(paymentTotals.get(method) || 0)}`),
     `Total Diskon: ${money(discount)}`,
     `Staff Drink: ${staffDrinks.length}`,
   ].join("\n");
@@ -1920,6 +1938,7 @@ function staffDrinkItemsLabel(transaction) {
 
 function syncOrderTypeUi() {
   const staffDrink = state.orderType === "staff_drink";
+  const onlineChannel = isOnlineChannel(state.orderChannel);
   const staffDrinkAvailable = staffDrinkItemCount() === 1;
   if (staffDrink && !staffDrinkAvailable) {
     state.orderType = "normal";
@@ -1942,16 +1961,18 @@ function syncOrderTypeUi() {
       : "Staff Drink hanya bisa dipilih untuk tepat 1 item.";
   }
   if (els.discountBox) els.discountBox.hidden = !canUseDiscount();
-  if (els.paymentMethods) els.paymentMethods.hidden = staffDrinkActive;
+  if (els.paymentMethods) els.paymentMethods.hidden = staffDrinkActive || onlineChannel;
   if (staffDrinkActive) state.payment = "Staff Drink";
+  else if (onlineChannel) state.payment = state.orderChannel;
+  else if (isOnlineChannel(state.payment)) state.payment = "Tunai";
   else if (state.payment === "Staff Drink") state.payment = "Tunai";
   if (els.paidAmount) {
     const wasStaffInput = els.paidAmount.disabled;
-    els.paidAmount.value = staffDrinkActive ? "0" : wasStaffInput && state.payment === "Tunai" ? "" : els.paidAmount.value;
-    els.paidAmount.disabled = staffDrinkActive;
-    if (!staffDrinkActive && state.payment !== "Tunai") els.paidAmount.value = totals().grandTotal;
+    els.paidAmount.value = staffDrinkActive ? "0" : onlineChannel ? totals().grandTotal : wasStaffInput && state.payment === "Tunai" ? "" : els.paidAmount.value;
+    els.paidAmount.disabled = staffDrinkActive || onlineChannel;
+    if (!staffDrinkActive && !onlineChannel && state.payment !== "Tunai") els.paidAmount.value = totals().grandTotal;
   }
-  if (els.paidAmountLabel) els.paidAmountLabel.textContent = staffDrinkActive ? "Payment" : "Dibayar";
+  if (els.paidAmountLabel) els.paidAmountLabel.textContent = staffDrinkActive ? "Payment" : onlineChannel ? state.orderChannel : "Dibayar";
   els.paymentMethods?.querySelectorAll("button[data-payment]").forEach((button) => {
     button.classList.toggle("active", button.dataset.payment === state.payment);
   });
@@ -2885,7 +2906,7 @@ async function startOrder(event) {
     els.tableNumber.value = els.orderTableNumber.value.trim();
     closeOrderModal();
     const transaction = currentTransaction(false);
-    if (state.payment === "Tunai" && transaction.paid < transaction.grandTotal) {
+    if (!isOnlineChannel(transaction.channel) && state.payment === "Tunai" && transaction.paid < transaction.grandTotal) {
       toast("Nominal tunai belum cukup.");
       return;
     }
@@ -2967,13 +2988,23 @@ function setOrderChannel(channel = "Kasir") {
   if (els.orderModal?.getAttribute("aria-hidden") === "false" && !state.activeDraftId) {
     els.orderTableNumber.value = nextDailyOrderCode(new Date(), state.orderChannel);
   }
+  if (isOnlineChannel(channel)) {
+    state.payment = channel;
+    if (els.paidAmount) els.paidAmount.value = totals().grandTotal;
+  } else if (isOnlineChannel(state.payment)) {
+    state.payment = "Tunai";
+    if (els.paidAmount) els.paidAmount.value = "";
+  }
+  syncOrderTypeUi();
 }
 
 function currentTransaction(draft = false) {
   const total = totals();
   const transactionItems = mergeLineItems(state.cart);
   const staffDrink = !draft && state.orderType === "staff_drink";
-  const paid = staffDrink ? 0 : parseRupiah(els.paidAmount.value);
+  const onlineChannel = !staffDrink && isOnlineChannel(state.orderChannel);
+  const payment = staffDrink ? "Staff Drink" : onlineChannel ? state.orderChannel : state.payment;
+  const paid = staffDrink ? 0 : onlineChannel ? total.grandTotal : parseRupiah(els.paidAmount.value);
   const now = new Date();
   const displayedOrderCode = els.orderTableNumber.value.trim();
   const generatedId = state.activeDraftId && !draft ? state.activeDraftId : displayedOrderCode || nextDailyOrderCode(now, state.orderChannel);
@@ -3001,13 +3032,13 @@ function currentTransaction(draft = false) {
     discountTotal: discountAllowed ? total.discountTotal : 0,
     discountNote: discountAllowed ? state.discountNote : "",
     originalTotal: total.originalTotal,
-    payment: staffDrink ? "Staff Drink" : state.payment,
+    payment,
     boothPackage: hasPhotoboothCart() ? els.boothPackage.value : "none",
     boothPrintQuantity: photoboothOrderQty(),
     boothCode: "",
     sendToBooth: hasPhotoboothCart(),
     paid,
-    change: Math.max(0, paid - total.grandTotal),
+    change: onlineChannel ? 0 : Math.max(0, paid - total.grandTotal),
     items: transactionItems.map(({ id, name, category, price, qty, isCustomOrder, customStockUsage }) => ({
       id,
       name,
@@ -3161,6 +3192,8 @@ function groupedReceiptItems(items = []) {
 function receiptHtml(transaction, kind = "paid") {
   const displayCode = receiptDisplayCode(transaction, kind);
   const tableLabel = receiptTableLabel(transaction, displayCode);
+  const paymentMethod = transactionPaymentMethod(transaction);
+  const paidAmount = isOnlineChannel(transaction.channel) ? Number(transaction.grandTotal || 0) : Number(transaction.paid || 0);
   const itemLines = groupedReceiptItems(transaction.items)
     .map(([category, items]) => `
       <p class="receipt-category">${category}</p>
@@ -3186,7 +3219,7 @@ function receiptHtml(transaction, kind = "paid") {
     <div class="receipt-rule"></div>
     ${staffDrink ? `<div class="receipt-line"><span>Harga asli</span><span>${money(transaction.originalTotal || transaction.subtotal || 0)}</span></div>` : discountLine}
     <div class="receipt-total"><span>Total</span><span>${money(transaction.grandTotal)}</span></div>
-    <div class="receipt-line"><span>${transaction.payment}</span><span>${money(transaction.paid)}</span></div>
+    <div class="receipt-line"><span>${paymentMethod}</span><span>${money(paidAmount)}</span></div>
     <div class="receipt-line"><span>Kembali</span><span>${money(transaction.change)}</span></div>
     ${staffDrink ? `<p>Catatan: Jatah 1 kopi per hari</p>` : ""}
     `;
@@ -3225,6 +3258,8 @@ function receiptText(transaction, kind = "paid") {
   const staffDrink = isStaffDrinkTransaction(transaction);
   const displayCode = receiptDisplayCode(transaction, kind);
   const tableLabel = receiptTableLabel(transaction, displayCode);
+  const paymentMethod = transactionPaymentMethod(transaction);
+  const paidAmount = isOnlineChannel(transaction.channel) ? Number(transaction.grandTotal || 0) : Number(transaction.paid || 0);
   const line = "-".repeat(width);
   const right = (label, value) => `${label}${String(value).padStart(Math.max(1, width - label.length), " ")}`;
   const itemLine = (label, value) => {
@@ -3269,7 +3304,7 @@ function receiptText(transaction, kind = "paid") {
       if (transaction.discountNote) rows.push(`Note: ${transaction.discountNote}`);
     }
     rows.push(right("TOTAL", money(transaction.grandTotal)));
-    rows.push(right(transaction.payment, money(transaction.paid)));
+    rows.push(right(paymentMethod, money(paidAmount)));
     rows.push(right("Kembali", money(transaction.change)));
     if (staffDrink) rows.push("Jatah 1 kopi per hari");
   }
@@ -3530,7 +3565,7 @@ function renderHistory() {
               <article class="history-card">
                 <div>
                   <strong>${transaction.id} · ${money(transaction.grandTotal)}${isStaffDrinkTransaction(transaction) ? " · Staff Drink" : ""}</strong>
-                  <p>${new Date(transaction.createdAt).toLocaleString("id-ID")} · ${transaction.shift || "Shift 1"} · ${transactionEmployeeDisplay(transaction)} · ${transaction.customer} · ${transaction.payment}${transaction.discountTotal ? ` · Diskon ${money(transaction.discountTotal)}` : ""}${transaction.boothCode ? ` · Booth ${transaction.boothCode}` : ""}</p>
+                  <p>${new Date(transaction.createdAt).toLocaleString("id-ID")} · ${transaction.shift || "Shift 1"} · ${transactionEmployeeDisplay(transaction)} · ${transaction.customer} · ${transactionPaymentMethod(transaction)}${transaction.discountTotal ? ` · Diskon ${money(transaction.discountTotal)}` : ""}${transaction.boothCode ? ` · Booth ${transaction.boothCode}` : ""}</p>
                   <p>${mergeLineItems(transaction.items).map((item) => `${item.qty}x ${item.name}`).join(", ")}</p>
                 </div>
               </article>
@@ -3553,6 +3588,7 @@ function renderHistory() {
 function orderCard(transaction, kind, displayCode = "") {
   const items = mergeLineItems(transaction.items).map((item) => `${item.qty}x ${item.name}`).join(", ");
   const orderCode = displayCode || transaction.id;
+  const paymentMethod = transactionPaymentMethod(transaction);
   const actions = kind === "unpaid"
     ? `
       <div class="history-actions">
@@ -3572,8 +3608,7 @@ function orderCard(transaction, kind, displayCode = "") {
             : `<label class="payment-edit-control">
                 <span>Pembayaran</span>
                 <select data-edit-payment="${transaction.id}">
-                  <option value="Tunai" ${transaction.payment === "Tunai" ? "selected" : ""}>Tunai</option>
-                  <option value="QRIS" ${transaction.payment === "QRIS" ? "selected" : ""}>QRIS</option>
+                  ${paymentReportMethods().map((method) => `<option value="${method}" ${paymentMethod === method ? "selected" : ""}>${method}</option>`).join("")}
                 </select>
               </label>`
         }
@@ -3585,7 +3620,7 @@ function orderCard(transaction, kind, displayCode = "") {
     <article class="history-card order-card-row">
       <div>
         <strong>${orderCode} · ${money(transaction.grandTotal)}</strong>
-        <p>${new Date(transaction.createdAt).toLocaleString("id-ID")} · ${transaction.channel || "Kasir"} · ${transaction.customer}</p>
+        <p>${new Date(transaction.createdAt).toLocaleString("id-ID")} · ${transaction.channel || "Kasir"} · ${transaction.customer} · ${paymentMethod}</p>
         <p>${items}</p>
       </div>
       ${actions}
@@ -3650,10 +3685,12 @@ async function editPaidPayment(id, paymentValue) {
     toast("Staff Drink tidak memakai metode pembayaran normal.");
     return;
   }
-  const payment = paymentValue === "QRIS" ? "QRIS" : "Tunai";
+  const payment = paymentReportMethods().includes(paymentValue) ? paymentValue : "Tunai";
+  const onlinePayment = isOnlineChannel(payment);
   const paid = payment === "Tunai" ? Math.max(Number(transaction.paid || 0), Number(transaction.grandTotal || 0)) : Number(transaction.grandTotal || 0);
   const next = {
     ...transaction,
+    channel: onlinePayment ? payment : isOnlineChannel(transaction.channel) ? "Kasir" : transaction.channel || "Kasir",
     payment,
     paid,
     change: payment === "Tunai" ? Math.max(0, paid - Number(transaction.grandTotal || 0)) : 0,
@@ -3683,7 +3720,7 @@ function renderTransactionEditModal() {
   if (els.transactionEditCode) els.transactionEditCode.textContent = transaction.id;
   if (els.transactionEditOldTotal) els.transactionEditOldTotal.textContent = money(Number(transaction.grandTotal || 0));
   if (els.transactionEditNewTotal) els.transactionEditNewTotal.textContent = money(totals.grandTotal);
-  if (els.transactionEditPayment) els.transactionEditPayment.value = transaction.payment === "QRIS" ? "QRIS" : "Tunai";
+  if (els.transactionEditPayment) els.transactionEditPayment.value = transactionPaymentMethod(transaction);
   if (els.transactionEditItems) {
     els.transactionEditItems.innerHTML = items.length
       ? items.map((item, index) => `
@@ -3767,8 +3804,10 @@ async function saveTransactionEdit(event) {
   const stockResult = applyStockDeltaForEdit(transaction.items || [], items, now);
   if (stockResult.error) return toast(stockResult.error);
   const nextTotals = totalsForEditedTransaction(transaction, items);
-  const payment = els.transactionEditPayment?.value === "QRIS" ? "QRIS" : "Tunai";
-  const paid = payment === "QRIS" ? nextTotals.grandTotal : Math.max(nextTotals.grandTotal, Number(transaction.paid || 0));
+  const selectedPayment = els.transactionEditPayment?.value || "Tunai";
+  const payment = paymentReportMethods().includes(selectedPayment) ? selectedPayment : "Tunai";
+  const onlinePayment = isOnlineChannel(payment);
+  const paid = payment === "Tunai" ? Math.max(nextTotals.grandTotal, Number(transaction.paid || 0)) : nextTotals.grandTotal;
   const editEntry = {
     editedAt: now,
     editedBy: "Owner",
@@ -3781,6 +3820,7 @@ async function saveTransactionEdit(event) {
     ...transaction,
     ...nextTotals,
     items,
+    channel: onlinePayment ? payment : isOnlineChannel(transaction.channel) ? "Kasir" : transaction.channel || "Kasir",
     payment,
     paid,
     change: payment === "Tunai" ? Math.max(0, paid - nextTotals.grandTotal) : 0,
@@ -4259,8 +4299,7 @@ function dailyReportText(todayTransactions, reportDateValue = selectedDailyDate(
   const normalTransactions = revenueTransactions(todayTransactions);
   const staffDrinks = todayTransactions.filter(isStaffDrinkTransaction);
   const revenue = normalTransactions.reduce((sum, entry) => sum + entry.grandTotal, 0);
-  const tunai = normalTransactions.filter((entry) => entry.payment === "Tunai").reduce((sum, entry) => sum + Number(entry.grandTotal || 0), 0);
-  const qris = normalTransactions.filter((entry) => entry.payment === "QRIS").reduce((sum, entry) => sum + Number(entry.grandTotal || 0), 0);
+  const paymentTotals = paymentTotalsFor(normalTransactions);
   const items = normalTransactions.reduce((sum, entry) => sum + entry.items.reduce((inner, item) => inner + item.qty, 0), 0);
   const discountTotal = normalTransactions.reduce((sum, entry) => sum + Number(entry.discountTotal || 0), 0);
   const staffValue = staffDrinks.reduce((sum, entry) => sum + Number(entry.originalTotal || entry.subtotal || 0), 0);
@@ -4294,8 +4333,7 @@ function dailyReportText(todayTransactions, reportDateValue = selectedDailyDate(
     `Total Diskon: ${money(discountTotal)}`,
     "",
     "Klasifikasi Pembayaran:",
-    `- Tunai: ${money(tunai)}`,
-    `- QRIS: ${money(qris)}`,
+    ...paymentReportMethods().map((method) => `- ${method}: ${money(paymentTotals.get(method) || 0)}`),
     "",
     "Rincian Shift:",
     ...shiftLines,
@@ -4317,10 +4355,7 @@ function renderDailySummary(todayTransactions, reportDateValue = selectedDailyDa
   const items = normalTransactions.reduce((sum, entry) => sum + entry.items.reduce((inner, item) => inner + item.qty, 0), 0);
   const discountTotal = normalTransactions.reduce((sum, entry) => sum + Number(entry.discountTotal || 0), 0);
   const staffValue = staffDrinks.reduce((sum, entry) => sum + Number(entry.originalTotal || entry.subtotal || 0), 0);
-  const paymentTotals = normalTransactions.reduce((map, entry) => {
-    map.set(entry.payment, (map.get(entry.payment) || 0) + entry.grandTotal);
-    return map;
-  }, new Map());
+  const paymentTotals = paymentTotalsFor(normalTransactions);
   const shiftTotals = ["Shift 1", "Shift 2"].map((shift) => {
     const transactions = normalTransactions.filter((entry) => (entry.shift || "Shift 1") === shift);
     return {
@@ -4360,7 +4395,7 @@ function renderDailySummary(todayTransactions, reportDateValue = selectedDailyDa
         .join("")}
     </div>
     <div class="payment-summary">
-      ${["Tunai", "QRIS"]
+      ${paymentReportMethods()
         .map((method) => `<div><span>${method}</span><strong>${money(paymentTotals.get(method) || 0)}</strong></div>`)
         .join("")}
     </div>
@@ -4538,8 +4573,9 @@ function renderAnalytics() {
   const staffDrinks = monthHistory.filter(isStaffDrinkTransaction);
   const history = revenueTransactions(monthHistory);
   const revenue = history.reduce((sum, entry) => sum + entry.grandTotal, 0);
-  const monthTunai = history.filter((entry) => entry.payment === "Tunai").reduce((sum, entry) => sum + Number(entry.grandTotal || 0), 0);
-  const monthQris = history.filter((entry) => entry.payment === "QRIS").reduce((sum, entry) => sum + Number(entry.grandTotal || 0), 0);
+  const monthPaymentTotals = paymentTotalsFor(history);
+  const monthTunai = monthPaymentTotals.get("Tunai") || 0;
+  const monthQris = monthPaymentTotals.get("QRIS") || 0;
   const discountedTransactions = history.filter((entry) => Number(entry.discountTotal || 0) > 0);
   const discountTotal = discountedTransactions.reduce((sum, entry) => sum + Number(entry.discountTotal || 0), 0);
   const uniqueDays = new Set(history.map((entry) => entry.createdAt.slice(0, 10))).size || 1;
