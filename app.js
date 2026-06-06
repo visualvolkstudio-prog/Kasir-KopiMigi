@@ -2321,9 +2321,19 @@ function closeEmployeeDeleteModal() {
   els.employeeDeleteModal?.setAttribute("aria-hidden", "true");
 }
 
-function confirmEmployeeDelete() {
+async function confirmEmployeeDelete() {
   const name = state.pendingEmployeeDelete;
   if (!name) return;
+  if (!navigator.onLine) {
+    toast("Hapus karyawan membutuhkan koneksi internet agar data Supabase tetap konsisten.");
+    return;
+  }
+  try {
+    await deleteEmployeeInCloud(name);
+  } catch {
+    toast("Karyawan belum terhapus. Coba lagi saat koneksi stabil.");
+    return;
+  }
   rememberDeletedEmployee(name);
   clearEmployeeLeaveStatus(name);
   const roster = saveEmployeeRoster(getEmployeeRoster().filter((entry) => entry !== name));
@@ -2339,9 +2349,11 @@ function confirmEmployeeDelete() {
   }
   closeEmployeeDeleteModal();
   renderEmployeeControls();
-  deleteEmployeeInCloud(name)
-    .then(() => Promise.all([syncEmployeesToCloud(), syncSettingsToCloud({ force: true })]))
-    .catch(() => Promise.all([syncEmployeesToCloud().catch(() => null), syncSettingsToCloud({ force: true }).catch(() => null)]));
+  await Promise.allSettled([
+    syncSettingsToCloud({ force: true }),
+    loadCloudData(),
+  ]);
+  renderEmployeeControls();
   toast(`${name} dihapus dari daftar karyawan.`);
 }
 
@@ -4010,10 +4022,9 @@ async function syncInventoryToCloud() {
   return true;
 }
 
-async function syncEmployeesToCloud({ restoreNames = [] } = {}) {
-  if (!navigator.onLine) return;
-  const employees = getEmployeeRoster();
-  await postSupabaseAction("sync-employees", { employees, restoreNames });
+async function addEmployeeInCloud(name) {
+  if (!navigator.onLine) throw new Error("Koneksi internet diperlukan.");
+  return postSupabaseAction("add-employee", { name });
 }
 
 async function deleteEmployeeInCloud(name) {
@@ -4153,7 +4164,6 @@ async function syncCloudData({ refresh = true } = {}) {
       syncPendingTransactions(),
       syncCashflowToCloud(),
       syncInventoryToCloud(),
-      syncEmployeesToCloud(),
       syncSettingsToCloud(),
     ]);
     if (refresh) {
@@ -5417,7 +5427,7 @@ els.checkoutBtn.addEventListener("click", checkout);
 els.boothPackage.addEventListener("change", () => {
   if (hasPhotoboothCart()) upsertPendingBoothSession();
 });
-els.employeeAddForm?.addEventListener("submit", (event) => {
+els.employeeAddForm?.addEventListener("submit", async (event) => {
   event.preventDefault();
   if (!isOwner()) {
     toast("Tambah karyawan hanya untuk Owner.");
@@ -5425,15 +5435,25 @@ els.employeeAddForm?.addEventListener("submit", (event) => {
   }
   const name = els.employeeNewName?.value.trim();
   if (!name) return;
+  if (!navigator.onLine) {
+    toast("Tambah karyawan membutuhkan koneksi internet agar tersimpan di Supabase.");
+    return;
+  }
+  try {
+    await addEmployeeInCloud(name);
+  } catch {
+    toast("Karyawan belum tersimpan. Coba lagi saat koneksi stabil.");
+    return;
+  }
   forgetDeletedEmployee(name);
   clearEmployeeLeaveStatus(name);
-  const roster = saveEmployeeRoster([...getEmployeeRoster(), name]);
+  saveEmployeeRoster([...getEmployeeRoster(), name]);
   localStorage.setItem(storageKeys.employee, name);
   const auth = readJson(storageKeys.auth, null);
   if (auth?.loggedIn) writeJson(storageKeys.auth, { ...auth, employee: name });
   if (els.employeeNewName) els.employeeNewName.value = "";
+  await loadCloudData().catch(() => null);
   renderEmployeeControls();
-  syncEmployeesToCloud({ restoreNames: [name] }).catch(() => null);
   toast(`${name} ditambahkan ke daftar karyawan.`);
 });
 els.employeeList?.addEventListener("click", (event) => {

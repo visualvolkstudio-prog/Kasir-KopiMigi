@@ -189,8 +189,10 @@ function collectEmployeeRows(body) {
   const uniqueNames = [...new Set(names.map((name) => String(name || "").trim()).filter(Boolean))];
   return uniqueNames.map((name) => ({
     name,
+    role: "cashier",
     active: true,
     updated_at: toIso(),
+    deleted_at: null,
   }));
 }
 
@@ -355,7 +357,7 @@ async function bootstrapData() {
     supabaseFetch("transaction_items?select=*"),
     supabaseFetch("cashflow_expenses?select=*&order=created_at.desc&limit=500"),
     supabaseFetch("inventory?select=*&order=name.asc"),
-    supabaseFetch("employees?select=*&active=eq.true&order=name.asc"),
+    supabaseFetch("employees?select=*&active=eq.true&deleted_at=is.null&order=name.asc"),
     supabaseFetch("app_settings?select=*&key=eq.global&limit=1").catch(() => []),
     supabaseFetch("app_settings?select=*&key=eq.deleted_employees&limit=1").catch(() => []),
   ]);
@@ -426,20 +428,6 @@ async function syncEmployees(body) {
   const deleted = new Set(deletedRows.map((entry) => entry.key || employeeKey(entry.name)).filter(Boolean));
   const rows = collectEmployeeRows(body).filter((row) => !deleted.has(employeeKey(row.name)));
 
-  const activeNames = new Set(rows.map((row) => row.name));
-  const existing = await supabaseFetch("employees?select=name");
-  const staleRows = Array.isArray(existing)
-    ? existing.filter((row) => row.name && (!activeNames.has(row.name) || deleted.has(employeeKey(row.name))))
-    : [];
-  await Promise.all(
-    staleRows.map((row) =>
-      supabaseFetch(`employees?name=eq.${encodeURIComponent(row.name)}`, {
-        method: "DELETE",
-        prefer: "return=minimal",
-      }),
-    ),
-  );
-
   if (rows.length) {
     await supabaseFetch("employees?on_conflict=name", {
       method: "POST",
@@ -448,6 +436,28 @@ async function syncEmployees(body) {
     });
   }
   return { status: 200, payload: { success: true, count: rows.length } };
+}
+
+async function addEmployee(body) {
+  const name = String(body.name || "").trim();
+  if (!name) return { status: 400, payload: { success: false, error: "Nama karyawan wajib ada." } };
+
+  const key = employeeKey(name);
+  const deletedRows = (await getDeletedEmployeeRows()).filter((entry) => (entry.key || employeeKey(entry.name)) !== key);
+  await saveDeletedEmployeeRows(deletedRows);
+
+  const rows = await supabaseFetch("employees?on_conflict=name", {
+    method: "POST",
+    prefer: "resolution=merge-duplicates,return=representation",
+    body: [{
+      name,
+      role: "cashier",
+      active: true,
+      updated_at: toIso(),
+      deleted_at: null,
+    }],
+  });
+  return { status: 200, payload: { success: true, employee: Array.isArray(rows) ? rows[0] : { name } } };
 }
 
 async function syncSettings(body) {
@@ -492,11 +502,16 @@ async function deleteEmployee(body) {
   const name = String(body.name || "").trim();
   if (!name) return { status: 400, payload: { success: false, error: "Nama karyawan wajib ada." } };
   await rememberDeletedEmployee(name);
-  await supabaseFetch(`employees?name=ilike.${encodeURIComponent(name)}`, {
-    method: "DELETE",
-    prefer: "return=minimal",
+  const rows = await supabaseFetch(`employees?name=ilike.${encodeURIComponent(name)}`, {
+    method: "PATCH",
+    prefer: "return=representation",
+    body: {
+      active: false,
+      updated_at: toIso(),
+      deleted_at: toIso(),
+    },
   });
-  return { status: 200, payload: { success: true, name } };
+  return { status: 200, payload: { success: true, name, employee: Array.isArray(rows) ? rows[0] : null } };
 }
 
 async function devicePresence(body, req) {
@@ -600,6 +615,8 @@ async function dispatch(body, req) {
       return syncInventory(body);
     case "sync-employees":
       return syncEmployees(body);
+    case "add-employee":
+      return addEmployee(body);
     case "sync-settings":
       return syncSettings(body);
     case "get-settings":
