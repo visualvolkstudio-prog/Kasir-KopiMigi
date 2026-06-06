@@ -92,6 +92,7 @@ const state = {
   menuSaving: false,
   reportShareText: "",
   logoutAfterOrder: false,
+  shiftTransitionHandled: "",
   pendingLogin: null,
   orderProcessing: false,
   pendingSyncCount: 0,
@@ -408,6 +409,9 @@ function getActiveShift(value = new Date()) {
   const auth = getAuth();
   const automaticShift = autoShiftName(value);
   const sessionShift = normalizeShift(auth?.shift || automaticShift);
+  if (auth?.loggedIn && auth.role === "cashier" && state.logoutAfterOrder && sessionShift !== automaticShift) {
+    return sessionShift;
+  }
   return auth?.loggedIn && sessionShift !== automaticShift ? automaticShift : sessionShift;
 }
 
@@ -1027,14 +1031,46 @@ function updateAuthShift(shift) {
   return true;
 }
 
+function sessionStartedBeforeHour(auth, now, hour) {
+  const boundary = new Date(now);
+  boundary.setHours(hour, 0, 0, 0);
+  const loginAt = new Date(auth?.loginAt || auth?.at || 0);
+  return Number.isNaN(loginAt.getTime()) || loginAt < boundary;
+}
+
 function syncActiveShiftWithClock(now = new Date()) {
   const auth = getAuth();
   if (!auth?.loggedIn) return false;
   const automaticShift = autoShiftName(now);
+  const minuteOfDay = now.getHours() * 60 + now.getMinutes();
+  if (
+    auth.role === "cashier" &&
+    normalizeShift(auth.shift) === "Shift 2" &&
+    minuteOfDay >= 22 * 60 &&
+    sessionStartedBeforeHour(auth, now, 22)
+  ) {
+    const closingKey = `${dateKey(now)}:tutup`;
+    if (state.shiftTransitionHandled !== closingKey) {
+      state.shiftTransitionHandled = closingKey;
+      handleShiftAutoLogout({
+        message: "Shift 2 selesai. Silakan login kembali jika toko masih beroperasi.",
+      });
+    }
+    return false;
+  }
   if (normalizeShift(auth.shift) === automaticShift) return false;
-  const changed = updateAuthShift(automaticShift);
-  if (changed && auth.role === "cashier") registerShiftAssignment(auth.employee, automaticShift, auth.dutyRole || "karyawan");
-  return changed;
+  localStorage.setItem(storageKeys.activeShift, automaticShift);
+  if (auth.role === "cashier") {
+    const transitionKey = `${dateKey(now)}:${automaticShift}`;
+    if (state.shiftTransitionHandled !== transitionKey) {
+      state.shiftTransitionHandled = transitionKey;
+      handleShiftAutoLogout({
+        message: `${normalizeShift(auth.shift)} selesai. Silakan login ulang dan pilih petugas ${automaticShift}.`,
+      });
+    }
+    return false;
+  }
+  return updateAuthShift(automaticShift);
 }
 
 function shiftSummaryLines(shift = getActiveShift(), date = dateKey()) {
@@ -1183,7 +1219,13 @@ function runShiftScheduleChecks(now = new Date()) {
     toast("Shift 2 hampir selesai. Siapkan laporan tutup toko.");
   }
 
-  if (activeShift === "Shift 2" && hour === 22 && minute === 0 && markShiftActionOnce("shift-2-auto-logout", now)) {
+  if (
+    activeShift === "Shift 2" &&
+    hour === 22 &&
+    minute === 0 &&
+    sessionStartedBeforeHour(getAuth(), now, 22) &&
+    markShiftActionOnce("shift-2-auto-logout", now)
+  ) {
     handleShiftAutoLogout();
   }
 
@@ -1193,15 +1235,11 @@ function hasActiveOrderInProgress() {
   return state.cart.length > 0 || els.orderModal?.classList.contains("open");
 }
 
-function handleShiftAutoLogout() {
-  const message = "Shift hampir selesai. Silakan login ulang atau tutup shift.";
+function handleShiftAutoLogout({ message = "Shift selesai. Silakan login ulang untuk shift berikutnya." } = {}) {
   if (hasActiveOrderInProgress()) {
-    const logoutNow = window.confirm(`${message}\n\nOK = Logout Setelah Ini\nBatal = Selesaikan Order dulu`);
-    if (!logoutNow) {
-      state.logoutAfterOrder = true;
-      toast("Selesaikan order dulu, lalu sesi akan logout otomatis.");
-      return;
-    }
+    state.logoutAfterOrder = true;
+    toast("Selesaikan order aktif dulu. Setelah selesai, sesi akan logout otomatis.");
+    return;
   }
   logout();
   toast(message);
@@ -1211,7 +1249,7 @@ function completeDeferredShiftLogout() {
   if (!state.logoutAfterOrder || hasActiveOrderInProgress()) return;
   state.logoutAfterOrder = false;
   logout();
-  toast("Shift hampir selesai. Silakan login ulang atau tutup shift.");
+  toast("Shift selesai. Silakan login ulang dan pilih petugas shift berikutnya.");
 }
 
 function updateClock() {
