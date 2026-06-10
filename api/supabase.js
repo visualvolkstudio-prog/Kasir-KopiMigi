@@ -428,14 +428,33 @@ async function syncEmployees(body) {
   const deleted = new Set(deletedRows.map((entry) => entry.key || employeeKey(entry.name)).filter(Boolean));
   const rows = collectEmployeeRows(body).filter((row) => !deleted.has(employeeKey(row.name)));
 
-  if (rows.length) {
-    await supabaseFetch("employees?on_conflict=name", {
-      method: "POST",
-      prefer: "resolution=merge-duplicates,return=representation",
-      body: rows,
-    });
-  }
+  await Promise.all(rows.map(upsertEmployeeByName));
   return { status: 200, payload: { success: true, count: rows.length } };
+}
+
+async function upsertEmployeeByName(row) {
+  const name = String(row.name || "").trim();
+  if (!name) return null;
+  const payload = {
+    ...row,
+    name,
+    role: row.role || "cashier",
+    active: row.active !== false,
+    updated_at: row.updated_at || toIso(),
+    deleted_at: row.deleted_at || null,
+  };
+  const updated = await supabaseFetch(`employees?name=ilike.${encodeURIComponent(name)}`, {
+    method: "PATCH",
+    prefer: "return=representation",
+    body: payload,
+  });
+  if (Array.isArray(updated) && updated.length) return updated[0];
+  const inserted = await supabaseFetch("employees", {
+    method: "POST",
+    prefer: "return=representation",
+    body: [payload],
+  });
+  return Array.isArray(inserted) ? inserted[0] : null;
 }
 
 async function addEmployee(body) {
@@ -446,18 +465,14 @@ async function addEmployee(body) {
   const deletedRows = (await getDeletedEmployeeRows()).filter((entry) => (entry.key || employeeKey(entry.name)) !== key);
   await saveDeletedEmployeeRows(deletedRows);
 
-  const rows = await supabaseFetch("employees?on_conflict=name", {
-    method: "POST",
-    prefer: "resolution=merge-duplicates,return=representation",
-    body: [{
-      name,
-      role: "cashier",
-      active: true,
-      updated_at: toIso(),
-      deleted_at: null,
-    }],
+  const employee = await upsertEmployeeByName({
+    name,
+    role: "cashier",
+    active: true,
+    updated_at: toIso(),
+    deleted_at: null,
   });
-  return { status: 200, payload: { success: true, employee: Array.isArray(rows) ? rows[0] : { name } } };
+  return { status: 200, payload: { success: true, employee: employee || { name } } };
 }
 
 async function syncSettings(body) {

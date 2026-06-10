@@ -4030,8 +4030,12 @@ async function postCloudJson(url, payload) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
-  if (!response.ok) throw new Error(`Cloud sync gagal: ${response.status}`);
-  return response.json();
+  const text = await response.text();
+  const data = text ? JSON.parse(text) : {};
+  if (!response.ok || data?.success === false) {
+    throw new Error(data?.error || `Cloud sync gagal: ${response.status}`);
+  }
+  return data;
 }
 
 async function postSupabaseAction(action, payload = {}) {
