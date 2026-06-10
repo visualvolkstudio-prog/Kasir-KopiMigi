@@ -5176,6 +5176,14 @@ function registerServiceWorker() {
         toast("Service worker belum aktif. Coba refresh saat online.");
       });
   });
+
+  let refreshing = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (!refreshing) {
+      refreshing = true;
+      window.location.reload();
+    }
+  });
 }
 
 function setActiveView(viewName, { persist = true } = {}) {
