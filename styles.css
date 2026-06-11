@@ -562,6 +562,22 @@ h3 { font-size: 16px; font-weight: 700; }
   white-space: nowrap;
 }
 
+.app-version-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.app-version-row strong {
+  color: var(--text);
+  font-family: var(--font-mono);
+}
+
 .pending-sync-panel { margin-top: 16px; }
 
 .offline-page {
