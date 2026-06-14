@@ -264,6 +264,32 @@
       </form>
     </section>
 
+    <section class="order-modal daily-cash-modal" id="dailyCashModal" aria-label="Catat kas harian" aria-hidden="true">
+      <form class="order-card confirm-card daily-cash-card" id="dailyCashForm">
+        <div class="modal-head">
+          <div>
+            <p class="eyebrow">Tutup Shift 2</p>
+            <h2>Kas Harian</h2>
+          </div>
+          <button class="icon-button modal-close" id="cancelDailyCash" type="button" title="Batal tutup shift">
+            <i class="ph ph-x" aria-hidden="true"></i>
+          </button>
+        </div>
+        <div class="confirm-body daily-cash-body">
+          <p>Masukkan kas yang disiapkan untuk kembalian hari berikutnya.</p>
+          <label>
+            Kas untuk kembalian
+            <input id="dailyCashAmount" type="text" inputmode="numeric" placeholder="Rp 25.000" required />
+          </label>
+          <small>Catatan ini tidak memengaruhi omzet atau arus kas.</small>
+        </div>
+        <div class="modal-actions">
+          <button class="secondary-button" id="dailyCashCancelBtn" type="button">Batal</button>
+          <button class="primary-button" type="submit">Simpan &amp; Siapkan Laporan</button>
+        </div>
+      </form>
+    </section>
+
     <section class="order-modal transaction-edit-modal" id="transactionEditModal" aria-label="Edit struk" aria-hidden="true">
       <form class="order-card transaction-edit-card" id="transactionEditForm">
         <div class="modal-head">

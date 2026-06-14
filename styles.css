@@ -1846,6 +1846,18 @@ input:focus, select:focus {
 }
 
 .daily-summary strong { display: block; margin-top: 4px; font-weight: 800; }
+.daily-summary small {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+.daily-cash-summary {
+  grid-column: 1 / -1;
+  border-color: rgba(0, 52, 155, 0.18) !important;
+  background: rgba(0, 52, 155, 0.05) !important;
+}
 .payment-summary { grid-column: 1/-1; display: grid; gap: 7px; }
 .payment-summary div { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 13.5px; }
 
@@ -1907,6 +1919,27 @@ input:focus, select:focus {
 .shift-summary small {
   display: block;
   margin-top: 4px;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.daily-cash-card {
+  max-width: 460px;
+}
+
+.daily-cash-body {
+  display: grid;
+  gap: 14px;
+}
+
+.daily-cash-body label {
+  display: grid;
+  gap: 7px;
+  color: var(--ink);
+  font-weight: 800;
+}
+
+.daily-cash-body small {
   color: var(--muted);
   font-weight: 700;
 }

@@ -35,6 +35,7 @@ const storageKeys = {
   activeView: "kasir-migi-active-view",
   shiftActions: "kasir-migi-shift-actions",
   shiftAssignments: "kasir-migi-shift-assignments",
+  dailyCashReports: "kasir-migi-daily-cash-reports",
   settingsDirty: "kasir-migi-settings-dirty",
   deviceId: "kasir-migi-device-id",
   lastDeviceWarning: "kasir-migi-last-device-warning",
@@ -171,6 +172,11 @@ const els = {
   employeeDeleteName: document.querySelector("#employeeDeleteName"),
   cancelEmployeeDelete: document.querySelector("#cancelEmployeeDelete"),
   employeeDeleteCancelBtn: document.querySelector("#employeeDeleteCancelBtn"),
+  dailyCashModal: document.querySelector("#dailyCashModal"),
+  dailyCashForm: document.querySelector("#dailyCashForm"),
+  dailyCashAmount: document.querySelector("#dailyCashAmount"),
+  cancelDailyCash: document.querySelector("#cancelDailyCash"),
+  dailyCashCancelBtn: document.querySelector("#dailyCashCancelBtn"),
   transactionEditModal: document.querySelector("#transactionEditModal"),
   transactionEditForm: document.querySelector("#transactionEditForm"),
   transactionEditCloseBtn: document.querySelector("#transactionEditCloseBtn"),
@@ -1108,6 +1114,7 @@ function shiftReportText(shift, reportDateValue = dateKey()) {
   const discount = normal.reduce((sum, entry) => sum + Number(entry.discountTotal || 0), 0);
   const employees = [...new Set(transactions.map(transactionEmployeeDisplay).filter(Boolean))];
   const itemCount = normal.reduce((sum, entry) => sum + entry.items.reduce((inner, item) => inner + item.qty, 0), 0);
+  const dailyCash = getDailyCashReport(reportDateValue);
 
   return [
     `Laporan ${shift}`,
@@ -1120,6 +1127,7 @@ function shiftReportText(shift, reportDateValue = dateKey()) {
     ...paymentReportMethods().map((method) => `${method}: ${money(paymentTotals.get(method) || 0)}`),
     `Total Diskon: ${money(discount)}`,
     `Staff Drink: ${staffDrinks.length}`,
+    ...(shift === "Shift 2" ? [`Kas Harian untuk Kembalian: ${dailyCash ? money(dailyCash.amount) : "-"}`] : []),
   ].join("\n");
 }
 
@@ -1134,7 +1142,7 @@ function markReportReady(action, label, text) {
   if (els.shareDailyReport) els.shareDailyReport.title = label;
 }
 
-async function closeActiveShift() {
+async function prepareActiveShiftReport() {
   if (!isOwner()) {
     toast("Laporan shift hanya untuk Owner.");
     return;
@@ -1152,6 +1160,31 @@ async function closeActiveShift() {
   } catch {
     toast(`Laporan ${shift} siap di tab Analitik.`);
   }
+}
+
+function openDailyCashModal() {
+  const saved = getDailyCashReport(dateKey());
+  els.dailyCashAmount.value = saved?.amount ? money(saved.amount) : "";
+  els.dailyCashModal.classList.add("open");
+  els.dailyCashModal.setAttribute("aria-hidden", "false");
+  requestAnimationFrame(() => els.dailyCashAmount.focus());
+}
+
+function closeDailyCashModal() {
+  els.dailyCashModal.classList.remove("open");
+  els.dailyCashModal.setAttribute("aria-hidden", "true");
+}
+
+function closeActiveShift() {
+  if (!isOwner()) {
+    toast("Laporan shift hanya untuk Owner.");
+    return;
+  }
+  if (currentShiftName() === "Shift 2") {
+    openDailyCashModal();
+    return;
+  }
+  prepareActiveShiftReport();
 }
 
 function updateEmployeeHeaderState(now = new Date()) {
@@ -1463,6 +1496,7 @@ function getSettingsPayload() {
     recipes: getRecipes(),
     discountVouchers: getDiscountVouchers(),
     employeeLeaves: getEmployeeLeaveMap(),
+    dailyCashReports: getDailyCashReports(),
   };
 }
 
@@ -1497,7 +1531,33 @@ function applyCloudSettings(settings) {
     saveEmployeeLeaveMap(settings.employeeLeaves, { dirty: false });
     changed = true;
   }
+  if (settings.dailyCashReports && typeof settings.dailyCashReports === "object" && !Array.isArray(settings.dailyCashReports)) {
+    writeJson(storageKeys.dailyCashReports, settings.dailyCashReports);
+    changed = true;
+  }
   return changed;
+}
+
+function getDailyCashReports() {
+  const reports = readJson(storageKeys.dailyCashReports, {});
+  return reports && typeof reports === "object" && !Array.isArray(reports) ? reports : {};
+}
+
+function getDailyCashReport(reportDate = dateKey()) {
+  return getDailyCashReports()[reportDate] || null;
+}
+
+function saveDailyCashReport(reportDate, amount) {
+  const reports = getDailyCashReports();
+  reports[reportDate] = {
+    amount: Math.max(0, Number(amount || 0)),
+    employee: activeEmployeeName(),
+    shift: "Shift 2",
+    createdAt: new Date().toISOString(),
+  };
+  writeJson(storageKeys.dailyCashReports, reports);
+  markSettingsDirty();
+  return reports[reportDate];
 }
 
 function getCashflowExpenses() {
@@ -4355,6 +4415,7 @@ function dailyReportText(todayTransactions, reportDateValue = selectedDailyDate(
   const items = normalTransactions.reduce((sum, entry) => sum + entry.items.reduce((inner, item) => inner + item.qty, 0), 0);
   const discountTotal = normalTransactions.reduce((sum, entry) => sum + Number(entry.discountTotal || 0), 0);
   const staffValue = staffDrinks.reduce((sum, entry) => sum + Number(entry.originalTotal || entry.subtotal || 0), 0);
+  const dailyCash = getDailyCashReport(reportDateValue);
   const orderedItems = [...normalTransactions.reduce((map, entry) => {
     entry.items.forEach((item) => {
       const current = map.get(item.id) || { name: item.name, category: item.category || "Lainnya", qty: 0, revenue: 0 };
@@ -4390,6 +4451,9 @@ function dailyReportText(todayTransactions, reportDateValue = selectedDailyDate(
     "Rincian Shift:",
     ...shiftLines,
     "",
+    `Kas Harian untuk Kembalian: ${dailyCash ? money(dailyCash.amount) : "-"}`,
+    ...(dailyCash?.employee ? [`Dicatat oleh: ${dailyCash.employee}`] : []),
+    "",
     "Konsumsi Karyawan:",
     ...(staffDrinks.length ? staffDrinks.map((entry) => `- ${transactionEmployeeDisplay(entry)}: ${staffDrinkItemsLabel(entry)} (${money(entry.originalTotal || entry.subtotal || 0)})`) : ["- Belum ada Staff Drink"]),
     `Nilai konsumsi: ${money(staffValue)}`,
@@ -4408,6 +4472,7 @@ function renderDailySummary(todayTransactions, reportDateValue = selectedDailyDa
   const discountTotal = normalTransactions.reduce((sum, entry) => sum + Number(entry.discountTotal || 0), 0);
   const staffValue = staffDrinks.reduce((sum, entry) => sum + Number(entry.originalTotal || entry.subtotal || 0), 0);
   const paymentTotals = paymentTotalsFor(normalTransactions);
+  const dailyCash = getDailyCashReport(reportDateValue);
   const shiftTotals = ["Shift 1", "Shift 2"].map((shift) => {
     const transactions = normalTransactions.filter((entry) => (entry.shift || "Shift 1") === shift);
     return {
@@ -4433,6 +4498,11 @@ function renderDailySummary(todayTransactions, reportDateValue = selectedDailyDa
     <article><span>Menu paling jalan</span><strong>${topItem ? `${topItem.name} (${topItem.qty})` : "-"}</strong></article>
     <article><span>Total diskon</span><strong>${money(discountTotal)}</strong></article>
     <article><span>Konsumsi karyawan</span><strong>${staffDrinks.length} staff drink</strong><small>${money(staffValue)}</small></article>
+    <article class="daily-cash-summary">
+      <span>Kas harian untuk kembalian</span>
+      <strong>${dailyCash ? money(dailyCash.amount) : "-"}</strong>
+      ${dailyCash?.employee ? `<small>Dicatat ${escapeHtml(dailyCash.employee)}</small>` : ""}
+    </article>
     <div class="shift-summary">
       ${shiftTotals
         .map(
@@ -5444,6 +5514,32 @@ els.pendingSyncList?.addEventListener("click", async (event) => {
 els.manualSyncBtn?.addEventListener("click", () => refreshOnlineData({ render: true }).catch(() => null));
 els.manualSyncOrdersBtn?.addEventListener("click", () => refreshOnlineData({ render: true }).catch(() => null));
 els.closeShiftBtn?.addEventListener("click", closeActiveShift);
+els.cancelDailyCash?.addEventListener("click", closeDailyCashModal);
+els.dailyCashCancelBtn?.addEventListener("click", closeDailyCashModal);
+els.dailyCashAmount?.addEventListener("input", () => {
+  const amount = parseRupiah(els.dailyCashAmount.value);
+  els.dailyCashAmount.value = amount ? money(amount) : "";
+});
+els.dailyCashForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const amount = parseRupiah(els.dailyCashAmount.value);
+  if (amount <= 0) {
+    toast("Isi nominal kas harian untuk kembalian.");
+    els.dailyCashAmount.focus();
+    return;
+  }
+  saveDailyCashReport(dateKey(), amount);
+  closeDailyCashModal();
+  renderHistory();
+  if (navigator.onLine) {
+    try {
+      await syncSettingsToCloud({ force: true });
+    } catch {
+      toast("Kas tersimpan di perangkat dan akan disinkronkan saat online.");
+    }
+  }
+  await prepareActiveShiftReport();
+});
 window.addEventListener("online", updateConnectionStatus);
 window.addEventListener("offline", updateConnectionStatus);
 window.addEventListener("storage", (event) => {
