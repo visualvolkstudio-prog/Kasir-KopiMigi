@@ -36,6 +36,7 @@ const storageKeys = {
   shiftActions: "kasir-migi-shift-actions",
   shiftAssignments: "kasir-migi-shift-assignments",
   dailyCashReports: "kasir-migi-daily-cash-reports",
+  wifiReceipt: "kasir-migi-wifi-receipt",
   settingsDirty: "kasir-migi-settings-dirty",
   deviceId: "kasir-migi-device-id",
   lastDeviceWarning: "kasir-migi-last-device-warning",
@@ -177,6 +178,10 @@ const els = {
   dailyCashAmount: document.querySelector("#dailyCashAmount"),
   cancelDailyCash: document.querySelector("#cancelDailyCash"),
   dailyCashCancelBtn: document.querySelector("#dailyCashCancelBtn"),
+  wifiSettingsForm: document.querySelector("#wifiSettingsForm"),
+  wifiReceiptEnabled: document.querySelector("#wifiReceiptEnabled"),
+  wifiName: document.querySelector("#wifiName"),
+  wifiPassword: document.querySelector("#wifiPassword"),
   transactionEditModal: document.querySelector("#transactionEditModal"),
   transactionEditForm: document.querySelector("#transactionEditForm"),
   transactionEditCloseBtn: document.querySelector("#transactionEditCloseBtn"),
@@ -1143,10 +1148,6 @@ function markReportReady(action, label, text) {
 }
 
 async function prepareActiveShiftReport() {
-  if (!isOwner()) {
-    toast("Laporan shift hanya untuk Owner.");
-    return;
-  }
   const shift = currentShiftName();
   const text = shiftReportText(shift, dateKey());
   state.reportShareText = text;
@@ -1176,12 +1177,12 @@ function closeDailyCashModal() {
 }
 
 function closeActiveShift() {
-  if (!isOwner()) {
-    toast("Laporan shift hanya untuk Owner.");
-    return;
-  }
   if (currentShiftName() === "Shift 2") {
     openDailyCashModal();
+    return;
+  }
+  if (!isOwner()) {
+    toast("Kas Harian diisi saat menutup Shift 2.");
     return;
   }
   prepareActiveShiftReport();
@@ -1497,6 +1498,7 @@ function getSettingsPayload() {
     discountVouchers: getDiscountVouchers(),
     employeeLeaves: getEmployeeLeaveMap(),
     dailyCashReports: getDailyCashReports(),
+    wifiReceipt: getWifiReceiptSettings(),
   };
 }
 
@@ -1535,7 +1537,39 @@ function applyCloudSettings(settings) {
     writeJson(storageKeys.dailyCashReports, settings.dailyCashReports);
     changed = true;
   }
+  if (settings.wifiReceipt && typeof settings.wifiReceipt === "object" && !Array.isArray(settings.wifiReceipt)) {
+    writeJson(storageKeys.wifiReceipt, settings.wifiReceipt);
+    changed = true;
+  }
   return changed;
+}
+
+function getWifiReceiptSettings() {
+  const settings = readJson(storageKeys.wifiReceipt, {});
+  return {
+    enabled: settings?.enabled === true,
+    ssid: String(settings?.ssid || "").trim(),
+    password: String(settings?.password || ""),
+    security: "WPA",
+  };
+}
+
+function saveWifiReceiptSettings(settings) {
+  writeJson(storageKeys.wifiReceipt, {
+    enabled: settings.enabled === true,
+    ssid: String(settings.ssid || "").trim(),
+    password: String(settings.password || ""),
+    security: "WPA",
+  });
+  markSettingsDirty();
+}
+
+function renderWifiReceiptSettings() {
+  if (!els.wifiSettingsForm) return;
+  const settings = getWifiReceiptSettings();
+  els.wifiReceiptEnabled.checked = settings.enabled;
+  els.wifiName.value = settings.ssid;
+  els.wifiPassword.value = settings.password;
 }
 
 function getDailyCashReports() {
@@ -3363,7 +3397,7 @@ async function printReceipt(transaction, kind = "paid") {
   return false;
 }
 
-function receiptText(transaction, kind = "paid") {
+function receiptText(transaction, kind = "paid", { includeFooter = true } = {}) {
   const width = els.printerPaperSize.value === "80mm" ? 42 : 32;
   const staffDrink = isStaffDrinkTransaction(transaction);
   const displayCode = receiptDisplayCode(transaction, kind);
@@ -3424,9 +3458,11 @@ function receiptText(transaction, kind = "paid") {
     rows.push(`Kode akses: ${transaction.boothCode}`);
   }
   rows.push(line);
-  rows.push(center("Terima kasih sudah mampir."));
-  rows.push(center("Ditunggu kembali di Kopi Migi :)"));
-  return `${rows.join("\n")}\n\n\n`;
+  if (includeFooter) {
+    rows.push(center("Terima kasih sudah mampir."));
+    rows.push(center("Ditunggu kembali di Kopi Migi :)"));
+  }
+  return `${rows.join("\n")}${includeFooter ? "\n\n\n" : "\n"}`;
 }
 
 function encodeEscPos(text) {
@@ -3488,16 +3524,47 @@ async function escPosLogoBytes() {
   ];
 }
 
+function escapeWifiQrValue(value = "") {
+  return String(value).replace(/([\\;,"])/g, "\\$1");
+}
+
+function wifiQrPayload() {
+  const settings = getWifiReceiptSettings();
+  if (!settings.enabled || !settings.ssid || !settings.password) return "";
+  return `WIFI:T:${settings.security};S:${escapeWifiQrValue(settings.ssid)};P:${escapeWifiQrValue(settings.password)};;`;
+}
+
+function escPosWifiQrBytes(payload) {
+  const data = [...new TextEncoder().encode(payload)];
+  const storeLength = data.length + 3;
+  const pL = storeLength & 0xff;
+  const pH = (storeLength >> 8) & 0xff;
+  return [
+    0x1b, 0x61, 0x01,
+    ...new TextEncoder().encode("Scan untuk terhubung\n"),
+    0x1d, 0x28, 0x6b, 0x04, 0x00, 0x31, 0x41, 0x32, 0x00,
+    0x1d, 0x28, 0x6b, 0x03, 0x00, 0x31, 0x43, 0x06,
+    0x1d, 0x28, 0x6b, 0x03, 0x00, 0x31, 0x45, 0x31,
+    0x1d, 0x28, 0x6b, pL, pH, 0x31, 0x50, 0x30, ...data,
+    0x1d, 0x28, 0x6b, 0x03, 0x00, 0x31, 0x51, 0x30,
+    0x0a,
+    ...new TextEncoder().encode("Terima kasih sudah mampir.\nDitunggu kembali di Kopi Migi :)\n"),
+    0x1b, 0x61, 0x00,
+  ];
+}
+
 async function encodeEscPosReceipt(transaction, kind) {
   const encoder = new TextEncoder();
   const init = [0x1b, 0x40];
-  const body = [...encoder.encode(receiptText(transaction, kind))];
+  const wifiPayload = kind === "paid" ? wifiQrPayload() : "";
+  const body = [...encoder.encode(receiptText(transaction, kind, { includeFooter: !wifiPayload }))];
+  const wifiBlock = wifiPayload ? escPosWifiQrBytes(wifiPayload) : [];
   const feedBeforeCut = [0x1b, 0x64, 0x04];
   const cut = [0x1d, 0x56, 0x42, 0x00];
   try {
-    return new Uint8Array([...init, ...(await escPosLogoBytes()), ...body, ...feedBeforeCut, ...cut]);
+    return new Uint8Array([...init, ...(await escPosLogoBytes()), ...body, ...wifiBlock, ...feedBeforeCut, ...cut]);
   } catch {
-    return new Uint8Array([...init, ...body, ...feedBeforeCut, ...cut]);
+    return new Uint8Array([...init, ...body, ...wifiBlock, ...feedBeforeCut, ...cut]);
   }
 }
 
@@ -5233,6 +5300,7 @@ function renderAll() {
   renderBoothQueue();
   drawBoothCanvas();
   syncCfExpenseNoteField();
+  renderWifiReceiptSettings();
   renderPendingSync();
 }
 
@@ -5539,6 +5607,27 @@ els.dailyCashForm?.addEventListener("submit", async (event) => {
     }
   }
   await prepareActiveShiftReport();
+});
+els.wifiSettingsForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (!isOwner()) {
+    toast("Pengaturan WiFi hanya untuk Owner.");
+    return;
+  }
+  const enabled = els.wifiReceiptEnabled.checked;
+  const ssid = els.wifiName.value.trim();
+  const password = els.wifiPassword.value;
+  if (enabled && (!ssid || !password)) {
+    toast("Isi nama dan password WiFi sebelum mengaktifkan QR.");
+    return;
+  }
+  saveWifiReceiptSettings({ enabled, ssid, password });
+  try {
+    await syncSettingsToCloud({ force: true });
+    toast(enabled ? "QR WiFi akan dicetak pada struk lunas." : "QR WiFi pada struk dinonaktifkan.");
+  } catch {
+    toast("Pengaturan WiFi tersimpan lokal dan akan disinkronkan saat online.");
+  }
 });
 window.addEventListener("online", updateConnectionStatus);
 window.addEventListener("offline", updateConnectionStatus);

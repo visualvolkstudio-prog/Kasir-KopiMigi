@@ -2133,6 +2133,26 @@ input:focus, select:focus {
 /* ── Settings ────────────────────────────────── */
 .settings-panel { display: grid; gap: 13px; }
 
+.wifi-settings-form {
+  display: grid;
+  gap: 12px;
+}
+
+.wifi-settings-form > label:not(.toggle-line) {
+  display: grid;
+  gap: 7px;
+  color: var(--ink);
+  font-weight: 750;
+}
+
+.settings-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.5;
+}
+
 .employee-field { width: 180px; position: relative; display: block; }
 .employee-field span { position: absolute; left: 11px; top: 5px; color: var(--muted); font-size: 9.5px; font-weight: 800; text-transform: uppercase; z-index: 1; letter-spacing: 0.06em; }
 .employee-field input { min-height: 40px; padding: 17px 11px 5px; font-weight: 700; }
