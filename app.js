@@ -182,6 +182,8 @@ const els = {
   wifiReceiptEnabled: document.querySelector("#wifiReceiptEnabled"),
   wifiName: document.querySelector("#wifiName"),
   wifiPassword: document.querySelector("#wifiPassword"),
+  checkoutWifiLine: document.querySelector("#checkoutWifiLine"),
+  checkoutWifiReceipt: document.querySelector("#checkoutWifiReceipt"),
   transactionEditModal: document.querySelector("#transactionEditModal"),
   transactionEditForm: document.querySelector("#transactionEditForm"),
   transactionEditCloseBtn: document.querySelector("#transactionEditCloseBtn"),
@@ -1572,6 +1574,19 @@ function renderWifiReceiptSettings() {
   els.wifiPassword.value = settings.password;
 }
 
+function canPrintWifiReceipt() {
+  const settings = getWifiReceiptSettings();
+  return Boolean(settings.ssid && settings.password);
+}
+
+function syncCheckoutWifiOption({ reset = false } = {}) {
+  if (!els.checkoutWifiLine || !els.checkoutWifiReceipt) return;
+  const available = canPrintWifiReceipt();
+  els.checkoutWifiLine.hidden = !available;
+  els.checkoutWifiReceipt.disabled = !available;
+  if (reset) els.checkoutWifiReceipt.checked = available && getWifiReceiptSettings().enabled;
+}
+
 function getDailyCashReports() {
   const reports = readJson(storageKeys.dailyCashReports, {});
   return reports && typeof reports === "object" && !Array.isArray(reports) ? reports : {};
@@ -2119,6 +2134,7 @@ function resetOrderAdjustments() {
     els.paidAmount.value = "";
   }
   state.payment = "Tunai";
+  syncCheckoutWifiOption({ reset: true });
   syncOrderTypeUi();
 }
 
@@ -2913,6 +2929,7 @@ function openOrderModal() {
   els.orderCustomerName.value = els.customerName.value || "Teman Migi";
   if (els.orderShift) els.orderShift.value = currentShiftName();
   els.orderTableNumber.value = state.activeDraftId || nextDailyOrderCode(new Date(), state.orderChannel);
+  syncCheckoutWifiOption({ reset: true });
   syncOrderTypeUi();
   els.modalOrderList.innerHTML = state.cart.length
     ? state.cart
@@ -3177,6 +3194,7 @@ function currentTransaction(draft = false) {
     discountNote: discountAllowed ? state.discountNote : "",
     originalTotal: total.originalTotal,
     payment,
+    printWifiQr: !draft && Boolean(els.checkoutWifiReceipt?.checked) && canPrintWifiReceipt(),
     boothPackage: hasPhotoboothCart() ? els.boothPackage.value : "none",
     boothPrintQuantity: photoboothOrderQty(),
     boothCode: "",
@@ -3528,9 +3546,10 @@ function escapeWifiQrValue(value = "") {
   return String(value).replace(/([\\;,"])/g, "\\$1");
 }
 
-function wifiQrPayload() {
+function wifiQrPayload(transaction = {}) {
   const settings = getWifiReceiptSettings();
-  if (!settings.enabled || !settings.ssid || !settings.password) return "";
+  if (transaction.printWifiQr !== true) return "";
+  if (!settings.ssid || !settings.password) return "";
   return `WIFI:T:${settings.security};S:${escapeWifiQrValue(settings.ssid)};P:${escapeWifiQrValue(settings.password)};;`;
 }
 
@@ -3556,7 +3575,7 @@ function escPosWifiQrBytes(payload) {
 async function encodeEscPosReceipt(transaction, kind) {
   const encoder = new TextEncoder();
   const init = [0x1b, 0x40];
-  const wifiPayload = kind === "paid" ? wifiQrPayload() : "";
+  const wifiPayload = kind === "paid" ? wifiQrPayload(transaction) : "";
   const body = [...encoder.encode(receiptText(transaction, kind, { includeFooter: !wifiPayload }))];
   const wifiBlock = wifiPayload ? escPosWifiQrBytes(wifiPayload) : [];
   const feedBeforeCut = [0x1b, 0x64, 0x04];
@@ -5622,6 +5641,7 @@ els.wifiSettingsForm?.addEventListener("submit", async (event) => {
     return;
   }
   saveWifiReceiptSettings({ enabled, ssid, password });
+  syncCheckoutWifiOption({ reset: true });
   try {
     await syncSettingsToCloud({ force: true });
     toast(enabled ? "QR WiFi akan dicetak pada struk lunas." : "QR WiFi pada struk dinonaktifkan.");

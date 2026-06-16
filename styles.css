@@ -2191,6 +2191,7 @@ input:focus, select:focus {
 /* ── Misc ────────────────────────────────────── */
 .toggle-line { display: flex; align-items: center; gap: 9px; color: var(--ink); font-weight: 600; }
 .toggle-line input { width: 17px; min-height: 17px; accent-color: var(--accent); }
+.checkout-wifi-line[hidden] { display: none !important; }
 .text-link { color: var(--ink); font-size: 12.5px; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
 .visually-hidden { position: absolute !important; width: 1px !important; height: 1px !important; overflow: hidden !important; clip: rect(0 0 0 0) !important; white-space: nowrap !important; }
 
