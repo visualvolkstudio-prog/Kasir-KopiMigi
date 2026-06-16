@@ -289,6 +289,7 @@ const els = {
   revenueChart: document.querySelector("#revenueChart"),
   bestsellerList: document.querySelector("#bestsellerList"),
   insightList: document.querySelector("#insightList"),
+  ingredientOutList: document.querySelector("#ingredientOutList"),
   menuForm: document.querySelector("#menuForm"),
   menuSubmitBtn: document.querySelector("#menuSubmitBtn"),
   menuId: document.querySelector("#menuId"),
@@ -3228,6 +3229,33 @@ function requiredIngredientsForItems(items) {
   }, {});
 }
 
+function ingredientUsageFromHistory(history = []) {
+  const inventory = getInventory();
+  const usage = history
+    .filter((entry) => entry?.status !== "unpaid")
+    .reduce((required, entry) => {
+      const items = Array.isArray(entry.items) ? entry.items : [];
+      const itemRequired = requiredIngredientsForItems(items);
+      Object.entries(itemRequired).forEach(([ingredientId, qty]) => {
+        required[ingredientId] = (required[ingredientId] || 0) + Number(qty || 0);
+      });
+      return required;
+    }, {});
+
+  return Object.entries(usage)
+    .map(([ingredientId, qty]) => {
+      const record = inventory[ingredientId] || {};
+      return {
+        id: ingredientId,
+        name: record.name || ingredientId,
+        category: record.category || "Lainnya",
+        unit: record.unit || "",
+        qty,
+      };
+    })
+    .sort((a, b) => b.qty - a.qty || a.name.localeCompare(b.name, "id-ID"));
+}
+
 function validateStockForCart() {
   const inventory = getInventory();
   const required = requiredIngredientsForItems(state.cart);
@@ -4780,6 +4808,7 @@ function renderAnalytics() {
   const monthHistory = filteredMonthHistory();
   const staffDrinks = monthHistory.filter(isStaffDrinkTransaction);
   const history = revenueTransactions(monthHistory);
+  const ingredientUsage = ingredientUsageFromHistory(monthHistory);
   const revenue = history.reduce((sum, entry) => sum + entry.grandTotal, 0);
   const monthPaymentTotals = paymentTotalsFor(history);
   const monthTunai = monthPaymentTotals.get("Tunai") || 0;
@@ -4824,7 +4853,46 @@ function renderAnalytics() {
   renderRevenueChart(history);
   renderDiscountVoucherList();
   renderDiscountAnalytics(discountedTransactions);
+  renderIngredientOutSummary(ingredientUsage);
   renderInsights({ history, bestsellers, revenue, itemCount, staffDrinks });
+}
+
+function renderIngredientOutSummary(ingredientUsage = []) {
+  if (!els.ingredientOutList) return;
+  if (!ingredientUsage.length) {
+    els.ingredientOutList.innerHTML = `<div class="empty-state">Belum ada bahan baku keluar di bulan ini.</div>`;
+    return;
+  }
+  const grouped = ingredientUsage.reduce((map, item) => {
+    const current = map.get(item.category) || [];
+    current.push(item);
+    map.set(item.category, current);
+    return map;
+  }, new Map());
+  const preferred = ["Bean Kopi", "Susu / Creamer", "Sirup", "Bubuk / Powder", "Gula", "Packaging", "Lainnya"];
+  els.ingredientOutList.innerHTML = [...grouped.entries()]
+    .sort(([a], [b]) => {
+      const ai = preferred.includes(a) ? preferred.indexOf(a) : preferred.indexOf("Lainnya");
+      const bi = preferred.includes(b) ? preferred.indexOf(b) : preferred.indexOf("Lainnya");
+      return ai - bi || a.localeCompare(b, "id-ID");
+    })
+    .map(([category, items]) => `
+      <article class="ingredient-out-group">
+        <div class="ingredient-out-group-head">
+          <b>${escapeHtml(category)}</b>
+          <span>${items.length} bahan</span>
+        </div>
+        <div class="ingredient-out-items">
+          ${items.map((item) => `
+            <div class="ingredient-out-row">
+              <span>${escapeHtml(item.name)}</span>
+              <strong>${money(item.qty)} ${escapeHtml(item.unit || "")}</strong>
+            </div>
+          `).join("")}
+        </div>
+      </article>
+    `)
+    .join("");
 }
 
 function renderRevenueChart(history) {

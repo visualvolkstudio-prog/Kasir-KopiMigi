@@ -1560,6 +1560,55 @@ input:focus, select:focus {
   overflow-wrap: anywhere;
 }
 
+.ingredient-out-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.ingredient-out-group {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: var(--soft);
+}
+
+.ingredient-out-group-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ingredient-out-group-head b {
+  font-size: 13px;
+}
+
+.ingredient-out-group-head span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.ingredient-out-items {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.ingredient-out-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.ingredient-out-row strong {
+  white-space: nowrap;
+}
+
 .bestseller-row > strong {
   width: 32px;
   height: 32px;
