@@ -1336,7 +1336,7 @@ function patchLocalHistoryTransaction(id, patch) {
   const index = history.findIndex((entry) => entry.id === id);
   if (index === -1) return;
   history[index] = { ...history[index], ...patch };
-  writeJson(storageKeys.history, history.slice(0, 500));
+  writeJson(storageKeys.history, history.slice(0, 2000));
 }
 
 function getInventory() {
@@ -1621,7 +1621,7 @@ function getCashflowExpenses() {
 function saveCashflowExpense(expense) {
   const expenses = getCashflowExpenses();
   expenses.unshift(expense);
-  writeJson(storageKeys.cashflowExpenses, expenses.slice(0, 500));
+  writeJson(storageKeys.cashflowExpenses, expenses.slice(0, 2000));
 }
 
 function getPendingDeletes() {
@@ -1641,7 +1641,7 @@ function getDeletedTransactionTombstones() {
 }
 
 function saveDeletedTransactionTombstones(tombstones) {
-  writeJson(storageKeys.deletedTransactions, tombstones.slice(0, 500));
+  writeJson(storageKeys.deletedTransactions, tombstones.slice(0, 2000));
 }
 
 function rememberDeletedTransaction(id, createdAt = new Date().toISOString()) {
@@ -3925,7 +3925,7 @@ async function editPaidPayment(id, paymentValue) {
     paymentEditedAt: new Date().toISOString(),
   };
   history[index] = next;
-  writeJson(storageKeys.history, history.slice(0, 500));
+  writeJson(storageKeys.history, history.slice(0, 2000));
   await saveOfflineTransaction(
     { ...next, localId: next.id, idempotencyKey: next.id },
     { syncStatus: "PENDING_SYNC", printStatus: next.printStatus || "PRINT_PENDING" },
@@ -4059,7 +4059,7 @@ async function saveTransactionEdit(event) {
     stockSyncedAt: stockResult.changed ? now : transaction.stockSyncedAt,
   };
   history[index] = next;
-  writeJson(storageKeys.history, history.slice(0, 500));
+  writeJson(storageKeys.history, history.slice(0, 2000));
   await saveOfflineTransaction(
     { ...next, localId: next.id, idempotencyKey: next.id },
     { syncStatus: "PENDING_SYNC", printStatus: next.printStatus || "PRINT_PENDING" },
@@ -4308,7 +4308,7 @@ function cacheCloudTransactions(transactions = [], localPending = []) {
   const merged = sortTransactionsNewestFirst([...byId.values()]);
   const unpaid = merged.filter((entry) => entry?.status === "unpaid");
   const paid = merged.filter((entry) => entry?.status !== "unpaid");
-  writeJson(storageKeys.history, paid.slice(0, 500));
+  writeJson(storageKeys.history, paid.slice(0, 2000));
   saveOrderDrafts(unpaid.slice(0, 200));
 }
 
@@ -4361,7 +4361,7 @@ async function loadCloudData() {
 
   if (Array.isArray(data.deletedTransactions)) mergeDeletedTransactionTombstones(data.deletedTransactions);
   if (Array.isArray(data.history)) await cacheCloudTransactionsWithPending(data.history);
-  if (Array.isArray(data.cashflowExpenses)) writeJson(storageKeys.cashflowExpenses, data.cashflowExpenses.slice(0, 500));
+  if (Array.isArray(data.cashflowExpenses)) writeJson(storageKeys.cashflowExpenses, data.cashflowExpenses.slice(0, 2000));
   if (data.inventory && typeof data.inventory === "object") applyCloudInventory(data.inventory);
   if (Array.isArray(data.employees)) saveEmployeeRoster(data.employees);
   if (data.settingsFound && !hasDirtySettings()) {

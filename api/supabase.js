@@ -241,7 +241,7 @@ function staffDrinkMatches(transaction = {}, body = {}) {
 }
 
 async function findStaffDrinkUsage(body = {}) {
-  const rows = await supabaseFetch("transactions?select=*&deleted_at=is.null&order=created_at.desc&limit=500");
+  const rows = await supabaseFetch("transactions?select=*&deleted_at=is.null&order=created_at.desc&limit=2000");
   const excludeId = String(body.excludeId || "").trim();
   return rows.find((row) => {
     if (excludeId && row.id === excludeId) return false;
@@ -303,8 +303,8 @@ async function syncTransaction(body) {
 
 async function getTransactions() {
   const [transactions, deletedTransactions] = await Promise.all([
-    supabaseFetch("transactions?select=*&deleted_at=is.null&order=created_at.desc&limit=500"),
-    supabaseFetch("transactions?select=id,created_at,deleted_at&deleted_at=not.is.null&order=created_at.desc&limit=500"),
+    supabaseFetch("transactions?select=*&deleted_at=is.null&order=created_at.desc&limit=2000"),
+    supabaseFetch("transactions?select=id,created_at,deleted_at&deleted_at=not.is.null&order=created_at.desc&limit=2000"),
   ]);
   const ids = transactions.map((row) => row.id).filter(Boolean);
   const items = ids.length
@@ -352,10 +352,10 @@ async function deleteTransaction(body) {
 
 async function bootstrapData() {
   const [transactions, deletedTransactions, items, expenses, inventory, employees, settingsRows, deletedEmployeeRows] = await Promise.all([
-    supabaseFetch("transactions?select=*&deleted_at=is.null&order=created_at.desc&limit=500"),
-    supabaseFetch("transactions?select=id,created_at,deleted_at&deleted_at=not.is.null&order=created_at.desc&limit=500"),
+    supabaseFetch("transactions?select=*&deleted_at=is.null&order=created_at.desc&limit=2000"),
+    supabaseFetch("transactions?select=id,created_at,deleted_at&deleted_at=not.is.null&order=created_at.desc&limit=2000"),
     supabaseFetch("transaction_items?select=*"),
-    supabaseFetch("cashflow_expenses?select=*&order=created_at.desc&limit=500"),
+    supabaseFetch("cashflow_expenses?select=*&order=created_at.desc&limit=2000"),
     supabaseFetch("inventory?select=*&order=name.asc"),
     supabaseFetch("employees?select=*&active=eq.true&deleted_at=is.null&order=name.asc"),
     supabaseFetch("app_settings?select=*&key=eq.global&limit=1").catch(() => []),
