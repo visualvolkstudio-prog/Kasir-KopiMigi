@@ -372,6 +372,10 @@ function dateKey(value = new Date()) {
   return `${date.getFullYear()}-${month}-${day}`;
 }
 
+function monthKey(value = new Date()) {
+  return dateKey(value).slice(0, 7);
+}
+
 function dayOrderPrefix(value = new Date()) {
   const date = value instanceof Date ? value : new Date(value);
   return ["M", "S", "SS", "R", "K", "J", "SB"][date.getDay()];
@@ -4513,7 +4517,7 @@ function editDraftOrder(id) {
 }
 
 function selectedMonth() {
-  return els.analyticsMonth.value || new Date().toISOString().slice(0, 7);
+  return els.analyticsMonth.value || monthKey();
 }
 
 function selectedDailyDate() {
@@ -4659,7 +4663,7 @@ function shareDailyReportToWhatsApp() {
 
 function filteredMonthHistory() {
   const month = selectedMonth();
-  return getHistory().filter((entry) => entry.createdAt.slice(0, 7) === month);
+  return getHistory().filter((entry) => dateKey(entry.createdAt).slice(0, 7) === month);
 }
 
 function discountTypeLabel(type = "") {
@@ -4815,7 +4819,7 @@ function renderAnalytics() {
   const monthQris = monthPaymentTotals.get("QRIS") || 0;
   const discountedTransactions = history.filter((entry) => Number(entry.discountTotal || 0) > 0);
   const discountTotal = discountedTransactions.reduce((sum, entry) => sum + Number(entry.discountTotal || 0), 0);
-  const uniqueDays = new Set(history.map((entry) => entry.createdAt.slice(0, 10))).size || 1;
+  const uniqueDays = new Set(history.map((entry) => dateKey(entry.createdAt))).size || 1;
   const itemCount = history.reduce((sum, entry) => sum + entry.items.reduce((inner, item) => inner + item.qty, 0), 0);
   const products = new Map();
 
@@ -4860,7 +4864,7 @@ function renderAnalytics() {
 function renderIngredientOutSummary(ingredientUsage = []) {
   if (!els.ingredientOutList) return;
   if (!ingredientUsage.length) {
-    els.ingredientOutList.innerHTML = `<div class="empty-state">Belum ada bahan baku keluar di bulan ini.</div>`;
+    els.ingredientOutList.innerHTML = `<div class="empty-state">Belum ada bahan baku keluar dari transaksi bulan ini.</div>`;
     return;
   }
   const grouped = ingredientUsage.reduce((map, item) => {
@@ -4915,9 +4919,9 @@ function renderRevenueChart(history) {
   const daysInMonth = new Date(year, monthIndex, 0).getDate();
   const range = state.chartRange;
   const source = range === "yearly"
-    ? revenueTransactions(getHistory()).filter((entry) => entry.createdAt.slice(0, 4) === String(year))
+    ? revenueTransactions(getHistory()).filter((entry) => dateKey(entry.createdAt).slice(0, 4) === String(year))
     : range === "monthly"
-      ? revenueTransactions(getHistory()).filter((entry) => entry.createdAt.slice(0, 4) === String(year))
+      ? revenueTransactions(getHistory()).filter((entry) => dateKey(entry.createdAt).slice(0, 4) === String(year))
       : history;
   const points = range === "yearly"
     ? Array.from({ length: 5 }, (_, index) => ({ label: String(year - 4 + index), total: 0 }))
@@ -4927,16 +4931,16 @@ function renderRevenueChart(history) {
 
   source.forEach((entry) => {
     if (range === "yearly") {
-      const point = points.find((item) => item.label === entry.createdAt.slice(0, 4));
+      const point = points.find((item) => item.label === dateKey(entry.createdAt).slice(0, 4));
       if (point) point.total += entry.grandTotal;
       return;
     }
     if (range === "monthly") {
-      const index = Number(entry.createdAt.slice(5, 7)) - 1;
+      const index = Number(dateKey(entry.createdAt).slice(5, 7)) - 1;
       if (points[index]) points[index].total += entry.grandTotal;
       return;
     }
-    const day = Number(entry.createdAt.slice(8, 10));
+    const day = Number(dateKey(entry.createdAt).slice(8, 10));
     if (points[day - 1]) points[day - 1].total += entry.grandTotal;
   });
 
@@ -5035,7 +5039,7 @@ function renderInsights({ history, bestsellers, revenue, itemCount, staffDrinks 
   const top = bestsellers[0];
   const avgTransaction = history.length ? Math.round(revenue / history.length) : 0;
   const boothCount = history.filter((entry) => entry.boothCode || entry.boothPackage !== "none").length;
-  const activeDays = new Set(history.map((entry) => entry.createdAt.slice(0, 10))).size;
+  const activeDays = new Set(history.map((entry) => dateKey(entry.createdAt))).size;
   const staffValue = staffDrinks.reduce((sum, entry) => sum + Number(entry.originalTotal || entry.subtotal || 0), 0);
   const insights = top
     ? [
@@ -6139,10 +6143,10 @@ els.loginDutyRole?.addEventListener("change", renderEmployeeControls);
 els.orderForm.addEventListener("submit", startOrder);
 els.cancelOrderModal.addEventListener("click", closeOrderModal);
 
-els.analyticsMonth.value = new Date().toISOString().slice(0, 7);
+els.analyticsMonth.value = monthKey();
 if (els.analyticsDate) els.analyticsDate.value = dateKey();
 if (els.paidOrderDate) els.paidOrderDate.value = dateKey();
-if (els.cashflowMonth) els.cashflowMonth.value = dateKey().slice(0, 7);
+if (els.cashflowMonth) els.cashflowMonth.value = monthKey();
 if (els.cashflowDate) els.cashflowDate.value = dateKey();
 if (state.payment === "Kartu") state.payment = "Tunai";
 syncCfExpenseNoteField();
