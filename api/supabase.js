@@ -2,6 +2,9 @@ const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 const activeWindowMs = 2 * 60 * 1000;
+const transactionCacheLimit = 2000;
+const supabasePageSize = 1000;
+const archiveMaxRows = 50000;
 
 function sendJson(res, status, payload) {
   res.statusCode = status;
@@ -49,6 +52,92 @@ async function supabaseFetch(path, options = {}) {
     throw new Error(`Supabase ${response.status}: ${message}`);
   }
   return data;
+}
+
+function clampNumber(value, fallback, min, max) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return fallback;
+  return Math.min(max, Math.max(min, Math.floor(number)));
+}
+
+async function supabaseFetchPaged(pathForOffset, { pageSize = supabasePageSize, maxRows = archiveMaxRows } = {}) {
+  const rows = [];
+  const safePageSize = clampNumber(pageSize, supabasePageSize, 1, 1000);
+  const safeMaxRows = clampNumber(maxRows, archiveMaxRows, 1, archiveMaxRows);
+
+  for (let offset = 0; rows.length < safeMaxRows; offset += safePageSize) {
+    const limit = Math.min(safePageSize, safeMaxRows - rows.length);
+    const page = await supabaseFetch(pathForOffset({ limit, offset }));
+    if (!Array.isArray(page) || !page.length) break;
+    rows.push(...page);
+    if (page.length < limit) break;
+  }
+
+  return rows;
+}
+
+function archiveDateParam(value) {
+  const date = value ? new Date(value) : null;
+  return date && !Number.isNaN(date.getTime()) ? date.toISOString() : "";
+}
+
+function transactionPath({ deleted = false, startDate = "", endDate = "", limit = transactionCacheLimit, offset = 0 }) {
+  const params = [
+    "select=*",
+    deleted ? "deleted_at=not.is.null" : "deleted_at=is.null",
+    "order=created_at.desc",
+    `limit=${limit}`,
+  ];
+  if (offset) params.push(`offset=${offset}`);
+  const start = archiveDateParam(startDate);
+  const end = archiveDateParam(endDate);
+  if (start) params.push(`created_at=gte.${encodeURIComponent(start)}`);
+  if (end) params.push(`created_at=lt.${encodeURIComponent(end)}`);
+  return `transactions?${params.join("&")}`;
+}
+
+async function fetchTransactionRows({ deleted = false, startDate = "", endDate = "", limit = transactionCacheLimit, fullArchive = false } = {}) {
+  const hasPeriod = Boolean(archiveDateParam(startDate) || archiveDateParam(endDate));
+  const safeLimit = clampNumber(limit, transactionCacheLimit, 1, archiveMaxRows);
+  if (fullArchive || hasPeriod || safeLimit > supabasePageSize) {
+    return supabaseFetchPaged(
+      ({ limit: pageLimit, offset }) => transactionPath({ deleted, startDate, endDate, limit: pageLimit, offset }),
+      { maxRows: safeLimit },
+    );
+  }
+  return supabaseFetch(transactionPath({ deleted, startDate, endDate, limit: safeLimit }));
+}
+
+async function fetchDeletedTransactionRows({ startDate = "", endDate = "", limit = transactionCacheLimit, fullArchive = false } = {}) {
+  const rows = await fetchTransactionRows({ deleted: true, startDate, endDate, limit, fullArchive });
+  return rows.map(({ id, created_at, deleted_at }) => ({ id, created_at, deleted_at }));
+}
+
+async function fetchItemsByTransactionIds(ids = []) {
+  const chunks = [];
+  for (let index = 0; index < ids.length; index += 100) chunks.push(ids.slice(index, index + 100));
+  const pages = await Promise.all(
+    chunks.map((chunk) => supabaseFetchPaged(
+      ({ limit, offset }) => `transaction_items?select=*&transaction_id=in.(${chunk.map(encodeURIComponent).join(",")})&limit=${limit}${offset ? `&offset=${offset}` : ""}`,
+      { maxRows: archiveMaxRows },
+    )),
+  );
+  return pages.flat();
+}
+
+function groupTransactionItems(items = []) {
+  return items.reduce((map, item) => {
+    const list = map.get(item.transaction_id) || [];
+    list.push({
+      id: item.menu_id,
+      name: item.name,
+      category: item.category,
+      price: Number(item.price || 0),
+      qty: Number(item.qty || 0),
+    });
+    map.set(item.transaction_id, list);
+    return map;
+  }, new Map());
 }
 
 function toIso(value) {
@@ -249,7 +338,7 @@ function staffDrinkMatches(transaction = {}, body = {}) {
 }
 
 async function findStaffDrinkUsage(body = {}) {
-  const rows = await supabaseFetch("transactions?select=*&deleted_at=is.null&order=created_at.desc&limit=2000");
+  const rows = await fetchTransactionRows({ limit: transactionCacheLimit });
   const excludeId = String(body.excludeId || "").trim();
   return rows.find((row) => {
     if (excludeId && row.id === excludeId) return false;
@@ -309,28 +398,20 @@ async function syncTransaction(body) {
   return { status: 200, payload: { success: true, id: row.id } };
 }
 
-async function getTransactions() {
+async function getTransactions(body = {}) {
+  const fullArchive = body.fullArchive === true || body.archive === true;
+  const startDate = body.startDate || body.from || "";
+  const endDate = body.endDate || body.to || "";
+  const limit = fullArchive || startDate || endDate
+    ? clampNumber(body.limit, archiveMaxRows, 1, archiveMaxRows)
+    : transactionCacheLimit;
   const [transactions, deletedTransactions] = await Promise.all([
-    supabaseFetch("transactions?select=*&deleted_at=is.null&order=created_at.desc&limit=2000"),
-    supabaseFetch("transactions?select=id,created_at,deleted_at&deleted_at=not.is.null&order=created_at.desc&limit=2000"),
+    fetchTransactionRows({ startDate, endDate, limit, fullArchive }),
+    fetchDeletedTransactionRows({ startDate, endDate, limit, fullArchive }),
   ]);
   const ids = transactions.map((row) => row.id).filter(Boolean);
-  const items = ids.length
-    ? await supabaseFetch(`transaction_items?select=*&transaction_id=in.(${ids.map(encodeURIComponent).join(",")})&limit=10000`)
-    : [];
-
-  const itemsByTransaction = items.reduce((map, item) => {
-    const list = map.get(item.transaction_id) || [];
-    list.push({
-      id: item.menu_id,
-      name: item.name,
-      category: item.category,
-      price: Number(item.price || 0),
-      qty: Number(item.qty || 0),
-    });
-    map.set(item.transaction_id, list);
-    return map;
-  }, new Map());
+  const items = ids.length ? await fetchItemsByTransactionIds(ids) : [];
+  const itemsByTransaction = groupTransactionItems(items);
 
   return {
     status: 200,
@@ -338,6 +419,9 @@ async function getTransactions() {
       success: true,
       transactions: transactions.map((row) => toLocalTransaction(row, itemsByTransaction.get(row.id) || [])),
       deletedTransactions,
+      source: "supabase",
+      archive: fullArchive || Boolean(startDate || endDate),
+      count: transactions.length,
     },
   };
 }
@@ -360,9 +444,9 @@ async function deleteTransaction(body) {
 
 async function bootstrapData() {
   const [transactions, deletedTransactions, items, expenses, inventory, employees, settingsRows, deletedEmployeeRows] = await Promise.all([
-    supabaseFetch("transactions?select=*&deleted_at=is.null&order=created_at.desc&limit=2000"),
-    supabaseFetch("transactions?select=id,created_at,deleted_at&deleted_at=not.is.null&order=created_at.desc&limit=2000"),
-    supabaseFetch("transaction_items?select=*&limit=10000"),
+    fetchTransactionRows({ limit: transactionCacheLimit }),
+    fetchDeletedTransactionRows({ limit: transactionCacheLimit }),
+    supabaseFetchPaged(({ limit, offset }) => `transaction_items?select=*&limit=${limit}${offset ? `&offset=${offset}` : ""}`, { maxRows: 10000 }),
     supabaseFetch("cashflow_expenses?select=*&order=created_at.desc&limit=2000"),
     supabaseFetch("inventory?select=*&order=name.asc"),
     supabaseFetch("employees?select=*&active=eq.true&deleted_at=is.null&order=name.asc"),
@@ -373,18 +457,7 @@ async function bootstrapData() {
   const deletedEmployeeValue = Array.isArray(deletedEmployeeRows) ? deletedEmployeeRows[0]?.value : [];
   const deletedEmployeeKeys = new Set((Array.isArray(deletedEmployeeValue) ? deletedEmployeeValue : []).map((entry) => entry.key || employeeKey(entry.name)).filter(Boolean));
   const activeEmployees = employees.filter((row) => !deletedEmployeeKeys.has(employeeKey(row.name)));
-  const itemsByTransaction = items.reduce((map, item) => {
-    const list = map.get(item.transaction_id) || [];
-    list.push({
-      id: item.menu_id,
-      name: item.name,
-      category: item.category,
-      price: Number(item.price || 0),
-      qty: Number(item.qty || 0),
-    });
-    map.set(item.transaction_id, list);
-    return map;
-  }, new Map());
+  const itemsByTransaction = groupTransactionItems(items);
 
   return {
     status: 200,
@@ -625,7 +698,7 @@ async function dispatch(body, req) {
     case "sync-transaction":
       return syncTransaction(body);
     case "get-transactions":
-      return getTransactions();
+      return getTransactions(body);
     case "check-staff-drink":
       return checkStaffDrink(body);
     case "delete-transaction":
