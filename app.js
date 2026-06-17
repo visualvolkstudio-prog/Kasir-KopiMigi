@@ -3082,7 +3082,7 @@ async function startOrder(event) {
     if (stockChanged) transaction.stockSyncedAt = transaction.createdAt;
     const history = getHistory();
     history.unshift(transaction);
-    writeJson(storageKeys.history, history.slice(0, 300));
+    writeJson(storageKeys.history, history.slice(0, 2000));
     const offlineRecord = {
       ...transaction,
       localId: transaction.id,

@@ -96,10 +96,18 @@ function mapItems(transaction) {
 function toLocalTransaction(row, items) {
   const raw = row.raw && typeof row.raw === "object" ? row.raw : {};
   const rawItems = Array.isArray(raw.items) ? raw.items : [];
-  const mergedItems = items.map((item) => {
-    const rawItem = rawItems.find((entry) => entry.id === item.id || entry.id === item.menu_id || entry.name === item.name) || {};
-    return { ...rawItem, ...item };
+  const usedItemIndexes = new Set();
+  const mergedRawItems = rawItems.map((rawItem) => {
+    const itemIndex = items.findIndex((item, index) => {
+      if (usedItemIndexes.has(index)) return false;
+      return rawItem.id === item.id || rawItem.id === item.menu_id || rawItem.name === item.name;
+    });
+    if (itemIndex === -1) return rawItem;
+    usedItemIndexes.add(itemIndex);
+    return { ...rawItem, ...items[itemIndex] };
   });
+  const extraItems = items.filter((_, index) => !usedItemIndexes.has(index));
+  const mergedItems = [...mergedRawItems, ...extraItems];
   return {
     ...raw,
     id: row.id,
@@ -308,7 +316,7 @@ async function getTransactions() {
   ]);
   const ids = transactions.map((row) => row.id).filter(Boolean);
   const items = ids.length
-    ? await supabaseFetch(`transaction_items?select=*&transaction_id=in.(${ids.map(encodeURIComponent).join(",")})`)
+    ? await supabaseFetch(`transaction_items?select=*&transaction_id=in.(${ids.map(encodeURIComponent).join(",")})&limit=10000`)
     : [];
 
   const itemsByTransaction = items.reduce((map, item) => {
@@ -354,7 +362,7 @@ async function bootstrapData() {
   const [transactions, deletedTransactions, items, expenses, inventory, employees, settingsRows, deletedEmployeeRows] = await Promise.all([
     supabaseFetch("transactions?select=*&deleted_at=is.null&order=created_at.desc&limit=2000"),
     supabaseFetch("transactions?select=id,created_at,deleted_at&deleted_at=not.is.null&order=created_at.desc&limit=2000"),
-    supabaseFetch("transaction_items?select=*"),
+    supabaseFetch("transaction_items?select=*&limit=10000"),
     supabaseFetch("cashflow_expenses?select=*&order=created_at.desc&limit=2000"),
     supabaseFetch("inventory?select=*&order=name.asc"),
     supabaseFetch("employees?select=*&active=eq.true&deleted_at=is.null&order=name.asc"),
