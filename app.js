@@ -530,12 +530,16 @@ function orderSequenceFromId(id, prefix) {
   return match ? Number(match[1]) : 0;
 }
 
+function orderCodeForSequence(entry = {}) {
+  return entry.orderCode || entry.displayCode || entry.id;
+}
+
 function nextDailyOrderCode(date = new Date(), channel = state.orderChannel) {
   const prefix = dayOrderPrefix(date);
   const today = dateKey(date);
   const existing = [...getHistory(), ...getOrderDrafts()].filter((entry) => dateKey(entry.createdAt) === today);
   const deleted = getDeletedTransactionTombstones().filter((entry) => dateKey(entry.createdAt) === today);
-  const highest = [...existing, ...deleted].reduce((max, entry) => Math.max(max, orderSequenceFromId(entry.id, prefix)), 0);
+  const highest = [...existing, ...deleted].reduce((max, entry) => Math.max(max, orderSequenceFromId(orderCodeForSequence(entry), prefix)), 0);
   const number = String(highest + 1).padStart(3, "0");
   return `${prefix}-${number}${onlineChannelSuffix(channel)}`;
 }
@@ -563,7 +567,7 @@ function paidOrderDisplayCode(transaction, transactions = getHistory()) {
 }
 
 function receiptDisplayCode(transaction, kind = "paid") {
-  return kind === "bill" ? transaction?.id || "" : paidOrderDisplayCode(transaction);
+  return kind === "bill" ? transaction?.orderCode || transaction?.displayCode || transaction?.id || "" : paidOrderDisplayCode(transaction);
 }
 
 function receiptTableLabel(transaction, displayCode) {
@@ -1984,6 +1988,13 @@ function activeEmployeeId() {
   return employeeIdFromName(activeEmployeeName());
 }
 
+function uniqueTransactionId(orderCode = nextDailyOrderCode()) {
+  const randomPart = window.crypto?.randomUUID
+    ? window.crypto.randomUUID().slice(0, 8)
+    : Math.random().toString(36).slice(2, 10);
+  return `${String(orderCode || "order").replace(/[^A-Za-z0-9-]+/g, "-")}-${Date.now().toString(36)}-${randomPart}`;
+}
+
 function normalizeDiscountValue(value = "") {
   if (state.discountType === "nominal") return parseRupiah(value);
   const number = Number(String(value || "0").replace(",", "."));
@@ -3015,9 +3026,10 @@ function renderCart() {
 }
 
 function openOrderModal() {
+  const activeDraft = state.activeDraftId ? getOrderDrafts().find((entry) => entry.id === state.activeDraftId) : null;
   els.orderCustomerName.value = els.customerName.value || "Teman Migi";
   if (els.orderShift) els.orderShift.value = currentShiftName();
-  els.orderTableNumber.value = state.activeDraftId || nextDailyOrderCode(new Date(), state.orderChannel);
+  els.orderTableNumber.value = activeDraft?.orderCode || activeDraft?.table || nextDailyOrderCode(new Date(), state.orderChannel);
   syncCheckoutWifiOption({ reset: true });
   syncOrderTypeUi();
   els.modalOrderList.innerHTML = state.cart.length
@@ -3256,16 +3268,17 @@ function currentTransaction(draft = false) {
   const payment = staffDrink ? "Staff Drink" : onlineChannel ? state.orderChannel : state.payment;
   const paid = staffDrink ? 0 : onlineChannel ? total.grandTotal : parseRupiah(els.paidAmount.value);
   const now = new Date();
-  const displayedOrderCode = els.orderTableNumber.value.trim();
-  const generatedId = state.activeDraftId && !draft ? state.activeDraftId : displayedOrderCode || nextDailyOrderCode(now, state.orderChannel);
+  const displayedOrderCode = els.orderTableNumber.value.trim() || nextDailyOrderCode(now, state.orderChannel);
+  const generatedId = state.activeDraftId || uniqueTransactionId(displayedOrderCode);
   const orderType = staffDrink ? "staff_drink" : "normal";
   const voucher = orderType === "normal" ? appliedVoucher() : null;
   const discountAllowed = Boolean(voucher);
   return {
     id: generatedId,
+    orderCode: displayedOrderCode,
     createdAt: now.toISOString(),
     customer: els.customerName.value.trim() || "Teman Migi",
-    table: els.tableNumber.value.trim() || generatedId,
+    table: els.tableNumber.value.trim() || displayedOrderCode,
     shift: currentShiftName(now),
     channel: state.orderChannel || "Kasir",
     status: draft ? "unpaid" : "paid",
@@ -3878,7 +3891,7 @@ function renderHistory() {
             (transaction) => `
               <article class="history-card">
                 <div>
-                  <strong>${transaction.id} · ${money(transaction.grandTotal)}${isStaffDrinkTransaction(transaction) ? " · Staff Drink" : ""}</strong>
+                  <strong>${transaction.orderCode || transaction.id} · ${money(transaction.grandTotal)}${isStaffDrinkTransaction(transaction) ? " · Staff Drink" : ""}</strong>
                   <p>${new Date(transaction.createdAt).toLocaleString("id-ID")} · ${transaction.shift || "Shift 1"} · ${transactionEmployeeDisplay(transaction)} · ${transaction.customer} · ${transactionPaymentMethod(transaction)}${transaction.discountTotal ? ` · Diskon ${money(transaction.discountTotal)}` : ""}${transaction.boothCode ? ` · Booth ${transaction.boothCode}` : ""}</p>
                   <p>${mergeLineItems(transaction.items).map((item) => `${item.qty}x ${item.name}`).join(", ")}</p>
                 </div>
@@ -3910,7 +3923,7 @@ function renderHistory() {
 
 function orderCard(transaction, kind, displayCode = "") {
   const items = mergeLineItems(transaction.items).map((item) => `${item.qty}x ${item.name}`).join(", ");
-  const orderCode = displayCode || transaction.id;
+  const orderCode = displayCode || transaction.orderCode || transaction.id;
   const paymentMethod = transactionPaymentMethod(transaction);
   const actions = kind === "unpaid"
     ? `
