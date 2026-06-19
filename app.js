@@ -96,6 +96,7 @@ const state = {
   analyticsPeriodKey: "",
   analyticsPeriodTransactions: [],
   analyticsPeriodLoading: false,
+  analyticsPeriodRequestId: 0,
   logoutAfterOrder: false,
   shiftTransitionHandled: "",
   pendingLogin: null,
@@ -4692,7 +4693,8 @@ async function refreshAnalyticsPeriod({ render = true, month = selectedMonth(), 
     state.analyticsPeriodTransactions = [];
     return false;
   }
-  if (state.analyticsPeriodLoading) return false;
+  const requestId = state.analyticsPeriodRequestId + 1;
+  state.analyticsPeriodRequestId = requestId;
   state.analyticsPeriodLoading = true;
   try {
     const { startDate, endDate } = monthDateRange(month);
@@ -4703,6 +4705,7 @@ async function refreshAnalyticsPeriod({ render = true, month = selectedMonth(), 
       limit: 50000,
     });
     if (!result?.success || !Array.isArray(result.transactions)) throw new Error(result?.error || "Ambil arsip analitik gagal.");
+    if (requestId !== state.analyticsPeriodRequestId) return false;
     state.analyticsPeriodKey = month;
     state.analyticsPeriodTransactions = result.transactions;
     if (Array.isArray(result.deletedTransactions)) mergeDeletedTransactionTombstones(result.deletedTransactions);
@@ -4715,7 +4718,7 @@ async function refreshAnalyticsPeriod({ render = true, month = selectedMonth(), 
     if (!silent) toast(error.message || "Arsip analitik belum bisa dimuat.");
     return false;
   } finally {
-    state.analyticsPeriodLoading = false;
+    if (requestId === state.analyticsPeriodRequestId) state.analyticsPeriodLoading = false;
   }
 }
 
