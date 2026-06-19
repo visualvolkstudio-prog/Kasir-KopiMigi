@@ -93,6 +93,9 @@ const state = {
   editingTransactionItems: [],
   menuSaving: false,
   reportShareText: "",
+  analyticsPeriodKey: "",
+  analyticsPeriodTransactions: [],
+  analyticsPeriodLoading: false,
   logoutAfterOrder: false,
   shiftTransitionHandled: "",
   pendingLogin: null,
@@ -374,6 +377,16 @@ function dateKey(value = new Date()) {
 
 function monthKey(value = new Date()) {
   return dateKey(value).slice(0, 7);
+}
+
+function monthDateRange(month = monthKey()) {
+  const [year, monthNumber] = String(month || monthKey()).split("-").map(Number);
+  const start = new Date(year, monthNumber - 1, 1);
+  const end = new Date(year, monthNumber, 1);
+  return {
+    startDate: start.toISOString(),
+    endDate: end.toISOString(),
+  };
 }
 
 function dayOrderPrefix(value = new Date()) {
@@ -1108,7 +1121,8 @@ function shiftSummaryLines(shift = getActiveShift(), date = dateKey()) {
 }
 
 function dayTransactions(date = dateKey()) {
-  return getHistory().filter((entry) => dateKey(entry.createdAt) === date);
+  const source = analyticsSourceForMonth(date.slice(0, 7));
+  return source.filter((entry) => dateKey(entry.createdAt) === date);
 }
 
 function shiftReportText(shift, reportDateValue = dateKey()) {
@@ -3804,7 +3818,7 @@ function renderHistory() {
   }
 
   const today = selectedDailyDate();
-  const todayTransactions = getHistory().filter((entry) => dateKey(entry.createdAt) === today);
+  const todayTransactions = analyticsSourceForMonth(today.slice(0, 7)).filter((entry) => dateKey(entry.createdAt) === today);
   const activeShift = currentShiftName();
   const activeShiftTransactions = revenueTransactions(todayTransactions).filter((entry) => (entry.shift || "Shift 1") === activeShift);
   if (els.activeShiftLabel) els.activeShiftLabel.textContent = `${activeShift} aktif`;
@@ -4661,9 +4675,48 @@ function shareDailyReportToWhatsApp() {
   if (els.dailyReportShareStatus) els.dailyReportShareStatus.textContent = "Laporan dibuka di WhatsApp";
 }
 
+function analyticsSourceForMonth(month = selectedMonth()) {
+  return state.analyticsPeriodKey === month && Array.isArray(state.analyticsPeriodTransactions)
+    ? state.analyticsPeriodTransactions
+    : getHistory();
+}
+
 function filteredMonthHistory() {
   const month = selectedMonth();
-  return getHistory().filter((entry) => dateKey(entry.createdAt).slice(0, 7) === month);
+  return analyticsSourceForMonth(month).filter((entry) => dateKey(entry.createdAt).slice(0, 7) === month);
+}
+
+async function refreshAnalyticsPeriod({ render = true, month = selectedMonth(), silent = false } = {}) {
+  if (!navigator.onLine) {
+    state.analyticsPeriodKey = "";
+    state.analyticsPeriodTransactions = [];
+    return false;
+  }
+  if (state.analyticsPeriodLoading) return false;
+  state.analyticsPeriodLoading = true;
+  try {
+    const { startDate, endDate } = monthDateRange(month);
+    const result = await postSupabaseAction("get-transactions", {
+      startDate,
+      endDate,
+      fullArchive: true,
+      limit: 50000,
+    });
+    if (!result?.success || !Array.isArray(result.transactions)) throw new Error(result?.error || "Ambil arsip analitik gagal.");
+    state.analyticsPeriodKey = month;
+    state.analyticsPeriodTransactions = result.transactions;
+    if (Array.isArray(result.deletedTransactions)) mergeDeletedTransactionTombstones(result.deletedTransactions);
+    if (render) {
+      renderAnalytics();
+      renderHistory();
+    }
+    return true;
+  } catch (error) {
+    if (!silent) toast(error.message || "Arsip analitik belum bisa dimuat.");
+    return false;
+  } finally {
+    state.analyticsPeriodLoading = false;
+  }
 }
 
 function discountTypeLabel(type = "") {
@@ -5599,7 +5652,9 @@ els.chartRangeTabs?.addEventListener("click", (event) => {
   if (!button) return;
   state.chartRange = button.dataset.chartRange;
   els.chartRangeTabs.querySelectorAll("button[data-chart-range]").forEach((entry) => entry.classList.toggle("active", entry === button));
-  renderAnalytics();
+  refreshAnalyticsPeriod({ silent: true }).then((loaded) => {
+    if (!loaded) renderAnalytics();
+  });
 });
 
 els.discountVoucherForm?.addEventListener("submit", saveDiscountVoucher);
@@ -6127,10 +6182,20 @@ els.menuTable.addEventListener("click", async (event) => {
 });
 
 els.analyticsMonth.addEventListener("change", () => {
-  renderAnalytics();
-  renderHistory();
+  refreshAnalyticsPeriod({ silent: true }).then((loaded) => {
+    if (!loaded) {
+      renderAnalytics();
+      renderHistory();
+    }
+  });
 });
-els.analyticsDate?.addEventListener("change", renderHistory);
+els.analyticsDate?.addEventListener("change", () => {
+  const month = els.analyticsDate.value.slice(0, 7);
+  if (month && els.analyticsMonth.value !== month) els.analyticsMonth.value = month;
+  refreshAnalyticsPeriod({ month, silent: true }).then((loaded) => {
+    if (!loaded) renderHistory();
+  });
+});
 els.paidOrderDate?.addEventListener("change", renderOrders);
 els.startCamera?.addEventListener("click", startCamera);
 els.capturePhoto?.addEventListener("click", capturePhoto);
@@ -6158,16 +6223,23 @@ setInterval(() => updateDevicePresence().catch(() => null), 30000);
 setInterval(() => refreshActiveCashierPresence().catch(() => null), 30000);
 setInterval(() => checkRemoteLogout().catch(() => null), 30000);
 setInterval(() => {
-  if (document.visibilityState === "visible") refreshOnlineData({ render: true }).catch(() => null);
+  if (document.visibilityState === "visible") {
+    refreshOnlineData({ render: true }).catch(() => null);
+    refreshAnalyticsPeriod({ silent: true }).catch(() => null);
+  }
 }, 30000);
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible") refreshOnlineData({ render: true }).catch(() => null);
+  if (document.visibilityState === "visible") {
+    refreshOnlineData({ render: true }).catch(() => null);
+    refreshAnalyticsPeriod({ silent: true }).catch(() => null);
+  }
 });
 restoreActiveView();
 applyAccessControls();
 renderAll();
 updateConnectionStatus();
 if (navigator.onLine) pullTransactionsFromSupabase({ render: true }).catch(() => null);
+if (navigator.onLine) refreshAnalyticsPeriod({ silent: true }).catch(() => null);
 if (navigator.onLine) pullSettingsFromSupabase({ render: true }).catch(() => null);
 if (navigator.onLine) refreshActiveCashierPresence().catch(() => null);
 if (navigator.onLine) checkRemoteLogout().catch(() => null);
