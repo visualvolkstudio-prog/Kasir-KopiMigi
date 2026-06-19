@@ -782,6 +782,7 @@
             <div class="analytics-actions">
               <input id="analyticsMonth" type="month" />
               <input id="analyticsDate" type="date" />
+              <input id="analyticsYear" type="number" min="2020" max="2100" step="1" aria-label="Tahun analitik" />
               <div class="segmented chart-range-tabs" id="chartRangeTabs" role="tablist" aria-label="Rentang grafik">
                 <button class="active" data-chart-range="daily" type="button">Harian</button>
                 <button data-chart-range="monthly" type="button">Bulanan</button>
@@ -790,13 +791,13 @@
             </div>
           </div>
           <div class="metric-grid">
-            <article class="metric-card"><span>Omset bulan ini</span><strong id="monthRevenue">Rp0</strong></article>
-            <article class="metric-card"><span>Tunai bulan ini</span><strong id="monthTunaiRevenue">Rp0</strong></article>
-            <article class="metric-card"><span>QRIS bulan ini</span><strong id="monthQrisRevenue">Rp0</strong></article>
-            <article class="metric-card"><span>Rata-rata / hari jualan</span><strong id="avgDailyRevenue">Rp0</strong></article>
+            <article class="metric-card"><span id="analyticsRevenueLabel">Omset bulan ini</span><strong id="monthRevenue">Rp0</strong></article>
+            <article class="metric-card"><span id="analyticsTunaiLabel">Tunai bulan ini</span><strong id="monthTunaiRevenue">Rp0</strong></article>
+            <article class="metric-card"><span id="analyticsQrisLabel">QRIS bulan ini</span><strong id="monthQrisRevenue">Rp0</strong></article>
+            <article class="metric-card"><span id="analyticsAverageLabel">Rata-rata / hari jualan</span><strong id="avgDailyRevenue">Rp0</strong></article>
             <article class="metric-card"><span>Transaksi</span><strong id="monthTransactions">0</strong></article>
             <article class="metric-card"><span>Item terjual</span><strong id="monthItems">0</strong></article>
-            <article class="metric-card owner-analytics-only"><span>Diskon bulan ini</span><strong id="monthDiscountTotal">Rp0</strong></article>
+            <article class="metric-card owner-analytics-only"><span id="analyticsDiscountLabel">Diskon bulan ini</span><strong id="monthDiscountTotal">Rp0</strong></article>
             <article class="metric-card owner-analytics-only"><span>Transaksi diskon</span><strong id="monthDiscountCount">0</strong></article>
           </div>
           <section class="history-panel chart-panel">

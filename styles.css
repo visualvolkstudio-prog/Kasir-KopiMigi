@@ -1624,6 +1624,7 @@ input:focus, select:focus {
 /* ── Analytics ───────────────────────────────── */
 .analytics-actions { display: flex; align-items: center; justify-content: flex-end; gap: 9px; }
 .analytics-actions input { width: 145px; }
+.analytics-actions input[type="number"] { width: 96px; }
 
 .cashflow-controls {
   flex-wrap: wrap;

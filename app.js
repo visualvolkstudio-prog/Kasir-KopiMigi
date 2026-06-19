@@ -283,7 +283,13 @@ const els = {
   pendingSyncList: document.querySelector("#pendingSyncList"),
   analyticsMonth: document.querySelector("#analyticsMonth"),
   analyticsDate: document.querySelector("#analyticsDate"),
+  analyticsYear: document.querySelector("#analyticsYear"),
   chartRangeTabs: document.querySelector("#chartRangeTabs"),
+  analyticsRevenueLabel: document.querySelector("#analyticsRevenueLabel"),
+  analyticsTunaiLabel: document.querySelector("#analyticsTunaiLabel"),
+  analyticsQrisLabel: document.querySelector("#analyticsQrisLabel"),
+  analyticsAverageLabel: document.querySelector("#analyticsAverageLabel"),
+  analyticsDiscountLabel: document.querySelector("#analyticsDiscountLabel"),
   monthRevenue: document.querySelector("#monthRevenue"),
   monthTunaiRevenue: document.querySelector("#monthTunaiRevenue"),
   monthQrisRevenue: document.querySelector("#monthQrisRevenue"),
@@ -392,6 +398,28 @@ function monthDateRange(month = monthKey()) {
     startDate: start.toISOString(),
     endDate: end.toISOString(),
   };
+}
+
+function selectedAnalyticsYear() {
+  const year = Number(els.analyticsYear?.value || selectedMonth().slice(0, 4));
+  return Number.isFinite(year) ? year : new Date().getFullYear();
+}
+
+function yearDateRange(year = selectedAnalyticsYear()) {
+  const start = new Date(year, 0, 1);
+  const end = new Date(year + 1, 0, 1);
+  return {
+    startDate: start.toISOString(),
+    endDate: end.toISOString(),
+  };
+}
+
+function analyticsPeriodKey(range = state.chartRange) {
+  return range === "daily" ? `month:${selectedMonth()}` : `year:${selectedAnalyticsYear()}`;
+}
+
+function analyticsDateRange(range = state.chartRange) {
+  return range === "daily" ? monthDateRange(selectedMonth()) : yearDateRange(selectedAnalyticsYear());
 }
 
 function dayOrderPrefix(value = new Date()) {
@@ -1126,7 +1154,7 @@ function shiftSummaryLines(shift = getActiveShift(), date = dateKey()) {
 }
 
 function dayTransactions(date = dateKey()) {
-  const source = analyticsSourceForMonth(date.slice(0, 7));
+  const source = analyticsSourceForDate(date);
   return source.filter((entry) => dateKey(entry.createdAt) === date);
 }
 
@@ -4680,10 +4708,22 @@ function shareDailyReportToWhatsApp() {
   if (els.dailyReportShareStatus) els.dailyReportShareStatus.textContent = "Laporan dibuka di WhatsApp";
 }
 
-function analyticsSourceForMonth(month = selectedMonth()) {
-  return state.analyticsPeriodKey === month && Array.isArray(state.analyticsPeriodTransactions)
+function analyticsSourceForPeriod(key = analyticsPeriodKey()) {
+  return state.analyticsPeriodKey === key && Array.isArray(state.analyticsPeriodTransactions)
     ? state.analyticsPeriodTransactions
     : getHistory();
+}
+
+function analyticsSourceForMonth(month = selectedMonth()) {
+  const yearKey = `year:${month.slice(0, 4)}`;
+  const monthKeyValue = `month:${month}`;
+  if (state.analyticsPeriodKey === yearKey && Array.isArray(state.analyticsPeriodTransactions)) return state.analyticsPeriodTransactions;
+  if (state.analyticsPeriodKey === monthKeyValue && Array.isArray(state.analyticsPeriodTransactions)) return state.analyticsPeriodTransactions;
+  return getHistory();
+}
+
+function analyticsSourceForDate(date = dateKey()) {
+  return analyticsSourceForMonth(date.slice(0, 7));
 }
 
 function filteredMonthHistory() {
@@ -4691,7 +4731,20 @@ function filteredMonthHistory() {
   return analyticsSourceForMonth(month).filter((entry) => dateKey(entry.createdAt).slice(0, 7) === month);
 }
 
-async function refreshAnalyticsPeriod({ render = true, month = selectedMonth(), silent = false } = {}) {
+function filteredAnalyticsHistory() {
+  if (state.chartRange === "daily") return filteredMonthHistory();
+  const year = String(selectedAnalyticsYear());
+  return analyticsSourceForPeriod(`year:${year}`).filter((entry) => dateKey(entry.createdAt).slice(0, 4) === year);
+}
+
+function renderAnalyticsControls() {
+  const yearlyMode = state.chartRange !== "daily";
+  if (els.analyticsMonth) els.analyticsMonth.hidden = yearlyMode;
+  if (els.analyticsDate) els.analyticsDate.hidden = yearlyMode;
+  if (els.analyticsYear) els.analyticsYear.hidden = !yearlyMode;
+}
+
+async function refreshAnalyticsPeriod({ render = true, month = selectedMonth(), range = state.chartRange, silent = false } = {}) {
   if (!navigator.onLine) {
     state.analyticsPeriodKey = "";
     state.analyticsPeriodTransactions = [];
@@ -4701,7 +4754,8 @@ async function refreshAnalyticsPeriod({ render = true, month = selectedMonth(), 
   state.analyticsPeriodRequestId = requestId;
   state.analyticsPeriodLoading = true;
   try {
-    const { startDate, endDate } = monthDateRange(month);
+    const periodKey = range === "daily" ? `month:${month}` : `year:${selectedAnalyticsYear()}`;
+    const { startDate, endDate } = range === "daily" ? monthDateRange(month) : yearDateRange(selectedAnalyticsYear());
     const result = await postSupabaseAction("get-transactions", {
       startDate,
       endDate,
@@ -4710,7 +4764,7 @@ async function refreshAnalyticsPeriod({ render = true, month = selectedMonth(), 
     });
     if (!result?.success || !Array.isArray(result.transactions)) throw new Error(result?.error || "Ambil arsip analitik gagal.");
     if (requestId !== state.analyticsPeriodRequestId) return false;
-    state.analyticsPeriodKey = month;
+    state.analyticsPeriodKey = periodKey;
     state.analyticsPeriodTransactions = result.transactions;
     if (Array.isArray(result.deletedTransactions)) mergeDeletedTransactionTombstones(result.deletedTransactions);
     if (render) {
@@ -4869,10 +4923,13 @@ async function mutateDiscountVoucher(id, updater) {
 }
 
 function renderAnalytics() {
-  const monthHistory = filteredMonthHistory();
-  const staffDrinks = monthHistory.filter(isStaffDrinkTransaction);
-  const history = revenueTransactions(monthHistory);
-  const ingredientUsage = ingredientUsageFromHistory(monthHistory);
+  renderAnalyticsControls();
+  const periodHistory = filteredAnalyticsHistory();
+  const staffDrinks = periodHistory.filter(isStaffDrinkTransaction);
+  const history = revenueTransactions(periodHistory);
+  const ingredientUsage = ingredientUsageFromHistory(periodHistory);
+  const yearlyMode = state.chartRange !== "daily";
+  const periodLabel = yearlyMode ? "tahun ini" : "bulan ini";
   const revenue = history.reduce((sum, entry) => sum + entry.grandTotal, 0);
   const monthPaymentTotals = paymentTotalsFor(history);
   const monthTunai = monthPaymentTotals.get("Tunai") || 0;
@@ -4893,12 +4950,17 @@ function renderAnalytics() {
   });
 
   const bestsellers = [...products.values()].sort((a, b) => b.qty - a.qty || b.revenue - a.revenue).slice(0, 8);
+  if (els.analyticsRevenueLabel) els.analyticsRevenueLabel.textContent = `Omset ${periodLabel}`;
+  if (els.analyticsTunaiLabel) els.analyticsTunaiLabel.textContent = `Tunai ${periodLabel}`;
+  if (els.analyticsQrisLabel) els.analyticsQrisLabel.textContent = `QRIS ${periodLabel}`;
+  if (els.analyticsAverageLabel) els.analyticsAverageLabel.textContent = yearlyMode ? "Rata-rata / bulan jualan" : "Rata-rata / hari jualan";
+  if (els.analyticsDiscountLabel) els.analyticsDiscountLabel.textContent = `Diskon ${periodLabel}`;
   els.monthRevenue.textContent = money(revenue);
   if (els.monthTunaiRevenue) els.monthTunaiRevenue.textContent = money(monthTunai);
   if (els.monthQrisRevenue) els.monthQrisRevenue.textContent = money(monthQris);
   if (els.monthDiscountTotal) els.monthDiscountTotal.textContent = money(discountTotal);
   if (els.monthDiscountCount) els.monthDiscountCount.textContent = `${discountedTransactions.length}`;
-  els.avgDailyRevenue.textContent = money(Math.round(revenue / uniqueDays));
+  els.avgDailyRevenue.textContent = money(Math.round(revenue / (yearlyMode ? Math.max(1, new Set(history.map((entry) => dateKey(entry.createdAt).slice(0, 7))).size) : uniqueDays)));
   els.monthTransactions.textContent = String(history.length);
   els.monthItems.textContent = String(itemCount);
   els.bestsellerList.innerHTML = bestsellers.length
@@ -4976,26 +5038,18 @@ function renderRevenueChart(history) {
   const pad = { top: 24, right: 28, bottom: 38, left: 72 };
   const month = selectedMonth();
   const [year, monthIndex] = month.split("-").map(Number);
+  const selectedYear = selectedAnalyticsYear();
   const daysInMonth = new Date(year, monthIndex, 0).getDate();
   const range = state.chartRange;
-  const source = range === "yearly"
-    ? revenueTransactions(getHistory()).filter((entry) => dateKey(entry.createdAt).slice(0, 4) === String(year))
-    : range === "monthly"
-      ? revenueTransactions(getHistory()).filter((entry) => dateKey(entry.createdAt).slice(0, 4) === String(year))
-      : history;
-  const points = range === "yearly"
-    ? Array.from({ length: 5 }, (_, index) => ({ label: String(year - 4 + index), total: 0 }))
-    : range === "monthly"
-      ? Array.from({ length: 12 }, (_, index) => ({ label: new Date(year, index, 1).toLocaleDateString("id-ID", { month: "short" }), total: 0 }))
+  const source = range === "daily"
+    ? history
+    : revenueTransactions(analyticsSourceForPeriod(`year:${selectedYear}`)).filter((entry) => dateKey(entry.createdAt).slice(0, 4) === String(selectedYear));
+  const points = range !== "daily"
+      ? Array.from({ length: 12 }, (_, index) => ({ label: new Date(selectedYear, index, 1).toLocaleDateString("id-ID", { month: "short" }), total: 0 }))
       : Array.from({ length: daysInMonth }, (_, index) => ({ label: String(index + 1), total: 0 }));
 
   source.forEach((entry) => {
-    if (range === "yearly") {
-      const point = points.find((item) => item.label === dateKey(entry.createdAt).slice(0, 4));
-      if (point) point.total += entry.grandTotal;
-      return;
-    }
-    if (range === "monthly") {
+    if (range !== "daily") {
       const index = Number(dateKey(entry.createdAt).slice(5, 7)) - 1;
       if (points[index]) points[index].total += entry.grandTotal;
       return;
@@ -5659,7 +5713,8 @@ els.chartRangeTabs?.addEventListener("click", (event) => {
   if (!button) return;
   state.chartRange = button.dataset.chartRange;
   els.chartRangeTabs.querySelectorAll("button[data-chart-range]").forEach((entry) => entry.classList.toggle("active", entry === button));
-  refreshAnalyticsPeriod({ silent: true }).then((loaded) => {
+  renderAnalyticsControls();
+  refreshAnalyticsPeriod({ range: state.chartRange, silent: true }).then((loaded) => {
     if (!loaded) renderAnalytics();
   });
 });
@@ -6189,7 +6244,8 @@ els.menuTable.addEventListener("click", async (event) => {
 });
 
 els.analyticsMonth.addEventListener("change", () => {
-  refreshAnalyticsPeriod({ silent: true }).then((loaded) => {
+  if (els.analyticsYear) els.analyticsYear.value = els.analyticsMonth.value.slice(0, 4);
+  refreshAnalyticsPeriod({ range: "daily", silent: true }).then((loaded) => {
     if (!loaded) {
       renderAnalytics();
       renderHistory();
@@ -6199,8 +6255,16 @@ els.analyticsMonth.addEventListener("change", () => {
 els.analyticsDate?.addEventListener("change", () => {
   const month = els.analyticsDate.value.slice(0, 7);
   if (month && els.analyticsMonth.value !== month) els.analyticsMonth.value = month;
-  refreshAnalyticsPeriod({ month, silent: true }).then((loaded) => {
+  if (els.analyticsYear && month) els.analyticsYear.value = month.slice(0, 4);
+  refreshAnalyticsPeriod({ month, range: "daily", silent: true }).then((loaded) => {
     if (!loaded) renderHistory();
+  });
+});
+els.analyticsYear?.addEventListener("change", () => {
+  const year = selectedAnalyticsYear();
+  if (els.analyticsMonth) els.analyticsMonth.value = `${year}-01`;
+  refreshAnalyticsPeriod({ range: state.chartRange, silent: true }).then((loaded) => {
+    if (!loaded) renderAnalytics();
   });
 });
 els.paidOrderDate?.addEventListener("change", renderOrders);
@@ -6217,11 +6281,13 @@ els.cancelOrderModal.addEventListener("click", closeOrderModal);
 
 els.analyticsMonth.value = monthKey();
 if (els.analyticsDate) els.analyticsDate.value = dateKey();
+if (els.analyticsYear) els.analyticsYear.value = String(new Date().getFullYear());
 if (els.paidOrderDate) els.paidOrderDate.value = dateKey();
 if (els.cashflowMonth) els.cashflowMonth.value = monthKey();
 if (els.cashflowDate) els.cashflowDate.value = dateKey();
 if (state.payment === "Kartu") state.payment = "Tunai";
 syncCfExpenseNoteField();
+renderAnalyticsControls();
 registerServiceWorker();
 initAuth();
 updateClock();
