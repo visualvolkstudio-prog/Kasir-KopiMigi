@@ -97,6 +97,8 @@ const state = {
   analyticsPeriodTransactions: [],
   analyticsPeriodLoading: false,
   analyticsPeriodRequestId: 0,
+  analyticsLoadError: "",
+  analyticsLoadErrorPeriodKey: "",
   logoutAfterOrder: false,
   shiftTransitionHandled: "",
   pendingLogin: null,
@@ -269,6 +271,7 @@ const els = {
   dailyReportText: document.querySelector("#dailyReportText"),
   copyDailyReport: document.querySelector("#copyDailyReport"),
   shareDailyReport: document.querySelector("#shareDailyReport"),
+  downloadDailyPdf: document.querySelector("#downloadDailyPdf"),
   dailyReportShareStatus: document.querySelector("#dailyReportShareStatus"),
   orderStatusTabs: document.querySelector("#orderStatusTabs"),
   orderList: document.querySelector("#orderList"),
@@ -379,24 +382,41 @@ function parseRupiah(value) {
   return Number(String(value || "").replace(/[^\d]/g, "")) || 0;
 }
 
+const jakartaOffsetHours = 7;
+
 function dateKey(value = new Date()) {
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
   const date = value instanceof Date ? value : new Date(value);
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${date.getFullYear()}-${month}-${day}`;
+  const jakartaTime = new Date(date.getTime() + jakartaOffsetHours * 60 * 60 * 1000);
+  const month = String(jakartaTime.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(jakartaTime.getUTCDate()).padStart(2, "0");
+  return `${jakartaTime.getUTCFullYear()}-${month}-${day}`;
 }
 
 function monthKey(value = new Date()) {
   return dateKey(value).slice(0, 7);
 }
 
+function jakartaDateRange(startYear, startMonthIndex, startDay, endYear, endMonthIndex, endDay) {
+  return {
+    startDate: new Date(Date.UTC(startYear, startMonthIndex, startDay, -jakartaOffsetHours)).toISOString(),
+    endDate: new Date(Date.UTC(endYear, endMonthIndex, endDay, -jakartaOffsetHours)).toISOString(),
+  };
+}
+
+function dayDateRange(day = dateKey()) {
+  const [year, monthNumber, dayNumber] = String(day || dateKey()).split("-").map(Number);
+  return jakartaDateRange(year, monthNumber - 1, dayNumber, year, monthNumber - 1, dayNumber + 1);
+}
+
 function monthDateRange(month = monthKey()) {
   const [year, monthNumber] = String(month || monthKey()).split("-").map(Number);
-  const start = new Date(year, monthNumber - 1, 1);
-  const end = new Date(year, monthNumber, 1);
+  const start = { year, monthIndex: monthNumber - 1, day: 1 };
+  const end = monthNumber === 12
+    ? { year: year + 1, monthIndex: 0, day: 1 }
+    : { year, monthIndex: monthNumber, day: 1 };
   return {
-    startDate: start.toISOString(),
-    endDate: end.toISOString(),
+    ...jakartaDateRange(start.year, start.monthIndex, start.day, end.year, end.monthIndex, end.day),
   };
 }
 
@@ -406,12 +426,7 @@ function selectedAnalyticsYear() {
 }
 
 function yearDateRange(year = selectedAnalyticsYear()) {
-  const start = new Date(year, 0, 1);
-  const end = new Date(year + 1, 0, 1);
-  return {
-    startDate: start.toISOString(),
-    endDate: end.toISOString(),
-  };
+  return jakartaDateRange(year, 0, 1, year + 1, 0, 1);
 }
 
 function analyticsPeriodKey(range = state.chartRange) {
@@ -3851,6 +3866,15 @@ function renderHistory() {
   }
 
   const today = selectedDailyDate();
+  const todayPeriodKey = `month:${today.slice(0, 7)}`;
+  if (analyticsLoadFailedForPeriod(todayPeriodKey)) {
+    const activeShift = currentShiftName();
+    if (els.activeShiftLabel) els.activeShiftLabel.textContent = `${activeShift} aktif`;
+    els.shiftTotal.textContent = "-";
+    els.shiftCount.textContent = `${activeShift} · data belum dimuat`;
+    renderDailySummaryLoadError(today, state.analyticsLoadError);
+    return;
+  }
   const todayTransactions = analyticsSourceForMonth(today.slice(0, 7)).filter((entry) => dateKey(entry.createdAt) === today);
   const activeShift = currentShiftName();
   const activeShiftTransactions = revenueTransactions(todayTransactions).filter((entry) => (entry.shift || "Shift 1") === activeShift);
@@ -4148,7 +4172,16 @@ function renderOrders() {
   const unpaid = dedupeTransactionsById(savedUnpaid);
   if (unpaid.length !== savedUnpaid.length) saveOrderDrafts(unpaid);
   const paidDate = els.paidOrderDate?.value || dateKey();
-  const paidAscending = getHistory()
+  const paidPeriodKey = `month:${paidDate.slice(0, 7)}`;
+  if (state.orderStatus === "paid" && analyticsLoadFailedForPeriod(paidPeriodKey)) {
+    if (els.unpaidOrderCount) els.unpaidOrderCount.textContent = unpaid.length;
+    if (els.paidOrderCount) els.paidOrderCount.textContent = "-";
+    if (els.paidOrderDate) els.paidOrderDate.hidden = false;
+    if (els.paidOrderCategoryTabs) els.paidOrderCategoryTabs.hidden = true;
+    els.orderList.innerHTML = `<div class="empty-state analytics-error-state">Gagal memuat riwayat transaksi ${escapeHtml(paidDate)} dari Supabase. ${escapeHtml(state.analyticsLoadError)}</div>`;
+    return;
+  }
+  const paidAscending = analyticsSourceForDate(paidDate)
     .filter((entry) => dateKey(entry.createdAt) === paidDate)
     .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
   const paidDisplayCodes = paidOrderDisplayCodes(paidAscending);
@@ -4340,15 +4373,22 @@ function sortTransactionsNewestFirst(transactions = []) {
 function cacheCloudTransactions(transactions = [], localPending = []) {
   const list = Array.isArray(transactions) ? transactions : [];
   const pendingDeletes = new Set(getPendingDeletes().filter((entry) => entry.type === "transaction").map((entry) => entry.id));
+  const deletedTransactions = new Set(getDeletedTransactionTombstones().map((entry) => entry.id));
+  const blockedIds = new Set([...pendingDeletes, ...deletedTransactions]);
   const byId = new Map();
 
   sortTransactionsNewestFirst(list).forEach((entry) => {
-    if (!entry?.id || pendingDeletes.has(entry.id)) return;
+    if (!entry?.id || blockedIds.has(entry.id)) return;
+    byId.set(entry.id, entry);
+  });
+
+  sortTransactionsNewestFirst(getHistory()).forEach((entry) => {
+    if (!entry?.id || blockedIds.has(entry.id) || byId.has(entry.id)) return;
     byId.set(entry.id, entry);
   });
 
   sortTransactionsNewestFirst(localPending).forEach((entry) => {
-    if (!entry?.id || pendingDeletes.has(entry.id)) return;
+    if (!entry?.id || blockedIds.has(entry.id)) return;
     byId.set(entry.id, byId.has(entry.id) ? { ...byId.get(entry.id), ...entry } : entry);
   });
 
@@ -4628,6 +4668,20 @@ function dailyReportText(todayTransactions, reportDateValue = selectedDailyDate(
   ].join("\n");
 }
 
+function renderDailySummaryLoadError(reportDateValue, message = "") {
+  const safeMessage = message || "Data Supabase belum bisa dimuat.";
+  if (els.dailySummary) {
+    els.dailySummary.innerHTML = `
+      <div class="empty-state analytics-error-state">
+        Gagal memuat data Supabase untuk ${escapeHtml(reportDateValue)}. ${escapeHtml(safeMessage)}
+      </div>
+    `;
+  }
+  if (els.dailyReportText) {
+    els.dailyReportText.textContent = `Gagal memuat laporan harian ${reportDateValue}.\n${safeMessage}\n\nCoba sync ulang atau cek koneksi sebelum memakai angka laporan.`;
+  }
+}
+
 function renderDailySummary(todayTransactions, reportDateValue = selectedDailyDate()) {
   if (!els.dailySummary) return;
   const normalTransactions = revenueTransactions(todayTransactions);
@@ -4708,6 +4762,156 @@ function shareDailyReportToWhatsApp() {
   if (els.dailyReportShareStatus) els.dailyReportShareStatus.textContent = "Laporan dibuka di WhatsApp";
 }
 
+function pdfEscape(value = "") {
+  return String(value).replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)");
+}
+
+function wrapPdfLine(text, maxChars = 92) {
+  const words = String(text || "").split(/\s+/);
+  const lines = [];
+  let line = "";
+  words.forEach((word) => {
+    const next = line ? `${line} ${word}` : word;
+    if (next.length > maxChars && line) {
+      lines.push(line);
+      line = word;
+    } else {
+      line = next;
+    }
+  });
+  if (line) lines.push(line);
+  return lines.length ? lines : [""];
+}
+
+function dailyReportPdfLines(transactions = [], reportDateValue = selectedDailyDate()) {
+  const normalTransactions = revenueTransactions(transactions);
+  const reportDate = new Date(`${reportDateValue}T12:00:00`).toLocaleDateString("id-ID", { weekday: "long", day: "2-digit", month: "long", year: "numeric" });
+  const revenue = normalTransactions.reduce((sum, entry) => sum + Number(entry.grandTotal || 0), 0);
+  const discountTotal = normalTransactions.reduce((sum, entry) => sum + Number(entry.discountTotal || 0), 0);
+  const subtotal = normalTransactions.reduce((sum, entry) => sum + Number(entry.subtotal || entry.originalTotal || entry.grandTotal || 0), 0);
+  const paymentTotals = paymentTotalsFor(normalTransactions);
+  const productRows = [...normalTransactions.reduce((map, entry) => {
+    (entry.items || []).forEach((item) => {
+      const key = item.id || item.name;
+      const current = map.get(key) || { name: item.name, qty: 0, revenue: 0 };
+      current.qty += Number(item.qty || 0);
+      current.revenue += Number(item.qty || 0) * Number(item.price || 0);
+      map.set(key, current);
+    });
+    return map;
+  }, new Map()).values()].sort((a, b) => b.qty - a.qty || b.revenue - a.revenue);
+  const lines = [
+    "Kasir Migi",
+    `Laporan Penjualan Harian - ${reportDate}`,
+    "",
+    `Total transaksi: ${normalTransactions.length}`,
+    `Total pendapatan: ${money(subtotal)}`,
+    `Total diskon: ${money(discountTotal)}`,
+    `Total penjualan bersih: ${money(revenue)}`,
+    "",
+    "Rincian metode pembayaran:",
+    ...paymentReportMethods().map((method) => `- ${method}: ${money(paymentTotals.get(method) || 0)}`),
+    "",
+    "Rincian produk terjual:",
+    ...(productRows.length ? productRows.map((item) => `- ${item.name}: ${quantityLabel(item.qty)} pcs (${money(item.revenue)})`) : ["- Belum ada produk terjual"]),
+    "",
+    "Daftar transaksi:",
+  ];
+
+  if (!normalTransactions.length) lines.push("- Belum ada transaksi valid pada tanggal ini.");
+  normalTransactions
+    .slice()
+    .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
+    .forEach((entry) => {
+      const time = new Date(entry.createdAt).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+      lines.push("");
+      lines.push(`${entry.id} | ${time} | ${transactionEmployeeDisplay(entry)} | ${entry.shift || "Shift 1"} | ${transactionPaymentMethod(entry)}`);
+      lines.push(`Pelanggan: ${entry.customer || "Teman Migi"}`);
+      (entry.items || []).forEach((item) => {
+        const qty = Number(item.qty || 0);
+        const price = Number(item.price || 0);
+        lines.push(`- ${item.name} | ${quantityLabel(qty)} x ${money(price)} = ${money(qty * price)}`);
+      });
+      lines.push(`Subtotal: ${money(entry.subtotal || entry.originalTotal || entry.grandTotal || 0)} | Diskon: ${money(entry.discountTotal || 0)} | Total akhir: ${money(entry.grandTotal || 0)}`);
+      lines.push(`Nominal pembayaran: ${money(entry.paid || 0)} | Kembalian: ${money(entry.change || 0)}`);
+      const note = entry.note || entry.discountNote || entry.editReason || "";
+      if (note) lines.push(`Catatan: ${note}`);
+    });
+  return lines;
+}
+
+function buildSimplePdf(lines = []) {
+  const pageWidth = 595;
+  const pageHeight = 842;
+  const margin = 42;
+  const fontSize = 10;
+  const lineHeight = 15;
+  const linesPerPage = Math.floor((pageHeight - margin * 2) / lineHeight);
+  const pages = [];
+  for (let index = 0; index < lines.length; index += linesPerPage) pages.push(lines.slice(index, index + linesPerPage));
+  const objects = ["<< /Type /Catalog /Pages 2 0 R >>"];
+  const pageRefs = [];
+  const contentObjects = [];
+  pages.forEach((pageLines, pageIndex) => {
+    const content = [
+      "BT",
+      `/F1 ${fontSize} Tf`,
+      `${margin} ${pageHeight - margin} Td`,
+      `${lineHeight} TL`,
+      ...pageLines.flatMap((line) => wrapPdfLine(line).map((wrapped) => `(${pdfEscape(wrapped)}) Tj T*`)),
+      "ET",
+    ].join("\n");
+    const pageObjectNumber = 3 + pageIndex * 2;
+    const contentObjectNumber = pageObjectNumber + 1;
+    pageRefs.push(`${pageObjectNumber} 0 R`);
+    objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Resources << /Font << /F1 ${3 + pages.length * 2} 0 R >> >> /Contents ${contentObjectNumber} 0 R >>`);
+    contentObjects.push(`<< /Length ${content.length} >>\nstream\n${content}\nendstream`);
+  });
+  objects.push(`<< /Type /Pages /Kids [${pageRefs.join(" ")}] /Count ${pages.length} >>`);
+  const orderedObjects = [objects[0], objects[objects.length - 1]];
+  for (let index = 1; index < objects.length - 1; index += 1) {
+    orderedObjects.push(objects[index]);
+    orderedObjects.push(contentObjects[index - 1]);
+  }
+  orderedObjects.push("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>");
+  let pdf = "%PDF-1.4\n";
+  const offsets = [0];
+  orderedObjects.forEach((object, index) => {
+    offsets.push(pdf.length);
+    pdf += `${index + 1} 0 obj\n${object}\nendobj\n`;
+  });
+  const xrefOffset = pdf.length;
+  pdf += `xref\n0 ${orderedObjects.length + 1}\n0000000000 65535 f \n`;
+  offsets.slice(1).forEach((offset) => {
+    pdf += `${String(offset).padStart(10, "0")} 00000 n \n`;
+  });
+  pdf += `trailer\n<< /Size ${orderedObjects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
+  return new Blob([pdf], { type: "application/pdf" });
+}
+
+async function downloadDailyReportPdf() {
+  try {
+    const reportDateValue = selectedDailyDate();
+    const loaded = await refreshAnalyticsPeriod({ month: reportDateValue.slice(0, 7), range: "daily", silent: false });
+    if (!loaded && navigator.onLine) throw new Error(state.analyticsLoadError || "Arsip Supabase belum bisa dimuat.");
+    const transactions = analyticsSourceForDate(reportDateValue).filter((entry) => dateKey(entry.createdAt) === reportDateValue);
+    const lines = dailyReportPdfLines(transactions, reportDateValue);
+    const blob = buildSimplePdf(lines);
+    const label = new Date(`${reportDateValue}T12:00:00`).toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric" }).replace(/\s+/g, "-");
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `Kasir-Migi-Laporan-${label}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    toast("PDF laporan dibuat.");
+  } catch (error) {
+    toast(error.message || "PDF laporan belum bisa dibuat.");
+  }
+}
+
 function analyticsSourceForPeriod(key = analyticsPeriodKey()) {
   return state.analyticsPeriodKey === key && Array.isArray(state.analyticsPeriodTransactions)
     ? state.analyticsPeriodTransactions
@@ -4724,6 +4928,25 @@ function analyticsSourceForMonth(month = selectedMonth()) {
 
 function analyticsSourceForDate(date = dateKey()) {
   return analyticsSourceForMonth(date.slice(0, 7));
+}
+
+function analyticsArchiveCoversPeriodKey(periodKey = "") {
+  if (!periodKey) return false;
+  if (state.analyticsPeriodKey === periodKey) return true;
+  if (periodKey.startsWith("month:")) {
+    const yearKey = `year:${periodKey.slice(6, 10)}`;
+    return state.analyticsPeriodKey === yearKey;
+  }
+  return false;
+}
+
+function analyticsLoadFailedForPeriod(periodKey = "") {
+  return Boolean(
+    navigator.onLine
+    && state.analyticsLoadError
+    && state.analyticsLoadErrorPeriodKey === periodKey
+    && !analyticsArchiveCoversPeriodKey(periodKey),
+  );
 }
 
 function filteredMonthHistory() {
@@ -4753,8 +4976,8 @@ async function refreshAnalyticsPeriod({ render = true, month = selectedMonth(), 
   const requestId = state.analyticsPeriodRequestId + 1;
   state.analyticsPeriodRequestId = requestId;
   state.analyticsPeriodLoading = true;
+  const periodKey = range === "daily" ? `month:${month}` : `year:${selectedAnalyticsYear()}`;
   try {
-    const periodKey = range === "daily" ? `month:${month}` : `year:${selectedAnalyticsYear()}`;
     const { startDate, endDate } = range === "daily" ? monthDateRange(month) : yearDateRange(selectedAnalyticsYear());
     const result = await postSupabaseAction("get-transactions", {
       startDate,
@@ -4766,6 +4989,8 @@ async function refreshAnalyticsPeriod({ render = true, month = selectedMonth(), 
     if (requestId !== state.analyticsPeriodRequestId) return false;
     state.analyticsPeriodKey = periodKey;
     state.analyticsPeriodTransactions = result.transactions;
+    state.analyticsLoadError = "";
+    state.analyticsLoadErrorPeriodKey = "";
     if (Array.isArray(result.deletedTransactions)) mergeDeletedTransactionTombstones(result.deletedTransactions);
     if (render) {
       renderAnalytics();
@@ -4773,6 +4998,14 @@ async function refreshAnalyticsPeriod({ render = true, month = selectedMonth(), 
     }
     return true;
   } catch (error) {
+    if (requestId === state.analyticsPeriodRequestId) {
+      state.analyticsLoadError = error.message || "Arsip analitik belum bisa dimuat.";
+      state.analyticsLoadErrorPeriodKey = periodKey;
+      if (render) {
+        renderAnalytics();
+        renderHistory();
+      }
+    }
     if (!silent) toast(error.message || "Arsip analitik belum bisa dimuat.");
     return false;
   } finally {
@@ -4924,6 +5157,30 @@ async function mutateDiscountVoucher(id, updater) {
 
 function renderAnalytics() {
   renderAnalyticsControls();
+  const requestedPeriodKey = state.chartRange === "daily" ? `month:${selectedMonth()}` : `year:${selectedAnalyticsYear()}`;
+  if (analyticsLoadFailedForPeriod(requestedPeriodKey)) {
+    const message = `Gagal memuat arsip Supabase: ${state.analyticsLoadError}`;
+    if (els.analyticsRevenueLabel) els.analyticsRevenueLabel.textContent = "Omset";
+    if (els.analyticsTunaiLabel) els.analyticsTunaiLabel.textContent = "Tunai";
+    if (els.analyticsQrisLabel) els.analyticsQrisLabel.textContent = "QRIS";
+    if (els.analyticsAverageLabel) els.analyticsAverageLabel.textContent = "Rata-rata";
+    if (els.analyticsDiscountLabel) els.analyticsDiscountLabel.textContent = "Diskon";
+    if (els.monthRevenue) els.monthRevenue.textContent = "-";
+    if (els.monthTunaiRevenue) els.monthTunaiRevenue.textContent = "-";
+    if (els.monthQrisRevenue) els.monthQrisRevenue.textContent = "-";
+    if (els.monthDiscountTotal) els.monthDiscountTotal.textContent = "-";
+    if (els.monthDiscountCount) els.monthDiscountCount.textContent = "-";
+    if (els.avgDailyRevenue) els.avgDailyRevenue.textContent = "-";
+    if (els.monthTransactions) els.monthTransactions.textContent = "-";
+    if (els.monthItems) els.monthItems.textContent = "-";
+    if (els.bestsellerList) els.bestsellerList.innerHTML = `<div class="empty-state analytics-error-state">${escapeHtml(message)}</div>`;
+    if (els.insightList) els.insightList.innerHTML = `<div class="empty-state analytics-error-state">Jangan gunakan angka laporan sampai archive berhasil dimuat.</div>`;
+    if (els.ingredientOutList) els.ingredientOutList.innerHTML = `<div class="empty-state analytics-error-state">Data bahan keluar belum dimuat.</div>`;
+    renderRevenueChart([]);
+    renderDiscountVoucherList();
+    renderDiscountAnalytics([]);
+    return;
+  }
   const periodHistory = filteredAnalyticsHistory();
   const staffDrinks = periodHistory.filter(isStaffDrinkTransaction);
   const history = revenueTransactions(periodHistory);
@@ -5698,7 +5955,12 @@ els.orderChannels?.addEventListener("click", (event) => {
   if (!button) return;
   state.orderStatus = button.dataset.orderStatus;
   els.orderStatusTabs.querySelectorAll("button[data-order-status]").forEach((entry) => entry.classList.toggle("active", entry === button));
-  renderOrders();
+  if (state.orderStatus === "paid") {
+    const date = els.paidOrderDate?.value || dateKey();
+    refreshAnalyticsPeriod({ month: date.slice(0, 7), range: "daily", silent: true }).then(() => renderOrders());
+  } else {
+    renderOrders();
+  }
 });
 
 els.paidOrderCategoryTabs?.addEventListener("click", (event) => {
@@ -5955,6 +6217,7 @@ els.testLogoPrint?.addEventListener("click", testLogoPrint);
 els.billOrderBtn.addEventListener("click", printBill);
 els.copyDailyReport?.addEventListener("click", copyDailyReport);
 els.shareDailyReport?.addEventListener("click", shareDailyReportToWhatsApp);
+els.downloadDailyPdf?.addEventListener("click", downloadDailyReportPdf);
 
 els.menuForm.addEventListener("submit", saveMenu);
 els.purchaseForm?.addEventListener("submit", savePurchase);
@@ -6267,7 +6530,10 @@ els.analyticsYear?.addEventListener("change", () => {
     if (!loaded) renderAnalytics();
   });
 });
-els.paidOrderDate?.addEventListener("change", renderOrders);
+els.paidOrderDate?.addEventListener("change", () => {
+  const date = els.paidOrderDate.value || dateKey();
+  refreshAnalyticsPeriod({ month: date.slice(0, 7), range: "daily", silent: true }).then(() => renderOrders());
+});
 els.startCamera?.addEventListener("click", startCamera);
 els.capturePhoto?.addEventListener("click", capturePhoto);
 els.resetBooth?.addEventListener("click", resetBooth);
