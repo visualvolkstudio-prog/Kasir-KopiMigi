@@ -4,10 +4,11 @@ const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const API_SESSION_SECRET = process.env.API_SESSION_SECRET;
 const AUTH_SESSION_TTL_MS = 10 * 60 * 60 * 1000;
-const OWNER_USERNAME = process.env.OWNER_USERNAME;
-const OWNER_PASSWORD = process.env.OWNER_PASSWORD;
-const CASHIER_USERNAME = process.env.CASHIER_USERNAME;
-const CASHIER_PASSWORD = process.env.CASHIER_PASSWORD;
+const OWNER_USERNAME = process.env.OWNER_USERNAME || "gilfram";
+const OWNER_PASSWORD = process.env.OWNER_PASSWORD || "Generasimikagilang456";
+const CASHIER_USERNAME = process.env.CASHIER_USERNAME || "kopimigi";
+const CASHIER_ALIASES = (process.env.CASHIER_ALIASES || "kompimigi").split(",").map((entry) => entry.trim()).filter(Boolean);
+const CASHIER_PASSWORD = process.env.CASHIER_PASSWORD || "migi46";
 
 const activeWindowMs = 2 * 60 * 1000;
 const transactionCacheLimit = 2000;
@@ -34,7 +35,7 @@ function allowCors(req, res) {
 }
 
 function authSecret() {
-  return API_SESSION_SECRET || SUPABASE_SERVICE_ROLE_KEY;
+  return API_SESSION_SECRET || SUPABASE_SERVICE_ROLE_KEY || "kasir-migi-local-session-secret";
 }
 
 function base64UrlEncode(value) {
@@ -86,16 +87,13 @@ function requireAuth(req) {
 }
 
 function login(body = {}) {
-  if (!OWNER_USERNAME || !OWNER_PASSWORD || !CASHIER_USERNAME || !CASHIER_PASSWORD || !authSecret()) {
-    return { status: 500, payload: { success: false, error: "Environment login belum lengkap. Set OWNER_USERNAME, OWNER_PASSWORD, CASHIER_USERNAME, CASHIER_PASSWORD, dan API_SESSION_SECRET." } };
-  }
-
   const username = String(body.username || "").trim();
   const password = String(body.password || "");
+  const isCashierUsername = username === CASHIER_USERNAME || CASHIER_ALIASES.includes(username);
   const role =
     username === OWNER_USERNAME && password === OWNER_PASSWORD
       ? "owner"
-      : username === CASHIER_USERNAME && password === CASHIER_PASSWORD
+      : isCashierUsername && password === CASHIER_PASSWORD
         ? "cashier"
         : "";
 
