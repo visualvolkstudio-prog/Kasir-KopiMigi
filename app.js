@@ -456,8 +456,7 @@ function transactionPaymentMethod(transaction = {}) {
 }
 
 function transactionPaymentTotal(transaction = {}) {
-  const amount = Number(transaction.grandTotal || 0);
-  return isOnlineChannel(transaction.channel) ? amount : Number(transaction.grandTotal || 0);
+  return Number(transaction.grandTotal || 0);
 }
 
 function paymentTotalsFor(transactions = []) {
@@ -778,13 +777,14 @@ function isAuthExpired(auth = getAuth(), now = Date.now()) {
   return new Date(auth.expiresAt).getTime() <= now;
 }
 
-function createAuthSession({ employee, shift, role, dutyRole = "karyawan" }) {
+function createAuthSession({ employee, shift, role, dutyRole = "karyawan", token = "" }) {
   const loginAt = new Date();
   return {
     loggedIn: true,
     employee,
     shift: normalizeShift(shift),
     role,
+    token,
     dutyRole: role === "cashier" ? normalizeDutyRole(dutyRole, loginAt) : "owner",
     at: loginAt.toISOString(),
     loginAt: loginAt.toISOString(),
@@ -920,7 +920,7 @@ function renderEmployeeControls() {
 function initAuth() {
   const auth = getAuth();
   renderEmployeeControls();
-  if (auth?.loggedIn && isAuthExpired(auth)) {
+  if (auth?.loggedIn && (!auth.token || isAuthExpired(auth))) {
     localStorage.removeItem(storageKeys.auth);
     setLoginEmployeeStep(false);
     document.body.classList.add("locked");
@@ -948,18 +948,11 @@ function ensureDeviceId() {
 
 async function checkOtherActiveDevice(employee) {
   if (!navigator.onLine) return { otherActive: false };
-  const response = await fetch("/api/supabase", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      action: "device-presence",
-      deviceId: ensureDeviceId(),
-      employee,
-      checkOnly: true,
-    }),
+  return postSupabaseAction("device-presence", {
+    deviceId: ensureDeviceId(),
+    employee,
+    checkOnly: true,
   });
-  if (!response.ok) return { otherActive: false };
-  return response.json();
 }
 
 async function confirmLoginDevice(employee) {
@@ -985,7 +978,7 @@ async function preloadEmployeesForLogin() {
   return false;
 }
 
-async function finishLogin(role, employee, shift, dutyRole = "karyawan") {
+async function finishLogin(role, employee, shift, dutyRole = "karyawan", token = "") {
   const normalizedDutyRole = role === "cashier" ? normalizeDutyRole(dutyRole) : "owner";
   if (role === "cashier" && !employee) {
     toast("Pilih karyawan dulu. Jika kosong, tambahkan dari akun Owner.");
@@ -1009,7 +1002,7 @@ async function finishLogin(role, employee, shift, dutyRole = "karyawan") {
   }
   if (role === "cashier") localStorage.setItem(storageKeys.employee, employee);
   localStorage.setItem(storageKeys.activeShift, shift);
-  writeJson(storageKeys.auth, createAuthSession({ employee, shift, role, dutyRole: normalizedDutyRole }));
+  writeJson(storageKeys.auth, createAuthSession({ employee, shift, role, dutyRole: normalizedDutyRole, token: token || state.pendingLogin?.token || getAuth()?.token || "" }));
   if (role === "cashier") registerShiftAssignment(employee, shift, normalizedDutyRole);
   setLoginEmployeeStep(false);
   renderEmployeeControls();
@@ -1028,42 +1021,42 @@ async function login(event) {
   event.preventDefault();
   if (state.pendingLogin?.role === "cashier") {
     const employee = els.loginEmployee?.value || getEmployeeRoster()[0] || "";
-    await finishLogin("cashier", employee, autoShiftName(), els.loginDutyRole?.value || "karyawan");
+    await finishLogin("cashier", employee, autoShiftName(), els.loginDutyRole?.value || "karyawan", state.pendingLogin.token || "");
     return;
   }
 
   const username = els.loginUsername.value.trim();
   const password = els.loginPassword.value;
-  const isOwnerLogin = username === "gilfram" && password === "Generasimikagilang456";
-  const isCashierLogin = username === "kopimigi" && password === "migi46";
-
-  if (isOwnerLogin || isCashierLogin) {
-    const role = isOwnerLogin ? "owner" : "cashier";
+  els.loginSubmitBtn.disabled = true;
+  try {
+    const loginResult = await postSupabaseAction("login", { username, password });
+    const role = loginResult.role;
+    const token = loginResult.token || "";
     const shift = autoShiftName();
     if (role === "owner") {
-      await finishLogin("owner", "Owner", shift, "owner");
+      await finishLogin("owner", "Owner", shift, "owner", token);
       return;
     }
 
-    els.loginSubmitBtn.disabled = true;
     els.loginSubmitBtn.textContent = "Memuat karyawan...";
+    state.pendingLogin = { role: "cashier", token, checkedAt: new Date().toISOString() };
     await preloadEmployeesForLogin();
-    state.pendingLogin = { role: "cashier", checkedAt: new Date().toISOString() };
     renderEmployeeControls();
     setLoginEmployeeStep(true);
-    els.loginSubmitBtn.disabled = false;
     if (!els.loginEmployee?.value) {
       toast("Daftar karyawan belum tersedia. Tambahkan karyawan dari akun Owner.");
       renderEmployeeControls();
     }
     return;
+  } catch {
+    setLoginEmployeeStep(false);
+    els.loginHint.textContent = "Username atau password salah.";
+    els.loginHint.style.color = "var(--danger)";
+    els.loginPassword.value = "";
+    els.loginPassword.focus();
+  } finally {
+    els.loginSubmitBtn.disabled = false;
   }
-
-  setLoginEmployeeStep(false);
-  els.loginHint.textContent = "Username atau password salah.";
-  els.loginHint.style.color = "var(--danger)";
-  els.loginPassword.value = "";
-  els.loginPassword.focus();
 }
 
 async function recordLogoutSession(auth = getAuth()) {
@@ -1095,6 +1088,11 @@ function logout({ remote = false } = {}) {
 function isLoggedIn() {
   const auth = getAuth();
   if (!auth?.loggedIn) return false;
+  if (!auth.token) {
+    localStorage.removeItem(storageKeys.auth);
+    document.body.classList.add("locked");
+    return false;
+  }
   if (!isAuthExpired(auth)) return true;
   localStorage.removeItem(storageKeys.auth);
   document.body.classList.add("locked");
@@ -1750,10 +1748,18 @@ function saveLegacyBoothSessions(sessions) {
 }
 
 async function sendBoothServerAction(action, code, payload = {}) {
-  void action;
-  void code;
-  void payload;
-  return false;
+  try {
+    const response = await fetch("/api/action", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action, code, ...payload }),
+    });
+    if (!response.ok) return false;
+    const result = await response.json();
+    return Boolean(result?.success);
+  } catch {
+    return false;
+  }
 }
 
 if (boothSyncChannel) {
@@ -1931,7 +1937,7 @@ function stableIdFromName(name) {
 }
 
 function itemArt(item) {
-  const category = item.category.toLowerCase();
+  const category = String(item.category || "").toLowerCase();
   if (category.includes("photo")) return "art-photo";
   if (category.includes("snack") || category.includes("food")) return "art-food";
   if (category.includes("non") || category.includes("milk") || category.includes("latte")) return "art-milk";
@@ -1940,13 +1946,13 @@ function itemArt(item) {
 
 function itemVisual(item) {
   if (item.image) {
-    return `<img class="item-image" src="${item.image}" alt="" />`;
+    return `<img class="item-image" src="${escapeHtml(item.image)}" alt="" />`;
   }
-  return `<span class="item-art ${itemArt(item)}" aria-hidden="true">${itemLabel(item)}</span>`;
+  return `<span class="item-art ${itemArt(item)}" aria-hidden="true">${escapeHtml(itemLabel(item))}</span>`;
 }
 
 function itemLabel(item) {
-  return item.name
+  return String(item.name || "")
     .split(/\s+/)
     .map((part) => part[0])
     .join("")
@@ -2237,7 +2243,7 @@ function renderMenuCategoryOptions(selectedCategory = els.menuCategory.value) {
   const hasSelected = categories.includes(selectedCategory);
   els.menuCategorySelect.innerHTML = [
     `<option value="" disabled ${selectedCategory ? "" : "selected"}>Pilih kategori</option>`,
-    ...categories.map((category) => `<option value="${category}" ${category === selectedCategory ? "selected" : ""}>${category}</option>`),
+    ...categories.map((category) => `<option value="${escapeHtml(category)}" ${category === selectedCategory ? "selected" : ""}>${escapeHtml(category)}</option>`),
     `<option value="__custom" ${selectedCategory && !hasSelected ? "selected" : ""}>+ Kategori baru</option>`,
   ].join("");
   els.menuCategoryCustom.value = selectedCategory && !hasSelected ? selectedCategory : "";
@@ -2258,13 +2264,16 @@ function renderMenuGrid() {
           (item) => {
             const cartItem = state.cart.find((entry) => entry.id === item.id);
             const qty = cartItem?.qty || 0;
+            const safeId = escapeHtml(item.id);
+            const safeName = escapeHtml(item.name);
+            const safeCategory = escapeHtml(item.category);
             return `
-            <article class="menu-card ${qty ? "selected" : ""}" data-id="${item.id}" role="button" tabindex="0" aria-label="Tambah ${item.name}">
-              ${qty ? `<span class="menu-qty-control"><button class="menu-qty-btn" data-menu-decrease="${item.id}" type="button" title="Kurangi ${item.name}">-</button><strong>${qty}</strong><button class="menu-qty-btn" data-menu-increase="${item.id}" type="button" title="Tambah ${item.name}">+</button></span>` : ""}
+            <article class="menu-card ${qty ? "selected" : ""}" data-id="${safeId}" role="button" tabindex="0" aria-label="Tambah ${safeName}">
+              ${qty ? `<span class="menu-qty-control"><button class="menu-qty-btn" data-menu-decrease="${safeId}" type="button" title="Kurangi ${safeName}">-</button><strong>${qty}</strong><button class="menu-qty-btn" data-menu-increase="${safeId}" type="button" title="Tambah ${safeName}">+</button></span>` : ""}
               ${itemVisual(item)}
               <span>
-                <strong>${item.name}</strong>
-                <span>${item.category} <b>${money(item.price)}</b></span>
+                <strong>${safeName}</strong>
+                <span>${safeCategory} <b>${money(item.price)}</b></span>
               </span>
             </article>
           `;
@@ -3459,18 +3468,20 @@ function groupedReceiptItems(items = []) {
 }
 
 function receiptHtml(transaction, kind = "paid") {
-  const displayCode = receiptDisplayCode(transaction, kind);
-  const tableLabel = receiptTableLabel(transaction, displayCode);
-  const paymentMethod = transactionPaymentMethod(transaction);
+  const rawDisplayCode = receiptDisplayCode(transaction, kind);
+  const rawTableLabel = receiptTableLabel(transaction, rawDisplayCode);
+  const displayCode = escapeHtml(rawDisplayCode);
+  const tableLabel = escapeHtml(rawTableLabel);
+  const paymentMethod = escapeHtml(transactionPaymentMethod(transaction));
   const paidAmount = isOnlineChannel(transaction.channel) ? Number(transaction.grandTotal || 0) : Number(transaction.paid || 0);
   const itemLines = groupedReceiptItems(transaction.items)
     .map(([category, items]) => `
-      <p class="receipt-category">${category}</p>
+      <p class="receipt-category">${escapeHtml(category)}</p>
       ${items
         .map(
           (item) => `
             <div class="receipt-line">
-              <span class="receipt-item-name">${item.qty}x ${item.name}</span>
+              <span class="receipt-item-name">${escapeHtml(item.qty)}x ${escapeHtml(item.name)}</span>
               ${kind === "bill" ? "" : `<span class="receipt-item-price">${money(item.price * item.qty)}</span>`}
             </div>
           `,
@@ -3480,7 +3491,7 @@ function receiptHtml(transaction, kind = "paid") {
     .join("");
   const staffDrink = isStaffDrinkTransaction(transaction);
   const discountLine = !staffDrink && Number(transaction.discountTotal || 0) > 0
-    ? `<div class="receipt-line"><span>Diskon${transaction.discountNote ? ` (${transaction.discountNote})` : ""}</span><span>-${money(transaction.discountTotal)}</span></div>`
+    ? `<div class="receipt-line"><span>Diskon${transaction.discountNote ? ` (${escapeHtml(transaction.discountNote)})` : ""}</span><span>-${money(transaction.discountTotal)}</span></div>`
     : "";
   const totalsBlock = kind === "bill"
     ? ""
@@ -3498,15 +3509,15 @@ function receiptHtml(transaction, kind = "paid") {
     <h2>Kopi Migi</h2>
     ${kind === "bill" ? "" : staffDrink ? "<p>STAFF DRINK / JATAH KARYAWAN</p>" : "<p>LUNAS</p>"}
     <p>Kode: ${displayCode}</p>
-    <p>${new Date(transaction.createdAt).toLocaleString("id-ID")}</p>
-    <p>Kasir: ${transactionEmployeeDisplay(transaction)}${transaction.shift ? ` (${transaction.shift})` : ""}</p>
-    <p>Channel: ${transaction.channel || "Kasir"}</p>
-    <p>Customer: ${transaction.customer}</p>
+    <p>${escapeHtml(new Date(transaction.createdAt).toLocaleString("id-ID"))}</p>
+    <p>Kasir: ${escapeHtml(transactionEmployeeDisplay(transaction))}${transaction.shift ? ` (${escapeHtml(transaction.shift)})` : ""}</p>
+    <p>Channel: ${escapeHtml(transaction.channel || "Kasir")}</p>
+    <p>Customer: ${escapeHtml(transaction.customer)}</p>
     <p>Nomor: ${tableLabel}</p>
     <div class="receipt-rule"></div>
     ${itemLines}
     ${totalsBlock}
-    ${transaction.boothPackage !== "none" ? `<div class="receipt-rule"></div><p>Photobooth: ${transaction.boothPackage}</p><p>Kode: ${transaction.boothCode || "-"}</p>` : ""}
+    ${transaction.boothPackage !== "none" ? `<div class="receipt-rule"></div><p>Photobooth: ${escapeHtml(transaction.boothPackage)}</p><p>Kode: ${escapeHtml(transaction.boothCode || "-")}</p>` : ""}
     <div class="receipt-rule"></div>
     <p class="receipt-thanks">Terima kasih sudah mampir ke Kopi Migi. Ditunggu kembali ya!</p>
     <p class="receipt-cta">Semoga harimu menyenangkan :)</p>
@@ -4275,6 +4286,7 @@ async function syncPendingTransactions({ pull = true } = {}) {
       const response = await fetch("/api/supabase", {
         method: "POST",
         headers: {
+          ...authHeaders(),
           "Content-Type": "application/json",
           "Idempotency-Key": transaction.idempotencyKey || transaction.localId,
         },
@@ -4296,10 +4308,19 @@ async function syncPendingTransactions({ pull = true } = {}) {
   if (pull) await pullTransactionsFromSupabase({ render: true });
 }
 
+function authToken() {
+  return getAuth()?.token || state.pendingLogin?.token || "";
+}
+
+function authHeaders() {
+  const token = authToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 async function postCloudJson(url, payload) {
   const response = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { ...authHeaders(), "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
   const text = await response.text();

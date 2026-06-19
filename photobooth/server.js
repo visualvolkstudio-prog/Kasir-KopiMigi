@@ -2,6 +2,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const supabaseHandler = require('../api/supabase');
 
 const PORT = Number(process.env.PORT || 3000);
 const ROOT_DIR = path.resolve(__dirname, '..');
@@ -50,6 +51,28 @@ const server = http.createServer((req, res) => {
   const pathname = url.pathname;
 
   // ── API ROUTES ──
+
+  // POST /api/supabase - reuse the Vercel function handler in local server mode
+  if (pathname === '/api/supabase') {
+    if (req.method === 'OPTIONS') {
+      supabaseHandler(req, res);
+      return;
+    }
+    let body = '';
+    req.on('data', chunk => {
+      body += chunk.toString();
+      if (body.length > 25 * 1024 * 1024) req.destroy();
+    });
+    req.on('end', () => {
+      try {
+        req.body = body ? JSON.parse(body) : {};
+      } catch {
+        req.body = {};
+      }
+      supabaseHandler(req, res);
+    });
+    return;
+  }
   
   // GET /api/sessions
   if (pathname === '/api/sessions' && req.method === 'GET') {

@@ -1,5 +1,13 @@
+const crypto = require("crypto");
+
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const API_SESSION_SECRET = process.env.API_SESSION_SECRET;
+const AUTH_SESSION_TTL_MS = 10 * 60 * 60 * 1000;
+const OWNER_USERNAME = process.env.OWNER_USERNAME;
+const OWNER_PASSWORD = process.env.OWNER_PASSWORD;
+const CASHIER_USERNAME = process.env.CASHIER_USERNAME;
+const CASHIER_PASSWORD = process.env.CASHIER_PASSWORD;
 
 const activeWindowMs = 2 * 60 * 1000;
 const transactionCacheLimit = 2000;
@@ -16,13 +24,83 @@ function sendJson(res, status, payload) {
 function allowCors(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST,OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Idempotency-Key");
+  res.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type, Idempotency-Key");
   if (req.method === "OPTIONS") {
     res.statusCode = 204;
     res.end();
     return true;
   }
   return false;
+}
+
+function authSecret() {
+  return API_SESSION_SECRET || SUPABASE_SERVICE_ROLE_KEY;
+}
+
+function base64UrlEncode(value) {
+  return Buffer.from(value).toString("base64url");
+}
+
+function base64UrlJson(value) {
+  return base64UrlEncode(JSON.stringify(value));
+}
+
+function signTokenPayload(payload) {
+  return crypto.createHmac("sha256", authSecret()).update(payload).digest("base64url");
+}
+
+function createSessionToken(role) {
+  const now = Date.now();
+  const payload = base64UrlJson({ role, iat: now, exp: now + AUTH_SESSION_TTL_MS });
+  return `${payload}.${signTokenPayload(payload)}`;
+}
+
+function verifySessionToken(token = "") {
+  const [payload, signature] = String(token || "").split(".");
+  if (!payload || !signature) return null;
+  const expected = signTokenPayload(payload);
+  const expectedBuffer = Buffer.from(expected);
+  const signatureBuffer = Buffer.from(signature);
+  if (expectedBuffer.length !== signatureBuffer.length || !crypto.timingSafeEqual(expectedBuffer, signatureBuffer)) return null;
+  try {
+    const session = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
+    if (!session?.role || Date.now() > Number(session.exp || 0)) return null;
+    return session;
+  } catch {
+    return null;
+  }
+}
+
+function requestToken(req) {
+  const header = req.headers.authorization || "";
+  const match = String(header).match(/^Bearer\s+(.+)$/i);
+  return match?.[1] || "";
+}
+
+function requireAuth(req) {
+  const session = verifySessionToken(requestToken(req));
+  if (!session) {
+    return { status: 401, payload: { success: false, error: "Sesi tidak valid atau sudah habis. Silakan login ulang." } };
+  }
+  return { session };
+}
+
+function login(body = {}) {
+  if (!OWNER_USERNAME || !OWNER_PASSWORD || !CASHIER_USERNAME || !CASHIER_PASSWORD || !authSecret()) {
+    return { status: 500, payload: { success: false, error: "Environment login belum lengkap. Set OWNER_USERNAME, OWNER_PASSWORD, CASHIER_USERNAME, CASHIER_PASSWORD, dan API_SESSION_SECRET." } };
+  }
+
+  const username = String(body.username || "").trim();
+  const password = String(body.password || "");
+  const role =
+    username === OWNER_USERNAME && password === OWNER_PASSWORD
+      ? "owner"
+      : username === CASHIER_USERNAME && password === CASHIER_PASSWORD
+        ? "cashier"
+        : "";
+
+  if (!role) return { status: 401, payload: { success: false, error: "Username atau password salah." } };
+  return { status: 200, payload: { success: true, role, token: createSessionToken(role), expiresInMs: AUTH_SESSION_TTL_MS } };
 }
 
 function assertSupabaseEnv() {
@@ -694,6 +772,11 @@ async function getLogoutState() {
 }
 
 async function dispatch(body, req) {
+  if (body.action === "login") return login(body);
+
+  const auth = requireAuth(req);
+  if (auth.payload) return auth;
+
   switch (body.action) {
     case "sync-transaction":
       return syncTransaction(body);
