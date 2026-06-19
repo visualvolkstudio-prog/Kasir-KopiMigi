@@ -365,6 +365,10 @@ function money(value) {
   return rupiah.format(value || 0).replace(/\u00a0/g, " ");
 }
 
+function quantityLabel(value) {
+  return new Intl.NumberFormat("id-ID", { maximumFractionDigits: 2 }).format(Number(value || 0));
+}
+
 function parseRupiah(value) {
   return Number(String(value || "").replace(/[^\d]/g, "")) || 0;
 }
@@ -4946,7 +4950,7 @@ function renderIngredientOutSummary(ingredientUsage = []) {
           ${items.map((item) => `
             <div class="ingredient-out-row">
               <span>${escapeHtml(item.name)}</span>
-              <strong>${money(item.qty)} ${escapeHtml(item.unit || "")}</strong>
+              <strong>${quantityLabel(item.qty)} ${escapeHtml(item.unit || "")}</strong>
             </div>
           `).join("")}
         </div>
