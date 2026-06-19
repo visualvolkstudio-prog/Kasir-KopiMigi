@@ -550,7 +550,7 @@ function sequentialPaidOrderCode(transaction, sequence) {
 function paidOrderDisplayCodes(transactions = []) {
   return new Map(
     [...transactions]
-      .filter((entry) => entry?.status !== "unpaid")
+      .filter(isPaidTransaction)
       .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
       .map((transaction, index) => [transaction.id, sequentialPaidOrderCode(transaction, index + 1)]),
   );
@@ -2102,8 +2102,21 @@ function isStaffDrinkTransaction(transaction) {
   return transaction?.isStaffDrink === true || transaction?.orderType === "staff_drink";
 }
 
+function isBillTransaction(transaction = {}) {
+  return String(transaction.status || "").toLowerCase() === "bill"
+    || String(transaction.payment || "").toLowerCase() === "bill";
+}
+
+function isUnpaidTransaction(transaction = {}) {
+  return String(transaction.status || "").toLowerCase() === "unpaid" || isBillTransaction(transaction);
+}
+
+function isPaidTransaction(transaction = {}) {
+  return !isUnpaidTransaction(transaction);
+}
+
 function revenueTransactions(list) {
-  return (list || []).filter((transaction) => transaction?.status !== "unpaid" && !isStaffDrinkTransaction(transaction));
+  return (list || []).filter((transaction) => isPaidTransaction(transaction) && !isStaffDrinkTransaction(transaction));
 }
 
 function staffDrinkUsedToday(employee = activeEmployeeName(), date = dateKey()) {
@@ -3298,7 +3311,7 @@ function requiredIngredientsForItems(items) {
 function ingredientUsageFromHistory(history = []) {
   const inventory = getInventory();
   const usage = history
-    .filter((entry) => entry?.status !== "unpaid")
+    .filter(isPaidTransaction)
     .reduce((required, entry) => {
       const items = Array.isArray(entry.items) ? entry.items : [];
       const itemRequired = requiredIngredientsForItems(items);
@@ -4182,6 +4195,7 @@ function renderOrders() {
     return;
   }
   const paidAscending = analyticsSourceForDate(paidDate)
+    .filter(isPaidTransaction)
     .filter((entry) => dateKey(entry.createdAt) === paidDate)
     .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
   const paidDisplayCodes = paidOrderDisplayCodes(paidAscending);
@@ -4393,8 +4407,8 @@ function cacheCloudTransactions(transactions = [], localPending = []) {
   });
 
   const merged = sortTransactionsNewestFirst([...byId.values()]);
-  const unpaid = merged.filter((entry) => entry?.status === "unpaid");
-  const paid = merged.filter((entry) => entry?.status !== "unpaid");
+  const unpaid = merged.filter(isUnpaidTransaction).map((entry) => ({ ...entry, status: "unpaid", payment: entry.payment || "Bill" }));
+  const paid = merged.filter(isPaidTransaction);
   writeJson(storageKeys.history, paid.slice(0, 2000));
   saveOrderDrafts(unpaid.slice(0, 200));
 }
@@ -6044,7 +6058,7 @@ els.pendingSyncList?.addEventListener("click", async (event) => {
     toast("Transaksi offline tidak ditemukan.");
     return;
   }
-  const printed = await printReceipt(transaction, transaction.status === "unpaid" ? "bill" : "paid");
+  const printed = await printReceipt(transaction, isUnpaidTransaction(transaction) ? "bill" : "paid");
   await updateOfflineTransaction(localId, { printStatus: printed ? "PRINTED" : "PRINT_FAILED" }).catch(() => null);
   renderPendingSync();
 });
