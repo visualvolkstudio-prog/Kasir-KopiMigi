@@ -283,6 +283,7 @@ const els = {
   pendingSyncCount: document.querySelector("#pendingSyncCount"),
   manualSyncBtn: document.querySelector("#manualSyncBtn"),
   manualSyncOrdersBtn: document.querySelector("#manualSyncOrdersBtn"),
+  exportRecoveryBtn: document.querySelector("#exportRecoveryBtn"),
   pendingSyncList: document.querySelector("#pendingSyncList"),
   analyticsMonth: document.querySelector("#analyticsMonth"),
   analyticsDate: document.querySelector("#analyticsDate"),
@@ -1299,6 +1300,7 @@ function applyAccessControls() {
   document.querySelector("#view-stock .inventory-grid > .settings-panel")?.classList.toggle("owner-only", !owner);
   els.employeeAddForm?.classList.toggle("owner-only", !owner);
   els.employeeList?.classList.toggle("owner-only", !owner);
+  els.exportRecoveryBtn?.classList.toggle("owner-only", !owner);
   if (!owner && document.querySelector("#view-cashflow")?.classList.contains("active")) setActiveView("pos");
 }
 
@@ -1533,6 +1535,62 @@ async function updateOfflineTransaction(localId, patch) {
 async function getOfflineTransactions() {
   const store = await offlineStore("readonly");
   return idbRequest(store.getAll()).catch(() => []);
+}
+
+function recoveryTransactionSignature(transaction = {}) {
+  return JSON.stringify({
+    createdAt: transaction.createdAt || "",
+    status: transaction.status || "",
+    customer: transaction.customer || "",
+    grandTotal: Number(transaction.grandTotal || 0),
+    items: mergeLineItems(transaction.items || []).map((item) => ({
+      id: item.id || "",
+      name: item.name || "",
+      price: Number(item.price || 0),
+      qty: Number(item.qty || 0),
+    })),
+  });
+}
+
+async function exportRecoveryData() {
+  if (!isOwner()) return toast("Ekspor pemulihan hanya untuk Owner.");
+  const offlineTransactions = await getOfflineTransactions();
+  const localHistory = getHistory();
+  const localDrafts = getOrderDrafts();
+  const currentById = new Map([...localHistory, ...localDrafts].filter((entry) => entry?.id).map((entry) => [entry.id, entry]));
+  const recoveryCandidates = offlineTransactions.flatMap((entry) => {
+    const current = currentById.get(entry.id || entry.localId);
+    if (!current) return [{ reason: "missing_from_local_cache", transaction: entry }];
+    if (recoveryTransactionSignature(current) !== recoveryTransactionSignature(entry)) {
+      return [{ reason: "different_content_same_id", current, transaction: entry }];
+    }
+    return [];
+  });
+  const payload = {
+    format: "kasir-migi-recovery-v1",
+    generatedAt: new Date().toISOString(),
+    deviceId: ensureDeviceId(),
+    summary: {
+      indexedDbTransactions: offlineTransactions.length,
+      localHistoryTransactions: localHistory.length,
+      localDrafts: localDrafts.length,
+      recoveryCandidates: recoveryCandidates.length,
+    },
+    recoveryCandidates,
+    offlineTransactions,
+    localHistory,
+    localDrafts,
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `Kasir-Migi-Recovery-${dateKey()}.json`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  toast(`${recoveryCandidates.length} kandidat pemulihan ditemukan. File JSON sudah dibuat.`);
 }
 
 async function pendingOfflineTransactions() {
@@ -6123,6 +6181,7 @@ els.pendingSyncList?.addEventListener("click", async (event) => {
 
 els.manualSyncBtn?.addEventListener("click", () => refreshOnlineData({ render: true }).catch(() => null));
 els.manualSyncOrdersBtn?.addEventListener("click", () => refreshOnlineData({ render: true }).catch(() => null));
+els.exportRecoveryBtn?.addEventListener("click", () => exportRecoveryData().catch((error) => toast(`Ekspor gagal: ${error.message}`)));
 els.closeShiftBtn?.addEventListener("click", closeActiveShift);
 els.cancelDailyCash?.addEventListener("click", closeDailyCashModal);
 els.dailyCashCancelBtn?.addEventListener("click", closeDailyCashModal);
