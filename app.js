@@ -3283,7 +3283,8 @@ function currentTransaction(draft = false) {
   const payment = staffDrink ? "Staff Drink" : onlineChannel ? state.orderChannel : state.payment;
   const paid = staffDrink ? 0 : onlineChannel ? total.grandTotal : parseRupiah(els.paidAmount.value);
   const now = new Date();
-  const displayedOrderCode = els.orderTableNumber.value.trim() || nextDailyOrderCode(now, state.orderChannel);
+  const existingDraft = state.activeDraftId ? getOrderDrafts().find((entry) => entry.id === state.activeDraftId) : null;
+  const displayedOrderCode = els.orderTableNumber.value.trim() || existingDraft?.orderCode || nextDailyOrderCode(now, state.orderChannel);
   const generatedId = state.activeDraftId || uniqueTransactionId(displayedOrderCode);
   const orderType = staffDrink ? "staff_drink" : "normal";
   const voucher = orderType === "normal" ? appliedVoucher() : null;
@@ -3291,7 +3292,7 @@ function currentTransaction(draft = false) {
   return {
     id: generatedId,
     orderCode: displayedOrderCode,
-    createdAt: now.toISOString(),
+    createdAt: existingDraft?.createdAt || now.toISOString(),
     customer: els.customerName.value.trim() || "Teman Migi",
     table: els.tableNumber.value.trim() || displayedOrderCode,
     shift: currentShiftName(now),
@@ -4289,6 +4290,7 @@ async function renderPendingSync() {
                 <div>
                   <strong>${entry.id} · ${money(entry.grandTotal || 0)}</strong>
                   <p>${new Date(entry.createdAt).toLocaleString("id-ID")} · ${entry.syncStatus} · ${entry.printStatus}</p>
+                  ${entry.lastSyncError ? `<p class="danger-text">${escapeHtml(entry.lastSyncError)}</p>` : ""}
                   <p>${entry.items ? mergeLineItems(entry.items).map((item) => `${item.qty}x ${item.name}`).join(", ") : "-"}</p>
                 </div>
                 <div class="history-actions">
@@ -4320,15 +4322,18 @@ async function syncPendingTransactions({ pull = true } = {}) {
         },
         body: JSON.stringify({ action: "sync-transaction", transaction }),
       });
-      if (!response.ok) throw new Error(`Sync gagal: ${response.status}`);
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || result?.success === false) throw new Error(result?.error || `Sync gagal: ${response.status}`);
       await updateOfflineTransaction(transaction.localId, {
         syncStatus: "SYNCED",
         syncedAt: new Date().toISOString(),
+        lastSyncError: "",
       });
-    } catch {
+    } catch (error) {
       await updateOfflineTransaction(transaction.localId, {
         syncStatus: "PENDING_SYNC",
         lastSyncAttemptAt: new Date().toISOString(),
+        lastSyncError: error.message || "Sync transaksi gagal.",
       }).catch(() => null);
     }
   }

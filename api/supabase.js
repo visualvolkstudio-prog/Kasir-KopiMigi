@@ -226,6 +226,35 @@ function toNumber(value) {
   return Number.isFinite(number) ? number : 0;
 }
 
+function timestampMs(value) {
+  const timestamp = value ? new Date(value).getTime() : 0;
+  return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
+function transactionVersion(transaction = {}) {
+  return Math.max(
+    timestampMs(transaction.updatedAt),
+    timestampMs(transaction.editedAt),
+    timestampMs(transaction.paymentEditedAt),
+    timestampMs(transaction.stockSyncedAt),
+    timestampMs(transaction.createdAt),
+  );
+}
+
+function transactionIdentityConflict(existing = {}, incoming = {}) {
+  const existingCreatedAt = timestampMs(existing.createdAt);
+  const incomingCreatedAt = timestampMs(incoming.createdAt);
+  if (!existingCreatedAt || !incomingCreatedAt) return false;
+  return Math.abs(existingCreatedAt - incomingCreatedAt) > 60 * 1000;
+}
+
+async function findTransactionById(id) {
+  const rows = await supabaseFetch(
+    `transactions?select=id,created_at,status,deleted_at,raw&id=eq.${encodeURIComponent(id)}&limit=1`,
+  );
+  return Array.isArray(rows) ? rows[0] || null : null;
+}
+
 function mapTransaction(transaction) {
   return {
     id: String(transaction.id || transaction.localId || ""),
@@ -439,6 +468,33 @@ async function syncTransaction(body) {
   const transaction = body.transaction || body;
   const row = mapTransaction(transaction);
   if (!row.id) return { status: 400, payload: { success: false, error: "Transaction id wajib ada." } };
+  const existingRow = await findTransactionById(row.id);
+  const existingRaw = existingRow?.raw && typeof existingRow.raw === "object" ? existingRow.raw : {};
+  const existing = existingRow
+    ? {
+        ...existingRaw,
+        createdAt: existingRaw.createdAt || existingRow.created_at,
+        status: existingRaw.status || existingRow.status,
+      }
+    : {};
+  if (existingRow?.deleted_at) {
+    return { status: 200, payload: { success: true, id: row.id, ignored: true, reason: "deleted" } };
+  }
+  const createdAtDifference = Math.abs(timestampMs(existing.createdAt) - timestampMs(transaction.createdAt));
+  const payingRecentDraft = existingRow?.status === "unpaid" && row.status === "paid" && createdAtDifference <= 24 * 60 * 60 * 1000;
+  if (existingRow && !payingRecentDraft && transactionIdentityConflict(existing, transaction)) {
+    return {
+      status: 409,
+      payload: {
+        success: false,
+        code: "TRANSACTION_ID_CONFLICT",
+        error: "ID transaksi sudah dipakai oleh transaksi pada tanggal lain. Data cloud tidak diubah.",
+      },
+    };
+  }
+  if (existingRow && transactionVersion(existing) > transactionVersion(transaction)) {
+    return { status: 200, payload: { success: true, id: row.id, ignored: true, reason: "stale" } };
+  }
   if (isStaffDrinkPayload(transaction)) {
     const duplicate = await findStaffDrinkUsage({
       date: transaction.staffDrinkDate,
@@ -519,16 +575,17 @@ async function deleteTransaction(body) {
 }
 
 async function bootstrapData() {
-  const [transactions, deletedTransactions, items, expenses, inventory, employees, settingsRows, deletedEmployeeRows] = await Promise.all([
+  const [transactions, deletedTransactions, expenses, inventory, employees, settingsRows, deletedEmployeeRows] = await Promise.all([
     fetchTransactionRows({ limit: transactionCacheLimit }),
     fetchDeletedTransactionRows({ limit: transactionCacheLimit }),
-    supabaseFetchPaged(({ limit, offset }) => `transaction_items?select=*&limit=${limit}${offset ? `&offset=${offset}` : ""}`, { maxRows: 10000 }),
     supabaseFetch("cashflow_expenses?select=*&order=created_at.desc&limit=2000"),
     supabaseFetch("inventory?select=*&order=name.asc"),
     supabaseFetch("employees?select=*&active=eq.true&deleted_at=is.null&order=name.asc"),
     supabaseFetch("app_settings?select=*&key=eq.global&limit=1").catch(() => []),
     supabaseFetch("app_settings?select=*&key=eq.deleted_employees&limit=1").catch(() => []),
   ]);
+  const transactionIds = transactions.map((row) => row.id).filter(Boolean);
+  const items = transactionIds.length ? await fetchItemsByTransactionIds(transactionIds) : [];
   const settingsRow = Array.isArray(settingsRows) ? settingsRows[0] : null;
   const deletedEmployeeValue = Array.isArray(deletedEmployeeRows) ? deletedEmployeeRows[0]?.value : [];
   const deletedEmployeeKeys = new Set((Array.isArray(deletedEmployeeValue) ? deletedEmployeeValue : []).map((entry) => entry.key || employeeKey(entry.name)).filter(Boolean));
@@ -784,6 +841,7 @@ async function dispatch(body, req) {
     case "check-staff-drink":
       return checkStaffDrink(body);
     case "delete-transaction":
+      if (role !== "owner") return { status: 403, payload: { success: false, error: "Hanya Owner yang bisa menghapus transaksi." } };
       return deleteTransaction(body);
     case "bootstrap-data":
       return bootstrapData();
@@ -801,10 +859,13 @@ async function dispatch(body, req) {
     case "get-settings":
       return getSettings();
     case "delete-cashflow":
+      if (role !== "owner") return { status: 403, payload: { success: false, error: "Hanya Owner yang bisa menghapus pengeluaran." } };
       return deleteById("cashflow_expenses", body.id, "ID pengeluaran");
     case "delete-inventory":
+      if (role !== "owner") return { status: 403, payload: { success: false, error: "Hanya Owner yang bisa menghapus bahan baku." } };
       return deleteById("inventory", body.id, "ID bahan baku");
     case "delete-employee":
+      if (role !== "owner") return { status: 403, payload: { success: false, error: "Hanya Owner yang bisa menghapus karyawan." } };
       return deleteEmployee(body);
     case "device-presence":
       return devicePresence(body, req);
