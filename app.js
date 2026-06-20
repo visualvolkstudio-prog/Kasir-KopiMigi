@@ -182,6 +182,8 @@ const els = {
   dailyCashModal: document.querySelector("#dailyCashModal"),
   dailyCashForm: document.querySelector("#dailyCashForm"),
   dailyCashAmount: document.querySelector("#dailyCashAmount"),
+  dailyCashDateLabel: document.querySelector("#dailyCashDateLabel"),
+  inputDailyCashBtn: document.querySelector("#inputDailyCashBtn"),
   cancelDailyCash: document.querySelector("#cancelDailyCash"),
   dailyCashCancelBtn: document.querySelector("#dailyCashCancelBtn"),
   wifiSettingsForm: document.querySelector("#wifiSettingsForm"),
@@ -1273,8 +1275,18 @@ async function prepareDailyClosingReport(reportDateValue = dateKey()) {
   }
 }
 
-function openDailyCashModal() {
-  const saved = getDailyCashReport(dateKey());
+function openDailyCashModal(reportDateValue = selectedDailyDate()) {
+  if (!isOwner()) return toast("Kas Harian hanya dapat diinput Owner.");
+  const saved = getDailyCashReport(reportDateValue);
+  els.dailyCashForm.dataset.reportDate = reportDateValue;
+  if (els.dailyCashDateLabel) {
+    els.dailyCashDateLabel.textContent = new Date(`${reportDateValue}T12:00:00`).toLocaleDateString("id-ID", {
+      weekday: "long",
+      day: "2-digit",
+      month: "long",
+      year: "numeric",
+    });
+  }
   els.dailyCashAmount.value = saved?.amount ? money(saved.amount) : "";
   els.dailyCashModal.classList.add("open");
   els.dailyCashModal.setAttribute("aria-hidden", "false");
@@ -1288,7 +1300,7 @@ function closeDailyCashModal() {
 
 function closeActiveShift() {
   if (currentShiftName() === "Shift 2") {
-    openDailyCashModal();
+    prepareDailyClosingReport(dateKey());
     return;
   }
   if (!isOwner()) {
@@ -6148,6 +6160,7 @@ els.pendingSyncList?.addEventListener("click", async (event) => {
 els.manualSyncBtn?.addEventListener("click", () => refreshOnlineData({ render: true }).catch(() => null));
 els.manualSyncOrdersBtn?.addEventListener("click", () => refreshOnlineData({ render: true }).catch(() => null));
 els.closeShiftBtn?.addEventListener("click", closeActiveShift);
+els.inputDailyCashBtn?.addEventListener("click", () => openDailyCashModal(selectedDailyDate()));
 els.cancelDailyCash?.addEventListener("click", closeDailyCashModal);
 els.dailyCashCancelBtn?.addEventListener("click", closeDailyCashModal);
 els.dailyCashAmount?.addEventListener("input", () => {
@@ -6156,13 +6169,15 @@ els.dailyCashAmount?.addEventListener("input", () => {
 });
 els.dailyCashForm?.addEventListener("submit", async (event) => {
   event.preventDefault();
+  if (!isOwner()) return toast("Kas Harian hanya dapat diinput Owner.");
   const amount = parseRupiah(els.dailyCashAmount.value);
   if (amount <= 0) {
     toast("Isi nominal kas harian untuk kembalian.");
     els.dailyCashAmount.focus();
     return;
   }
-  saveDailyCashReport(dateKey(), amount);
+  const reportDateValue = els.dailyCashForm.dataset.reportDate || selectedDailyDate();
+  saveDailyCashReport(reportDateValue, amount);
   closeDailyCashModal();
   renderHistory();
   if (navigator.onLine) {
@@ -6172,7 +6187,9 @@ els.dailyCashForm?.addEventListener("submit", async (event) => {
       toast("Kas tersimpan di perangkat dan akan disinkronkan saat online.");
     }
   }
-  await prepareDailyClosingReport(dateKey());
+  renderAnalytics();
+  state.reportShareText = dailyReportText(dayTransactions(reportDateValue), reportDateValue);
+  toast(`Kas Harian ${reportDateValue} tersimpan.`);
 });
 els.wifiSettingsForm?.addEventListener("submit", async (event) => {
   event.preventDefault();

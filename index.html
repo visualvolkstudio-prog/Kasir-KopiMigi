@@ -272,14 +272,15 @@
       <form class="order-card confirm-card daily-cash-card" id="dailyCashForm">
         <div class="modal-head">
           <div>
-            <p class="eyebrow">Tutup Shift 2</p>
+            <p class="eyebrow">Owner · Analitik</p>
             <h2>Kas Harian</h2>
           </div>
-          <button class="icon-button modal-close" id="cancelDailyCash" type="button" title="Batal tutup shift">
+          <button class="icon-button modal-close" id="cancelDailyCash" type="button" title="Tutup input Kas Harian">
             <i class="ph ph-x" aria-hidden="true"></i>
           </button>
         </div>
         <div class="confirm-body daily-cash-body">
+          <strong id="dailyCashDateLabel">-</strong>
           <p>Masukkan kas yang disiapkan untuk kembalian hari berikutnya.</p>
           <label>
             Kas untuk kembalian
@@ -289,7 +290,7 @@
         </div>
         <div class="modal-actions">
           <button class="secondary-button" id="dailyCashCancelBtn" type="button">Batal</button>
-          <button class="primary-button" type="submit">Simpan &amp; Siapkan Laporan</button>
+          <button class="primary-button" type="submit">Simpan Kas Harian</button>
         </div>
       </form>
     </section>
@@ -859,6 +860,10 @@
                   <h3>Summary Penjualan</h3>
                 </div>
                 <div class="report-actions">
+                  <button class="secondary-button compact owner-analytics-only" id="inputDailyCashBtn" type="button">
+                    <i class="ph ph-wallet" aria-hidden="true"></i>
+                    Input Kas Harian
+                  </button>
                   <button class="secondary-button compact" id="copyDailyReport" type="button">
                     <i class="ph ph-copy" aria-hidden="true"></i>
                     Copy
@@ -984,7 +989,7 @@
               </div>
               <div class="app-version-row">
                 <span>Versi aplikasi</span>
-                <strong>30</strong>
+                <strong>31</strong>
               </div>
             </section>
           </div>
