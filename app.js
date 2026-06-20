@@ -184,6 +184,7 @@ const els = {
   dailyCashAmount: document.querySelector("#dailyCashAmount"),
   dailyCashDateLabel: document.querySelector("#dailyCashDateLabel"),
   inputDailyCashBtn: document.querySelector("#inputDailyCashBtn"),
+  runRecoveryImportBtn: document.querySelector("#runRecoveryImportBtn"),
   cancelDailyCash: document.querySelector("#cancelDailyCash"),
   dailyCashCancelBtn: document.querySelector("#dailyCashCancelBtn"),
   wifiSettingsForm: document.querySelector("#wifiSettingsForm"),
@@ -463,6 +464,13 @@ function transactionPaymentTotal(transaction = {}) {
 
 function paymentTotalsFor(transactions = []) {
   return revenueTransactions(transactions).reduce((map, entry) => {
+    if (entry.paymentBreakdown && typeof entry.paymentBreakdown === "object" && !Array.isArray(entry.paymentBreakdown)) {
+      paymentReportMethods().forEach((method) => {
+        const amount = Number(entry.paymentBreakdown[method] || 0);
+        if (amount) map.set(method, (map.get(method) || 0) + amount);
+      });
+      return map;
+    }
     const method = transactionPaymentMethod(entry);
     map.set(method, (map.get(method) || 0) + transactionPaymentTotal(entry));
     return map;
@@ -1727,6 +1735,342 @@ function saveDailyCashReport(reportDate, amount) {
   writeJson(storageKeys.dailyCashReports, reports);
   markSettingsDirty();
   return reports[reportDate];
+}
+
+const recoverySalesJune2026 = [
+  {
+    date: "2026-06-01",
+    total: 150000,
+    payments: { QRIS: 138000, Tunai: 12000 },
+    items: [
+      ["Matcha Latte", 2, 13000],
+      ["Butterscotch Creamy Coffee", 1, 17000],
+      ["Vietnam Drip", 1, 10000],
+      ["Fullwash Kemasan 250gr", 1, 85000],
+      ["Classic Kopsus Migi", 1, 12000],
+    ],
+  },
+  {
+    date: "2026-06-02",
+    total: 57000,
+    payments: { QRIS: 30000, Tunai: 27000 },
+    items: [
+      ["Butterscotch Creamy Coffee", 1, 17000],
+      ["Vietnam Drip", 1, 10000],
+      ["Matcha Latte", 1, 13000],
+      ["Coffee Hazelnut", 1, 17000],
+    ],
+  },
+  {
+    date: "2026-06-03",
+    total: 360500,
+    payments: { Tunai: 204500, QRIS: 156000 },
+    items: [
+      ["Butterscotch Creamy Coffee", 6, 17000],
+      ["Classic Kopsus Migi", 1, 12000],
+      ["Iced Americano Classic", 1, 12000],
+      ["Arabica Wine 250 gram", 1, 117000],
+      ["Vietnam Drip", 2, 10000],
+      ["Single Shot Espresso", 1, 8000],
+      ["Kopi Tubruk", 1, 8000],
+      ["Smooth Red Velvet", 2, 13000],
+      ["Matcha Latte", 2, 13000],
+      ["mini Muffin", 3, 4000],
+      ["Marmer Cake", 2, 5000],
+      ["Choco Big Muffin", 1, 7500],
+    ],
+  },
+  {
+    date: "2026-06-04",
+    total: 301000,
+    payments: { Tunai: 145000, QRIS: 156000 },
+    items: [
+      ["Classic Kopsus Migi", 6, 12000],
+      ["Butterscotch Creamy Coffee", 4, 17000],
+      ["Signature Mazagran", 1, 20000],
+      ["Hot Caffe Latte", 1, 17000],
+      ["Iced Americano Classic", 1, 12000],
+      ["Arabika Natural Komersil 500gr", 1, 75000],
+      ["V60/Japanese", 1, 15000],
+      ["Single Shot Espresso", 1, 8000],
+      ["Classic Choco Latte", 2, 13000],
+      ["Matcha Latte", 1, 13000],
+    ],
+  },
+  {
+    date: "2026-06-05",
+    total: 235500,
+    payments: { Tunai: 152500, QRIS: 83000 },
+    items: [
+      ["Classic Kopsus Migi", 2, 12000],
+      ["Signature Mazagran", 1, 20000],
+      ["Salted Creamy Caramel Coffee", 1, 17000],
+      ["Coffee Hazelnut", 1, 17000],
+      ["Coffee Aren", 1, 15000],
+      ["Cleo Kecil", 1, 2500],
+      ["Iced Americano Classic", 1, 12000],
+      ["Arabica Wine 100 gram", 1, 50000],
+      ["Single Shot Espresso", 2, 8000],
+      ["Vietnam Drip", 1, 10000],
+      ["Strawberry Latte", 1, 13000],
+      ["Classic Choco Latte", 1, 13000],
+      ["mini Muffin", 4, 4000],
+      ["Classic Cookies", 1, 5000],
+      ["Marmer Cake", 1, 5000],
+    ],
+  },
+  {
+    date: "2026-06-06",
+    total: 490500,
+    payments: { Tunai: 397500, QRIS: 93000 },
+    items: [
+      ["Butterscotch Creamy Coffee", 2, 17000],
+      ["Coffee Aren", 2, 15000],
+      ["Classic Kopsus Migi", 2, 12000],
+      ["Signature Mazagran", 1, 20000],
+      ["Coffee Hazelnut", 1, 17000],
+      ["Cleo Kecil", 5, 2500],
+      ["Iced Americano Fullwash", 3, 15000],
+      ["Iced Americano Classic", 2, 12000],
+      ["Arabika Natural Komersil 500gr", 1, 75000],
+      ["Single Shot Espresso", 3, 8000],
+      ["V60/Japanese", 2, 15000],
+      ["Kopi Tubruk Fermentasion", 2, 10000],
+      ["Matcha Latte", 6, 13000],
+      ["Strawberry Latte", 2, 13000],
+      ["Classic Choco Latte", 1, 13000],
+      ["Classic Cookies", 3, 5000],
+      ["mini Muffin", 2, 4000],
+    ],
+  },
+  {
+    date: "2026-06-07",
+    total: 143000,
+    payments: { Tunai: 83000, QRIS: 60000 },
+    items: [
+      ["Matcha Latte", 4, 13000],
+      ["Coffee Aren", 3, 15000],
+      ["Classic Kopsus Migi", 1, 12000],
+      ["Coffee Hazelnut", 1, 17000],
+      ["Butterscotch Creamy Coffee", 1, 17000],
+    ],
+  },
+  {
+    date: "2026-06-08",
+    total: 500500,
+    payments: { Tunai: 134000, QRIS: 366500 },
+    items: [
+      ["Classic Kopsus Migi", 6, 12000],
+      ["Signature Mazagran", 4, 20000],
+      ["Butterscotch Creamy Coffee", 4, 17000],
+      ["Iced Caffe Latte", 2, 17000],
+      ["Hot Cappucino", 1, 17000],
+      ["Salted Creamy Caramel Coffee", 1, 17000],
+      ["Cleo Kecil", 1, 2500],
+      ["Iced Americano Classic", 5, 12000],
+      ["Single Shot Espresso", 3, 8000],
+      ["Vietnam Drip", 2, 10000],
+      ["V60/Japanese", 1, 15000],
+      ["Matcha Latte", 5, 13000],
+      ["Strawberry Latte", 1, 13000],
+      ["mini Muffin", 2, 4000],
+      ["Marmer Cake", 1, 5000],
+    ],
+  },
+  {
+    date: "2026-06-09",
+    total: 884000,
+    payments: { Tunai: 699000, QRIS: 185000 },
+    items: [
+      ["Classic Kopsus Migi", 15, 12000],
+      ["Butterscotch Creamy Coffee", 8, 17000],
+      ["Coffee Hazelnut", 5, 17000],
+      ["Coffee Aren", 5, 15000],
+      ["Signature Mazagran", 3, 20000],
+      ["Salted Creamy Caramel Coffee", 1, 17000],
+      ["Iced Americano Fruity", 1, 15000],
+      ["Iced Americano Classic", 1, 12000],
+      ["V60/Japanese", 2, 15000],
+      ["Single Shot Espresso", 2, 8000],
+      ["Strawberry Latte", 6, 13000],
+      ["Matcha Latte", 4, 13000],
+      ["Classic Choco Latte", 3, 13000],
+      ["Smooth Red Velvet", 2, 13000],
+      ["mini Muffin", 7, 4000],
+      ["Marmer Cake", 4, 5000],
+      ["Classic Cookies", 3, 5000],
+    ],
+  },
+  {
+    date: "2026-06-10",
+    total: 655500,
+    payments: { Tunai: 446000, QRIS: 197500, GoFood: 12000 },
+    items: [
+      ["Classic Kopsus Migi", 7, 12000],
+      ["Butterscotch Creamy Coffee", 6, 17000],
+      ["Salted Creamy Caramel Coffee", 4, 17000],
+      ["Signature Mazagran", 3, 20000],
+      ["Hot Caffe Latte", 1, 17000],
+      ["Iced Cappucino", 1, 17000],
+      ["Coffee Aren", 1, 15000],
+      ["Cleo Kecil", 5, 2500],
+      ["Iced Americano Wine", 1, 15000],
+      ["Arabika Fermentasi/Wine 100gr", 1, 50000],
+      ["V60/Japanese", 1, 15000],
+      ["Single Shot Espresso", 1, 8000],
+      ["Smooth Red Velvet", 5, 13000],
+      ["Strawberry Latte", 3, 13000],
+      ["Classic Choco Latte", 2, 13000],
+      ["Sweet Donut", 6, 5000],
+      ["mini Muffin", 3, 4000],
+      ["Marmer Cake", 2, 5000],
+      ["Classic Cookies", 2, 5000],
+    ],
+  },
+  {
+    date: "2026-06-11",
+    total: 587000,
+    payments: { Tunai: 325500, QRIS: 153500, GoFood: 108000 },
+    items: [
+      ["Classic Kopsus Migi", 16, 12000],
+      ["Signature Mazagran", 4, 20000],
+      ["Butterscotch Creamy Coffee", 4, 17000],
+      ["Hot Kopi Susu", 2, 10000],
+      ["Coffee Hazelnut", 1, 17000],
+      ["Cleo Kecil", 3, 2500],
+      ["Vietnam Drip", 1, 10000],
+      ["Single Shot Espresso", 1, 8000],
+      ["Classic Choco Latte", 3, 13000],
+      ["Strawberry Latte", 3, 13000],
+      ["Smooth Red Velvet", 3, 13000],
+      ["Milkshake", 1, 10000],
+      ["Choco Big Muffin", 7, 7500],
+      ["Marmer Cake", 1, 5000],
+    ],
+  },
+  {
+    date: "2026-06-12",
+    total: 852500,
+    payments: { Tunai: 205000, QRIS: 617500, GoFood: 30000 },
+    items: [
+      ["Classic Kopsus Migi", 12, 12000],
+      ["Butterscotch Creamy Coffee", 4, 17000],
+      ["Coffee Aren", 3, 15000],
+      ["Signature Mazagran", 2, 20000],
+      ["Iced Caffe Latte", 2, 17000],
+      ["Coffee Hazelnut", 2, 17000],
+      ["Hot Caffe Latte", 1, 17000],
+      ["Cleo Kecil", 3, 2500],
+      ["Iced Americano Classic", 2, 12000],
+      ["Iced Americano Wine", 1, 15000],
+      ["Arabika Natural Komersil 500gr", 2, 75000],
+      ["V60/Japanese", 2, 15000],
+      ["Single Shot Espresso", 1, 8000],
+      ["Matcha Latte", 5, 13000],
+      ["Classic Choco Latte", 4, 13000],
+      ["Smooth Red Velvet", 2, 13000],
+      ["Strawberry Latte", 1, 13000],
+      ["Choco Big Muffin", 8, 7500],
+      ["Classic Cookies", 3, 5000],
+      ["Marmer Cake", 1, 5000],
+    ],
+  },
+];
+
+function recoveryMenuKey(value = "") {
+  return String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+
+function recoveryMenuAliases(name = "") {
+  const aliases = {
+    "kopi susu": "Classic Kopsus Migi",
+    "kopi gula aren": "Coffee Aren",
+    "creamy butterscotch": "Butterscotch Creamy Coffee",
+    "vietnamese drip": "Vietnam Drip",
+    "vietnam drip": "Vietnam Drip",
+    "fullwash kemasan 250gr": "Fullwash Kemasan 250gr",
+    "arabica wine 250 gram": "Arabica Wine 250 gram",
+    "arabica wine 100 gram": "Arabica Wine 100 gram",
+    "arabika fermentasi wine 100gr": "Arabika Fermentasi/Wine 100gr",
+  };
+  return aliases[String(name).toLowerCase().replace(/[/-]+/g, " ").replace(/\s+/g, " ").trim()] || name;
+}
+
+function recoveryMenuItem(name, qty, price, menuByKey) {
+  const alias = recoveryMenuAliases(name);
+  const menuItem = menuByKey.get(recoveryMenuKey(alias)) || menuByKey.get(recoveryMenuKey(name));
+  if (menuItem) {
+    return { ...menuItem, price, qty, recoveryOriginalName: name };
+  }
+  return {
+    id: `recovery-${stableIdFromName(alias)}`,
+    name: alias,
+    category: "Recovery",
+    price,
+    qty,
+    recoveryUnmatched: true,
+    recoveryOriginalName: name,
+  };
+}
+
+function recoveryTransactionForDay(day, menuByKey) {
+  const items = day.items.map(([name, qty, price]) => recoveryMenuItem(name, qty, price, menuByKey));
+  const subtotal = items.reduce((sum, item) => sum + Number(item.price || 0) * Number(item.qty || 0), 0);
+  const discountTotal = Math.max(0, subtotal - Number(day.total || 0));
+  return {
+    id: `RECOVERY-${day.date}`,
+    orderCode: `REC-${day.date}`,
+    createdAt: `${day.date}T12:00:00.000+07:00`,
+    customer: "Recovery Omzet",
+    table: `Recovery ${day.date}`,
+    shift: "Recovery Harian",
+    channel: "Kasir",
+    status: "paid",
+    employee: "Owner",
+    employeeId: "owner",
+    dutyRole: "karyawan",
+    orderType: "recovery",
+    payment: "Recovery",
+    paymentBreakdown: day.payments,
+    paid: day.total,
+    change: 0,
+    subtotal,
+    originalTotal: subtotal,
+    discountTotal,
+    discountNote: discountTotal ? "Penyesuaian recovery agar omzet mengikuti catatan harian." : "",
+    grandTotal: day.total,
+    items,
+    recoveryImport: true,
+    recoverySource: "Rekap manual 1-12 Juni 2026",
+  };
+}
+
+async function runJuneRecoveryImport() {
+  if (!isOwner()) return toast("Import recovery hanya untuk Owner.");
+  if (!window.confirm("Jalankan import recovery omzet 1-12 Juni 2026? Transaksi asli tidak akan dihapus atau ditimpa.")) return;
+  if (navigator.onLine) await pullTransactionsFromSupabase({ render: false }).catch(() => null);
+  const menuByKey = new Map(getMenu().map((item) => [recoveryMenuKey(item.name), item]));
+  const existingIds = new Set([...getHistory(), ...getOrderDrafts()].map((entry) => entry.id).filter(Boolean));
+  const transactions = recoverySalesJune2026.map((day) => recoveryTransactionForDay(day, menuByKey));
+  const missingNames = [...new Set(transactions.flatMap((transaction) => transaction.items.filter((item) => item.recoveryUnmatched).map((item) => item.name)))];
+  const toImport = transactions.filter((transaction) => !existingIds.has(transaction.id));
+  if (!toImport.length) {
+    toast("Recovery 1-12 Juni sudah ada. Tidak ada data baru.");
+    return;
+  }
+  const nextHistory = dedupeTransactionsById([...toImport, ...getHistory()]);
+  writeJson(storageKeys.history, nextHistory.slice(0, 2000));
+  renderAll();
+  let synced = 0;
+  if (navigator.onLine) {
+    for (const transaction of toImport) {
+      await postSupabaseAction("sync-transaction", { transaction });
+      synced += 1;
+    }
+    await pullTransactionsFromSupabase({ render: false }).catch(() => null);
+    renderAll();
+  }
+  toast(`Recovery masuk ${toImport.length} hari${navigator.onLine ? `, ${synced} tersinkron` : ""}.${missingNames.length ? ` ${missingNames.length} menu belum cocok resep.` : ""}`);
 }
 
 function getCashflowExpenses() {
@@ -6161,6 +6505,7 @@ els.manualSyncBtn?.addEventListener("click", () => refreshOnlineData({ render: t
 els.manualSyncOrdersBtn?.addEventListener("click", () => refreshOnlineData({ render: true }).catch(() => null));
 els.closeShiftBtn?.addEventListener("click", closeActiveShift);
 els.inputDailyCashBtn?.addEventListener("click", () => openDailyCashModal(selectedDailyDate()));
+els.runRecoveryImportBtn?.addEventListener("click", () => runJuneRecoveryImport().catch((error) => toast(`Import recovery gagal: ${error.message}`)));
 els.cancelDailyCash?.addEventListener("click", closeDailyCashModal);
 els.dailyCashCancelBtn?.addEventListener("click", closeDailyCashModal);
 els.dailyCashAmount?.addEventListener("input", () => {
