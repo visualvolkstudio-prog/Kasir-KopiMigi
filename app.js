@@ -36,6 +36,7 @@ const storageKeys = {
   shiftActions: "kasir-migi-shift-actions",
   shiftAssignments: "kasir-migi-shift-assignments",
   dailyCashReports: "kasir-migi-daily-cash-reports",
+  juneRecoverySynced: "kasir-migi-june-recovery-synced-v1",
   wifiReceipt: "kasir-migi-wifi-receipt",
   settingsDirty: "kasir-migi-settings-dirty",
   deviceId: "kasir-migi-device-id",
@@ -184,7 +185,6 @@ const els = {
   dailyCashAmount: document.querySelector("#dailyCashAmount"),
   dailyCashDateLabel: document.querySelector("#dailyCashDateLabel"),
   inputDailyCashBtn: document.querySelector("#inputDailyCashBtn"),
-  runRecoveryImportBtn: document.querySelector("#runRecoveryImportBtn"),
   cancelDailyCash: document.querySelector("#cancelDailyCash"),
   dailyCashCancelBtn: document.querySelector("#dailyCashCancelBtn"),
   wifiSettingsForm: document.querySelector("#wifiSettingsForm"),
@@ -2045,32 +2045,40 @@ function recoveryTransactionForDay(day, menuByKey) {
   };
 }
 
-async function runJuneRecoveryImport() {
-  if (!isOwner()) return toast("Import recovery hanya untuk Owner.");
-  if (!window.confirm("Jalankan import recovery omzet 1-12 Juni 2026? Transaksi asli tidak akan dihapus atau ditimpa.")) return;
-  if (navigator.onLine) await pullTransactionsFromSupabase({ render: false }).catch(() => null);
-  const menuByKey = new Map(getMenu().map((item) => [recoveryMenuKey(item.name), item]));
-  const existingIds = new Set([...getHistory(), ...getOrderDrafts()].map((entry) => entry.id).filter(Boolean));
-  const transactions = recoverySalesJune2026.map((day) => recoveryTransactionForDay(day, menuByKey));
-  const missingNames = [...new Set(transactions.flatMap((transaction) => transaction.items.filter((item) => item.recoveryUnmatched).map((item) => item.name)))];
-  const toImport = transactions.filter((transaction) => !existingIds.has(transaction.id));
-  if (!toImport.length) {
-    toast("Recovery 1-12 Juni sudah ada. Tidak ada data baru.");
-    return;
-  }
-  const nextHistory = dedupeTransactionsById([...toImport, ...getHistory()]);
-  writeJson(storageKeys.history, nextHistory.slice(0, 2000));
-  renderAll();
-  let synced = 0;
-  if (navigator.onLine) {
-    for (const transaction of toImport) {
-      await postSupabaseAction("sync-transaction", { transaction });
-      synced += 1;
+let juneRecoveryImportPromise = null;
+
+async function ensureJuneRecoveryImported({ force = false } = {}) {
+  if (!navigator.onLine || !isLoggedIn() || !isOwner()) return false;
+  if (!force && localStorage.getItem(storageKeys.juneRecoverySynced) === "true") return true;
+  if (juneRecoveryImportPromise) return juneRecoveryImportPromise;
+
+  juneRecoveryImportPromise = (async () => {
+    const menuByKey = new Map(getMenu().map((item) => [recoveryMenuKey(item.name), item]));
+    const existingIds = new Set([...getHistory(), ...getOrderDrafts()].map((entry) => entry.id).filter(Boolean));
+    const transactions = recoverySalesJune2026.map((day) => recoveryTransactionForDay(day, menuByKey));
+    const toImport = transactions.filter((transaction) => !existingIds.has(transaction.id));
+
+    if (toImport.length) {
+      const nextHistory = dedupeTransactionsById([...toImport, ...getHistory()]);
+      writeJson(storageKeys.history, nextHistory.slice(0, 2000));
     }
+
+    for (const transaction of transactions) {
+      await postSupabaseAction("sync-transaction", { transaction });
+    }
+    localStorage.setItem(storageKeys.juneRecoverySynced, "true");
     await pullTransactionsFromSupabase({ render: false }).catch(() => null);
-    renderAll();
-  }
-  toast(`Recovery masuk ${toImport.length} hari${navigator.onLine ? `, ${synced} tersinkron` : ""}.${missingNames.length ? ` ${missingNames.length} menu belum cocok resep.` : ""}`);
+    return true;
+  })()
+    .catch((error) => {
+      localStorage.removeItem(storageKeys.juneRecoverySynced);
+      throw error;
+    })
+    .finally(() => {
+      juneRecoveryImportPromise = null;
+    });
+
+  return juneRecoveryImportPromise;
 }
 
 function getCashflowExpenses() {
@@ -4927,6 +4935,7 @@ async function syncCloudData({ refresh = true } = {}) {
     ]);
     if (refresh) {
       await loadCloudData();
+      await ensureJuneRecoveryImported().catch(() => null);
       await pullTransactionsFromSupabase({ render: false }).catch(() => null);
       renderAll();
     }
@@ -4946,6 +4955,7 @@ async function refreshOnlineData({ render = true } = {}) {
   await syncPendingTransactions({ pull: false }).catch(() => null);
   await syncInventoryToCloud().catch(() => null);
   await loadCloudData().catch(() => null);
+  await ensureJuneRecoveryImported().catch(() => null);
   await pullTransactionsFromSupabase({ render: false }).catch(() => null);
   await pullSettingsFromSupabase({ render: false }).catch(() => null);
   if (render) renderAll();
@@ -5425,6 +5435,10 @@ async function refreshAnalyticsPeriod({ render = true, month = selectedMonth(), 
     state.analyticsPeriodTransactions = [];
     return false;
   }
+  if (isLoggedIn() && isOwner() && localStorage.getItem(storageKeys.juneRecoverySynced) !== "true") {
+    await loadCloudData().catch(() => null);
+  }
+  await ensureJuneRecoveryImported().catch(() => null);
   const requestId = state.analyticsPeriodRequestId + 1;
   state.analyticsPeriodRequestId = requestId;
   state.analyticsPeriodLoading = true;
@@ -6505,7 +6519,6 @@ els.manualSyncBtn?.addEventListener("click", () => refreshOnlineData({ render: t
 els.manualSyncOrdersBtn?.addEventListener("click", () => refreshOnlineData({ render: true }).catch(() => null));
 els.closeShiftBtn?.addEventListener("click", closeActiveShift);
 els.inputDailyCashBtn?.addEventListener("click", () => openDailyCashModal(selectedDailyDate()));
-els.runRecoveryImportBtn?.addEventListener("click", () => runJuneRecoveryImport().catch((error) => toast(`Import recovery gagal: ${error.message}`)));
 els.cancelDailyCash?.addEventListener("click", closeDailyCashModal);
 els.dailyCashCancelBtn?.addEventListener("click", closeDailyCashModal);
 els.dailyCashAmount?.addEventListener("input", () => {
