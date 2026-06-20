@@ -1249,6 +1249,30 @@ async function prepareActiveShiftReport() {
   }
 }
 
+async function prepareDailyClosingReport(reportDateValue = dateKey()) {
+  if (navigator.onLine) {
+    await syncPendingTransactions({ pull: false }).catch(() => null);
+    await refreshAnalyticsPeriod({
+      month: reportDateValue.slice(0, 7),
+      range: "daily",
+      render: false,
+      silent: true,
+    }).catch(() => false);
+  }
+  const text = dailyReportText(dayTransactions(reportDateValue), reportDateValue);
+  state.reportShareText = text;
+  if (els.dailyReportText) els.dailyReportText.textContent = text;
+  if (els.dailyReportShareStatus) els.dailyReportShareStatus.textContent = "Laporan harian siap dikirim";
+  if (els.shareDailyReport) els.shareDailyReport.title = "Laporan harian Shift 1 + Shift 2";
+  setActiveView("analytics");
+  try {
+    await navigator.clipboard.writeText(text);
+    toast("Laporan harian Shift 1 + Shift 2 dicopy.");
+  } catch {
+    toast("Laporan harian Shift 1 + Shift 2 siap di tab Analitik.");
+  }
+}
+
 function openDailyCashModal() {
   const saved = getDailyCashReport(dateKey());
   els.dailyCashAmount.value = saved?.amount ? money(saved.amount) : "";
@@ -4828,7 +4852,7 @@ async function copyDailyReport() {
 }
 
 function shareDailyReportToWhatsApp() {
-  const text = state.reportShareText || els.dailyReportText?.textContent?.trim();
+  const text = els.dailyReportText?.textContent?.trim() || state.reportShareText;
   if (!text) return toast("Belum ada laporan untuk dibagikan.");
   openWhatsAppReport(text);
   if (els.dailyReportShareStatus) els.dailyReportShareStatus.textContent = "Laporan dibuka di WhatsApp";
@@ -6148,7 +6172,7 @@ els.dailyCashForm?.addEventListener("submit", async (event) => {
       toast("Kas tersimpan di perangkat dan akan disinkronkan saat online.");
     }
   }
-  await prepareActiveShiftReport();
+  await prepareDailyClosingReport(dateKey());
 });
 els.wifiSettingsForm?.addEventListener("submit", async (event) => {
   event.preventDefault();
