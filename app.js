@@ -976,8 +976,12 @@ async function preloadEmployeesForLogin() {
     const data = await postSupabaseAction("bootstrap-data");
     if (Array.isArray(data?.employees)) {
       saveEmployeeRoster(data.employees);
-      return data.employees.length > 0;
     }
+    if (data?.settingsFound && data.settings && typeof data.settings === "object") {
+      applyCloudSettings(data.settings);
+      clearSettingsDirty();
+    }
+    return Array.isArray(data?.employees) && data.employees.length > 0;
   } catch {}
   return false;
 }
@@ -1101,6 +1105,17 @@ function isLoggedIn() {
   localStorage.removeItem(storageKeys.auth);
   document.body.classList.add("locked");
   return false;
+}
+
+function enforceCurrentEmployeeAvailability() {
+  const auth = getAuth();
+  if (!auth?.loggedIn || auth.role !== "cashier") return false;
+  const employeeAvailable = auth.employee && getEmployeeRoster().includes(auth.employee) && !isEmployeeOnLeave(auth.employee);
+  if (employeeAvailable) return false;
+  const employee = auth.employee || "Karyawan";
+  logout({ remote: true });
+  toast(`${employee} dinonaktifkan atau dijadwalkan libur oleh Owner. Silakan login dengan petugas aktif.`);
+  return true;
 }
 
 function updateAuthShift(shift) {
@@ -4394,7 +4409,7 @@ async function deleteCashflowInCloud(id) {
 }
 
 async function syncSettingsToCloud({ force = false } = {}) {
-  if (!navigator.onLine || !isLoggedIn()) return false;
+  if (!navigator.onLine || !isLoggedIn() || !isOwner()) return false;
   if (!force && !hasDirtySettings()) return false;
   await postSupabaseAction("sync-settings", { settings: getSettingsPayload() });
   clearSettingsDirty();
@@ -4405,10 +4420,12 @@ async function pullSettingsFromSupabase({ render = false } = {}) {
   if (!navigator.onLine) return false;
   const result = await postSupabaseAction("get-settings");
   if (!result?.success) throw new Error(result?.error || "Pull setting gagal.");
-  if (result.found && !hasDirtySettings()) {
+  if (result.found && (!hasDirtySettings() || !isOwner())) {
     applyCloudSettings(result.settings);
+    if (!isOwner()) clearSettingsDirty();
+    enforceCurrentEmployeeAvailability();
     if (render) renderAll();
-  } else if (!result.found || hasDirtySettings()) {
+  } else if (isOwner() && (!result.found || hasDirtySettings())) {
     await syncSettingsToCloud({ force: true });
   }
   return true;
@@ -4499,9 +4516,11 @@ async function loadCloudData() {
   if (Array.isArray(data.cashflowExpenses)) writeJson(storageKeys.cashflowExpenses, data.cashflowExpenses.slice(0, 2000));
   if (data.inventory && typeof data.inventory === "object") applyCloudInventory(data.inventory);
   if (Array.isArray(data.employees)) saveEmployeeRoster(data.employees);
-  if (data.settingsFound && !hasDirtySettings()) {
+  if (data.settingsFound && (!hasDirtySettings() || !isOwner())) {
     applyCloudSettings(data.settings);
-  } else if (!data.settingsFound || hasDirtySettings()) {
+    if (!isOwner()) clearSettingsDirty();
+    enforceCurrentEmployeeAvailability();
+  } else if (isOwner() && (!data.settingsFound || hasDirtySettings())) {
     await syncSettingsToCloud({ force: true }).catch(() => null);
   }
   return true;

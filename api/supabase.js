@@ -774,6 +774,7 @@ async function dispatch(body, req) {
 
   const auth = requireAuth(req);
   if (auth.payload) return auth;
+  const role = auth.session.role;
 
   switch (body.action) {
     case "sync-transaction":
@@ -795,6 +796,7 @@ async function dispatch(body, req) {
     case "add-employee":
       return addEmployee(body);
     case "sync-settings":
+      if (role !== "owner") return { status: 403, payload: { success: false, error: "Hanya Owner yang bisa mengubah pengaturan." } };
       return syncSettings(body);
     case "get-settings":
       return getSettings();
