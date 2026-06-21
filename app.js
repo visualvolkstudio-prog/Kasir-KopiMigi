@@ -1428,7 +1428,9 @@ function updateClock() {
   runShiftScheduleChecks(now);
   if (els.loginShift && !isLoggedIn()) els.loginShift.value = autoShiftName(now);
   const shifted = syncActiveShiftWithClock(now);
-  if (els.orderShift) els.orderShift.value = currentShiftName();
+  if (els.orderShift && !state.activeDraftId && !els.orderModal?.classList.contains("open")) {
+    els.orderShift.value = currentShiftName();
+  }
   if (shifted) {
     renderEmployeeControls();
     renderHistory();
@@ -3431,7 +3433,7 @@ function renderCart() {
 function openOrderModal() {
   const activeDraft = state.activeDraftId ? getOrderDrafts().find((entry) => entry.id === state.activeDraftId) : null;
   els.orderCustomerName.value = els.customerName.value || "Teman Migi";
-  if (els.orderShift) els.orderShift.value = currentShiftName();
+  if (els.orderShift) els.orderShift.value = activeDraft?.shift || currentShiftName();
   els.orderTableNumber.value = activeDraft?.orderCode || activeDraft?.table || nextDailyOrderCode(new Date(), state.orderChannel);
   syncCheckoutWifiOption({ reset: true });
   syncOrderTypeUi();
@@ -3674,6 +3676,7 @@ function currentTransaction(draft = false) {
   const existingDraft = state.activeDraftId ? getOrderDrafts().find((entry) => entry.id === state.activeDraftId) : null;
   const displayedOrderCode = els.orderTableNumber.value.trim() || existingDraft?.orderCode || nextDailyOrderCode(now, state.orderChannel);
   const generatedId = state.activeDraftId || uniqueTransactionId(displayedOrderCode);
+  const selectedShift = normalizeShift(els.orderShift?.value || existingDraft?.shift || currentShiftName(now));
   const orderType = staffDrink ? "staff_drink" : "normal";
   const voucher = orderType === "normal" ? appliedVoucher() : null;
   const discountAllowed = Boolean(voucher);
@@ -3683,7 +3686,7 @@ function currentTransaction(draft = false) {
     createdAt: existingDraft?.createdAt || now.toISOString(),
     customer: els.customerName.value.trim() || "Teman Migi",
     table: els.tableNumber.value.trim() || displayedOrderCode,
-    shift: currentShiftName(now),
+    shift: selectedShift,
     channel: state.orderChannel || "Kasir",
     status: draft ? "unpaid" : "paid",
     employee: activeEmployeeName(),
