@@ -516,6 +516,13 @@ function oppositeShift(shift) {
   return normalizeShift(shift) === "Shift 1" ? "Shift 2" : "Shift 1";
 }
 
+function transactionShift(transaction = {}) {
+  if (transaction.recoveryImport || transaction.shift === "Recovery Harian") return "Recovery Harian";
+  const createdAt = transaction.createdAt ? new Date(transaction.createdAt) : null;
+  if (createdAt && !Number.isNaN(createdAt.getTime())) return autoShiftName(createdAt);
+  return normalizeShift(transaction.shift);
+}
+
 function isShiftOperating(value = new Date()) {
   const date = value instanceof Date ? value : new Date(value);
   const hour = date.getHours();
@@ -1180,7 +1187,7 @@ function syncActiveShiftWithClock(now = new Date()) {
 }
 
 function shiftSummaryLines(shift = getActiveShift(), date = dateKey()) {
-  const transactions = getHistory().filter((entry) => dateKey(entry.createdAt) === date && (entry.shift || "Shift 1") === shift);
+  const transactions = getHistory().filter((entry) => dateKey(entry.createdAt) === date && transactionShift(entry) === shift);
   const normal = revenueTransactions(transactions);
   const staffDrinks = transactions.filter(isStaffDrinkTransaction);
   const paymentTotals = paymentTotalsFor(normal);
@@ -1207,7 +1214,7 @@ function shiftReportText(shift, reportDateValue = dateKey()) {
     month: "long",
     year: "numeric",
   });
-  const transactions = dayTransactions(reportDateValue).filter((entry) => (entry.shift || "Shift 1") === shift);
+  const transactions = dayTransactions(reportDateValue).filter((entry) => transactionShift(entry) === shift);
   const normal = revenueTransactions(transactions);
   const staffDrinks = transactions.filter(isStaffDrinkTransaction);
   const revenue = normal.reduce((sum, entry) => sum + Number(entry.grandTotal || 0), 0);
@@ -3930,7 +3937,7 @@ function receiptHtml(transaction, kind = "paid") {
     ${kind === "bill" ? "" : staffDrink ? "<p>STAFF DRINK / JATAH KARYAWAN</p>" : "<p>LUNAS</p>"}
     <p>Kode: ${displayCode}</p>
     <p>${escapeHtml(new Date(transaction.createdAt).toLocaleString("id-ID"))}</p>
-    <p>Kasir: ${escapeHtml(transactionEmployeeDisplay(transaction))}${transaction.shift ? ` (${escapeHtml(transaction.shift)})` : ""}</p>
+    <p>Kasir: ${escapeHtml(transactionEmployeeDisplay(transaction))} (${escapeHtml(transactionShift(transaction))})</p>
     <p>Channel: ${escapeHtml(transaction.channel || "Kasir")}</p>
     <p>Customer: ${escapeHtml(transaction.customer)}</p>
     <p>Nomor: ${tableLabel}</p>
@@ -3980,7 +3987,7 @@ function receiptText(transaction, kind = "paid", { includeFooter = true } = {}) 
     line,
     `Kode: ${displayCode}`,
     new Date(transaction.createdAt).toLocaleString("id-ID"),
-    `Kasir: ${transactionEmployeeDisplay(transaction)}${transaction.shift ? ` (${transaction.shift})` : ""}`,
+    `Kasir: ${transactionEmployeeDisplay(transaction)} (${transactionShift(transaction)})`,
     `Channel: ${transaction.channel || "Kasir"}`,
     `Customer: ${transaction.customer}`,
     `Nomor: ${tableLabel}`,
@@ -4299,7 +4306,7 @@ function renderHistory() {
               <article class="history-card">
                 <div>
                   <strong>${transaction.orderCode || transaction.id} · ${money(transaction.grandTotal)}${isStaffDrinkTransaction(transaction) ? " · Staff Drink" : ""}</strong>
-                  <p>${new Date(transaction.createdAt).toLocaleString("id-ID")} · ${transaction.shift || "Shift 1"} · ${transactionEmployeeDisplay(transaction)} · ${transaction.customer} · ${transactionPaymentMethod(transaction)}${transaction.discountTotal ? ` · Diskon ${money(transaction.discountTotal)}` : ""}${transaction.boothCode ? ` · Booth ${transaction.boothCode}` : ""}</p>
+                  <p>${new Date(transaction.createdAt).toLocaleString("id-ID")} · ${transactionShift(transaction)} · ${transactionEmployeeDisplay(transaction)} · ${transaction.customer} · ${transactionPaymentMethod(transaction)}${transaction.discountTotal ? ` · Diskon ${money(transaction.discountTotal)}` : ""}${transaction.boothCode ? ` · Booth ${transaction.boothCode}` : ""}</p>
                   <p>${mergeLineItems(transaction.items).map((item) => `${item.qty}x ${item.name}`).join(", ")}</p>
                 </div>
               </article>
@@ -4321,7 +4328,7 @@ function renderHistory() {
   }
   const todayTransactions = analyticsSourceForMonth(today.slice(0, 7)).filter((entry) => dateKey(entry.createdAt) === today);
   const activeShift = currentShiftName();
-  const activeShiftTransactions = revenueTransactions(todayTransactions).filter((entry) => (entry.shift || "Shift 1") === activeShift);
+  const activeShiftTransactions = revenueTransactions(todayTransactions).filter((entry) => transactionShift(entry) === activeShift);
   if (els.activeShiftLabel) els.activeShiftLabel.textContent = `${activeShift} aktif`;
   els.shiftTotal.textContent = money(activeShiftTransactions.reduce((sum, entry) => sum + entry.grandTotal, 0));
   els.shiftCount.textContent = `${activeShift} · ${activeShiftTransactions.length} transaksi`;
@@ -5101,7 +5108,7 @@ function dailyReportText(todayTransactions, reportDateValue = selectedDailyDate(
       ...items.map((item) => `- ${item.name}: ${item.qty} pcs (${money(item.revenue)})`),
     ]);
   const shiftLines = ["Shift 1", "Shift 2"].map((shift) => {
-    const transactions = normalTransactions.filter((entry) => (entry.shift || "Shift 1") === shift);
+    const transactions = normalTransactions.filter((entry) => transactionShift(entry) === shift);
     const shiftRevenue = transactions.reduce((sum, entry) => sum + entry.grandTotal, 0);
     return `- ${shift}: ${money(shiftRevenue)} (${transactions.length} transaksi)`;
   });
@@ -5158,7 +5165,7 @@ function renderDailySummary(todayTransactions, reportDateValue = selectedDailyDa
   const paymentTotals = paymentTotalsFor(normalTransactions);
   const dailyCash = getDailyCashReport(reportDateValue);
   const shiftTotals = ["Shift 1", "Shift 2"].map((shift) => {
-    const transactions = normalTransactions.filter((entry) => (entry.shift || "Shift 1") === shift);
+    const transactions = normalTransactions.filter((entry) => transactionShift(entry) === shift);
     return {
       shift,
       revenue: transactions.reduce((sum, entry) => sum + entry.grandTotal, 0),
@@ -5290,7 +5297,7 @@ function dailyReportPdfLines(transactions = [], reportDateValue = selectedDailyD
     .forEach((entry) => {
       const time = new Date(entry.createdAt).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
       lines.push("");
-      lines.push(`${entry.id} | ${time} | ${transactionEmployeeDisplay(entry)} | ${entry.shift || "Shift 1"} | ${transactionPaymentMethod(entry)}`);
+      lines.push(`${entry.id} | ${time} | ${transactionEmployeeDisplay(entry)} | ${transactionShift(entry)} | ${transactionPaymentMethod(entry)}`);
       lines.push(`Pelanggan: ${entry.customer || "Teman Migi"}`);
       (entry.items || []).forEach((item) => {
         const qty = Number(item.qty || 0);
