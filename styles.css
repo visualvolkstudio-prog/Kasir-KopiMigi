@@ -1713,6 +1713,36 @@ input:focus, select:focus {
   flex: 1;
 }
 
+.payment-methods button {
+  --payment-tone: var(--accent);
+  --payment-soft: var(--accent-soft);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+
+.payment-methods button[data-payment="Tunai"] {
+  --payment-tone: #17824b;
+  --payment-soft: #e8f7ef;
+}
+
+.payment-methods button[data-payment="QRIS"] {
+  --payment-tone: #5b3fd6;
+  --payment-soft: #eee9ff;
+}
+
+.payment-methods button i {
+  font-size: 17px;
+  color: var(--payment-tone);
+}
+
+.payment-methods button.active {
+  background: var(--payment-soft);
+  color: var(--payment-tone);
+  box-shadow: inset 0 0 0 1.5px var(--payment-tone), var(--shadow-sm);
+}
+
 .order-type-tabs button:disabled {
   cursor: not-allowed;
   opacity: 0.45;
@@ -1768,6 +1798,8 @@ input:focus, select:focus {
 }
 
 .channel-options button {
+  --channel-tone: var(--accent);
+  --channel-soft: var(--accent-soft);
   min-height: 34px;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -1775,30 +1807,56 @@ input:focus, select:focus {
   color: var(--ink);
   font-weight: 800;
   font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  transition: background 0.13s, border-color 0.13s, color 0.13s, box-shadow 0.13s;
 }
 
-.channel-options button::before {
-  content: "";
-  width: 14px;
-  height: 14px;
-  border: 1.5px solid #b8c0cf;
-  border-radius: 4px;
-  display: inline-block;
-  margin-right: 6px;
-  vertical-align: -2px;
+.channel-options button[data-channel="Kasir"] {
+  --channel-tone: #0b4db3;
+  --channel-soft: #eaf1ff;
+}
+
+.channel-options button[data-channel="GoFood"] {
+  --channel-tone: #16823c;
+  --channel-soft: #e8f7ed;
+}
+
+.channel-options button[data-channel="GrabFood"] {
+  --channel-tone: #04765f;
+  --channel-soft: #e6f7f2;
+}
+
+.channel-options button[data-channel="ShopeeFood"] {
+  --channel-tone: #d95d13;
+  --channel-soft: #fff0e6;
+}
+
+.channel-options button i {
+  width: 18px;
+  height: 18px;
+  border-radius: 6px;
+  display: inline-grid;
+  place-items: center;
+  color: var(--channel-tone);
   background: var(--white);
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.08);
+  font-size: 14px;
 }
 
 .channel-options button.active {
-  border-color: var(--accent);
-  color: var(--accent-text);
-  background: var(--accent-soft);
+  border-color: var(--channel-tone);
+  color: var(--channel-tone);
+  background: var(--channel-soft);
+  box-shadow: inset 0 0 0 1px var(--channel-tone);
 }
 
-.channel-options button.active::before {
-  border-color: var(--accent);
-  background: var(--accent);
-  box-shadow: inset 0 0 0 3px var(--white);
+.channel-options button.active i {
+  color: var(--white);
+  background: var(--channel-tone);
+  box-shadow: none;
 }
 
 .order-status-tabs span {
