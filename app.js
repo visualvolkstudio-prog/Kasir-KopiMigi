@@ -598,6 +598,19 @@ function receiptDisplayCode(transaction, kind = "paid") {
   return kind === "bill" ? transaction?.orderCode || transaction?.displayCode || transaction?.id || "" : paidOrderDisplayCode(transaction);
 }
 
+function transactionReportDate(transaction = {}) {
+  const recoveryDate = String(transaction.id || "").match(/^RECOVERY-(\d{4}-\d{2}-\d{2})$/)?.[1];
+  return recoveryDate || dateKey(transaction.createdAt);
+}
+
+function transactionReportMonth(transaction = {}) {
+  return transactionReportDate(transaction).slice(0, 7);
+}
+
+function transactionReportYear(transaction = {}) {
+  return transactionReportDate(transaction).slice(0, 4);
+}
+
 function receiptTableLabel(transaction, displayCode) {
   const value = String(transaction?.table || "").trim();
   if (!value || value === transaction?.id || /^[A-Z]+-\d{3}(?:-O|-G|-GB|-S)?$/.test(value)) return displayCode;
@@ -1198,7 +1211,7 @@ function syncActiveShiftWithClock(now = new Date()) {
 }
 
 function shiftSummaryLines(shift = getActiveShift(), date = dateKey()) {
-  const transactions = getHistory().filter((entry) => dateKey(entry.createdAt) === date && transactionShift(entry) === shift);
+  const transactions = getHistory().filter((entry) => transactionReportDate(entry) === date && transactionShift(entry) === shift);
   const normal = revenueTransactions(transactions);
   const staffDrinks = transactions.filter(isStaffDrinkTransaction);
   const paymentTotals = paymentTotalsFor(normal);
@@ -1215,7 +1228,7 @@ function shiftSummaryLines(shift = getActiveShift(), date = dateKey()) {
 
 function dayTransactions(date = dateKey()) {
   const source = analyticsSourceForDate(date);
-  return source.filter((entry) => dateKey(entry.createdAt) === date);
+  return source.filter((entry) => transactionReportDate(entry) === date);
 }
 
 function shiftReportText(shift, reportDateValue = dateKey()) {
@@ -4337,7 +4350,7 @@ function renderHistory() {
     renderDailySummaryLoadError(today, state.analyticsLoadError);
     return;
   }
-  const todayTransactions = analyticsSourceForMonth(today.slice(0, 7)).filter((entry) => dateKey(entry.createdAt) === today);
+  const todayTransactions = analyticsSourceForMonth(today.slice(0, 7)).filter((entry) => transactionReportDate(entry) === today);
   const activeShift = currentShiftName();
   const activeShiftTransactions = revenueTransactions(todayTransactions).filter((entry) => transactionShift(entry) === activeShift);
   if (els.activeShiftLabel) els.activeShiftLabel.textContent = `${activeShift} aktif`;
@@ -4646,7 +4659,7 @@ function renderOrders() {
   }
   const paidAscending = analyticsSourceForDate(paidDate)
     .filter(isPaidTransaction)
-    .filter((entry) => dateKey(entry.createdAt) === paidDate)
+    .filter((entry) => transactionReportDate(entry) === paidDate)
     .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
   const paidDisplayCodes = paidOrderDisplayCodes(paidAscending);
   const paid = [...paidAscending].reverse();
@@ -5378,7 +5391,7 @@ async function downloadDailyReportPdf() {
     const reportDateValue = selectedDailyDate();
     const loaded = await refreshAnalyticsPeriod({ month: reportDateValue.slice(0, 7), range: "daily", silent: false });
     if (!loaded && navigator.onLine) throw new Error(state.analyticsLoadError || "Arsip Supabase belum bisa dimuat.");
-    const transactions = analyticsSourceForDate(reportDateValue).filter((entry) => dateKey(entry.createdAt) === reportDateValue);
+    const transactions = analyticsSourceForDate(reportDateValue).filter((entry) => transactionReportDate(entry) === reportDateValue);
     const lines = dailyReportPdfLines(transactions, reportDateValue);
     const blob = buildSimplePdf(lines);
     const label = new Date(`${reportDateValue}T12:00:00`).toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric" }).replace(/\s+/g, "-");
@@ -5435,13 +5448,13 @@ function analyticsLoadFailedForPeriod(periodKey = "") {
 
 function filteredMonthHistory() {
   const month = selectedMonth();
-  return analyticsSourceForMonth(month).filter((entry) => dateKey(entry.createdAt).slice(0, 7) === month);
+  return analyticsSourceForMonth(month).filter((entry) => transactionReportMonth(entry) === month);
 }
 
 function filteredAnalyticsHistory() {
   if (state.chartRange === "daily") return filteredMonthHistory();
   const year = String(selectedAnalyticsYear());
-  return analyticsSourceForPeriod(`year:${year}`).filter((entry) => dateKey(entry.createdAt).slice(0, 4) === year);
+  return analyticsSourceForPeriod(`year:${year}`).filter((entry) => transactionReportYear(entry) === year);
 }
 
 function renderAnalyticsControls() {
@@ -5681,7 +5694,7 @@ function renderAnalytics() {
   const monthQris = monthPaymentTotals.get("QRIS") || 0;
   const discountedTransactions = history.filter((entry) => Number(entry.discountTotal || 0) > 0);
   const discountTotal = discountedTransactions.reduce((sum, entry) => sum + Number(entry.discountTotal || 0), 0);
-  const uniqueDays = new Set(history.map((entry) => dateKey(entry.createdAt))).size || 1;
+  const uniqueDays = new Set(history.map((entry) => transactionReportDate(entry))).size || 1;
   const itemCount = history.reduce((sum, entry) => sum + entry.items.reduce((inner, item) => inner + item.qty, 0), 0);
   const products = new Map();
 
@@ -5705,7 +5718,7 @@ function renderAnalytics() {
   if (els.monthQrisRevenue) els.monthQrisRevenue.textContent = money(monthQris);
   if (els.monthDiscountTotal) els.monthDiscountTotal.textContent = money(discountTotal);
   if (els.monthDiscountCount) els.monthDiscountCount.textContent = `${discountedTransactions.length}`;
-  els.avgDailyRevenue.textContent = money(Math.round(revenue / (yearlyMode ? Math.max(1, new Set(history.map((entry) => dateKey(entry.createdAt).slice(0, 7))).size) : uniqueDays)));
+  els.avgDailyRevenue.textContent = money(Math.round(revenue / (yearlyMode ? Math.max(1, new Set(history.map((entry) => transactionReportMonth(entry))).size) : uniqueDays)));
   els.monthTransactions.textContent = String(history.length);
   els.monthItems.textContent = String(itemCount);
   els.bestsellerList.innerHTML = bestsellers.length
@@ -5788,18 +5801,18 @@ function renderRevenueChart(history) {
   const range = state.chartRange;
   const source = range === "daily"
     ? history
-    : revenueTransactions(analyticsSourceForPeriod(`year:${selectedYear}`)).filter((entry) => dateKey(entry.createdAt).slice(0, 4) === String(selectedYear));
+    : revenueTransactions(analyticsSourceForPeriod(`year:${selectedYear}`)).filter((entry) => transactionReportYear(entry) === String(selectedYear));
   const points = range !== "daily"
       ? Array.from({ length: 12 }, (_, index) => ({ label: new Date(selectedYear, index, 1).toLocaleDateString("id-ID", { month: "short" }), total: 0 }))
       : Array.from({ length: daysInMonth }, (_, index) => ({ label: String(index + 1), total: 0 }));
 
   source.forEach((entry) => {
     if (range !== "daily") {
-      const index = Number(dateKey(entry.createdAt).slice(5, 7)) - 1;
+      const index = Number(transactionReportMonth(entry).slice(5, 7)) - 1;
       if (points[index]) points[index].total += entry.grandTotal;
       return;
     }
-    const day = Number(dateKey(entry.createdAt).slice(8, 10));
+    const day = Number(transactionReportDate(entry).slice(8, 10));
     if (points[day - 1]) points[day - 1].total += entry.grandTotal;
   });
 
@@ -5898,7 +5911,7 @@ function renderInsights({ history, bestsellers, revenue, itemCount, staffDrinks 
   const top = bestsellers[0];
   const avgTransaction = history.length ? Math.round(revenue / history.length) : 0;
   const boothCount = history.filter((entry) => entry.boothCode || entry.boothPackage !== "none").length;
-  const activeDays = new Set(history.map((entry) => dateKey(entry.createdAt))).size;
+  const activeDays = new Set(history.map((entry) => transactionReportDate(entry))).size;
   const staffValue = staffDrinks.reduce((sum, entry) => sum + Number(entry.originalTotal || entry.subtotal || 0), 0);
   const insights = top
     ? [
