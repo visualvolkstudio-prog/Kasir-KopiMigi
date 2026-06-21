@@ -453,6 +453,17 @@ function paymentReportMethods() {
   return ["Tunai", "QRIS", "GoFood", "GrabFood", "ShopeeFood"];
 }
 
+function paymentUiMeta(method = "Tunai") {
+  const meta = {
+    Tunai: { icon: "ph-money", tone: "cash" },
+    QRIS: { icon: "ph-qr-code", tone: "qris" },
+    GoFood: { icon: "ph-bowl-food", tone: "gofood" },
+    GrabFood: { icon: "ph-car", tone: "grabfood" },
+    ShopeeFood: { icon: "ph-shopping-bag", tone: "shopeefood" },
+  };
+  return meta[method] || { icon: "ph-wallet", tone: "default" };
+}
+
 function transactionPaymentMethod(transaction = {}) {
   if (isOnlineChannel(transaction.channel)) return transaction.channel;
   return transaction.payment || "Tunai";
@@ -5234,7 +5245,15 @@ function renderDailySummary(todayTransactions, reportDateValue = selectedDailyDa
     </div>
     <div class="payment-summary">
       ${paymentReportMethods()
-        .map((method) => `<div><span>${method}</span><strong>${money(paymentTotals.get(method) || 0)}</strong></div>`)
+        .map((method) => {
+          const meta = paymentUiMeta(method);
+          return `
+            <div class="payment-summary-row payment-summary-row-${meta.tone}">
+              <span><i class="ph ${meta.icon}" aria-hidden="true"></i>${method}</span>
+              <strong>${money(paymentTotals.get(method) || 0)}</strong>
+            </div>
+          `;
+        })
         .join("")}
     </div>
   `;

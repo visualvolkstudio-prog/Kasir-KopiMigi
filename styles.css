@@ -1967,7 +1967,66 @@ input:focus, select:focus {
   background: rgba(0, 52, 155, 0.05) !important;
 }
 .payment-summary { grid-column: 1/-1; display: grid; gap: 7px; }
-.payment-summary div { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 13.5px; }
+.payment-summary-row {
+  --summary-tone: var(--accent);
+  --summary-soft: var(--accent-soft);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: var(--white);
+  font-size: 13.5px;
+}
+
+.payment-summary-row-cash {
+  --summary-tone: #17824b;
+  --summary-soft: #e8f7ef;
+}
+
+.payment-summary-row-qris {
+  --summary-tone: #5b3fd6;
+  --summary-soft: #eee9ff;
+}
+
+.payment-summary-row-gofood {
+  --summary-tone: #16823c;
+  --summary-soft: #e8f7ed;
+}
+
+.payment-summary-row-grabfood {
+  --summary-tone: #04765f;
+  --summary-soft: #e6f7f2;
+}
+
+.payment-summary-row-shopeefood {
+  --summary-tone: #d95d13;
+  --summary-soft: #fff0e6;
+}
+
+.payment-summary-row span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--summary-tone);
+}
+
+.payment-summary-row i {
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  display: inline-grid;
+  place-items: center;
+  background: var(--summary-soft);
+  color: var(--summary-tone);
+  font-size: 15px;
+}
+
+.payment-summary-row strong {
+  color: var(--ink);
+}
 
 .report-actions {
   display: flex;
