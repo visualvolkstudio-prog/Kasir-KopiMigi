@@ -462,6 +462,17 @@ function transactionPaymentTotal(transaction = {}) {
   return Number(transaction.grandTotal || 0);
 }
 
+function transactionPaymentBreakdownLabel(transaction = {}) {
+  if (!transaction.paymentBreakdown || typeof transaction.paymentBreakdown !== "object" || Array.isArray(transaction.paymentBreakdown)) {
+    return transactionPaymentMethod(transaction);
+  }
+  const lines = paymentReportMethods()
+    .map((method) => [method, Number(transaction.paymentBreakdown[method] || 0)])
+    .filter(([, amount]) => amount > 0)
+    .map(([method, amount]) => `${method} ${money(amount)}`);
+  return lines.length ? lines.join(" · ") : transactionPaymentMethod(transaction);
+}
+
 function paymentTotalsFor(transactions = []) {
   return revenueTransactions(transactions).reduce((map, entry) => {
     if (entry.paymentBreakdown && typeof entry.paymentBreakdown === "object" && !Array.isArray(entry.paymentBreakdown)) {
@@ -4339,6 +4350,7 @@ function orderCard(transaction, kind, displayCode = "") {
   const items = mergeLineItems(transaction.items).map((item) => `${item.qty}x ${item.name}`).join(", ");
   const orderCode = displayCode || transaction.orderCode || transaction.id;
   const paymentMethod = transactionPaymentMethod(transaction);
+  const paymentLabel = transactionPaymentBreakdownLabel(transaction);
   const actions = kind === "unpaid"
     ? `
       <div class="history-actions">
@@ -4370,7 +4382,7 @@ function orderCard(transaction, kind, displayCode = "") {
     <article class="history-card order-card-row">
       <div>
         <strong>${orderCode} · ${money(transaction.grandTotal)}</strong>
-        <p>${new Date(transaction.createdAt).toLocaleString("id-ID")} · ${transaction.channel || "Kasir"} · ${transaction.customer} · ${paymentMethod}</p>
+        <p>${new Date(transaction.createdAt).toLocaleString("id-ID")} · ${transaction.channel || "Kasir"} · ${transaction.customer} · ${paymentLabel}</p>
         <p>${items}</p>
       </div>
       ${actions}
@@ -7000,8 +7012,10 @@ els.analyticsDate?.addEventListener("change", () => {
   const month = els.analyticsDate.value.slice(0, 7);
   if (month && els.analyticsMonth.value !== month) els.analyticsMonth.value = month;
   if (els.analyticsYear && month) els.analyticsYear.value = month.slice(0, 4);
+  if (els.paidOrderDate) els.paidOrderDate.value = els.analyticsDate.value || dateKey();
   refreshAnalyticsPeriod({ month, range: "daily", silent: true }).then((loaded) => {
     if (!loaded) renderHistory();
+    renderOrders();
   });
 });
 els.analyticsYear?.addEventListener("change", () => {
