@@ -100,6 +100,9 @@ const state = {
   analyticsPeriodRequestId: 0,
   analyticsLoadError: "",
   analyticsLoadErrorPeriodKey: "",
+  cashflowSalesPeriodKey: "",
+  cashflowSalesTransactions: [],
+  cashflowSalesRequestId: 0,
   logoutAfterOrder: false,
   shiftTransitionHandled: "",
   pendingLogin: null,
@@ -3152,6 +3155,66 @@ function renderInventory() {
 
 }
 
+function selectedCashflowMonth() {
+  const activePeriod = els.cashflowPeriodTabs?.querySelector("button.active")?.dataset?.cashflowPeriod || "month";
+  if (activePeriod === "day") return (els.cashflowDate?.value || dateKey()).slice(0, 7);
+  return els.cashflowMonth?.value || monthKey();
+}
+
+function cashflowSalesSourceForMonth(month = selectedCashflowMonth()) {
+  const periodKey = `month:${month}`;
+  const mergeWithLocal = (source = []) => {
+    const byId = new Map();
+    (source || []).forEach((entry) => {
+      if (entry?.id) byId.set(entry.id, entry);
+    });
+    getHistory().forEach((entry) => {
+      if (!entry?.id || byId.has(entry.id) || transactionReportMonth(entry) !== month) return;
+      byId.set(entry.id, entry);
+    });
+    return [...byId.values()];
+  };
+  if (state.cashflowSalesPeriodKey === periodKey && Array.isArray(state.cashflowSalesTransactions)) {
+    return mergeWithLocal(state.cashflowSalesTransactions);
+  }
+  return mergeWithLocal(analyticsSourceForMonth(month));
+}
+
+async function refreshCashflowSalesPeriod({ month = selectedCashflowMonth(), render = true, silent = true } = {}) {
+  if (!navigator.onLine) return false;
+  const requestId = state.cashflowSalesRequestId + 1;
+  state.cashflowSalesRequestId = requestId;
+  const periodKey = `month:${month}`;
+  try {
+    const { startDate, endDate } = monthDateRange(month);
+    const result = await postSupabaseAction("get-transactions", {
+      startDate,
+      endDate,
+      fullArchive: true,
+      limit: 50000,
+    });
+    if (!result?.success || !Array.isArray(result.transactions)) throw new Error(result?.error || "Ambil arsip arus kas gagal.");
+    if (requestId !== state.cashflowSalesRequestId) return false;
+    state.cashflowSalesPeriodKey = periodKey;
+    state.cashflowSalesTransactions = result.transactions;
+    if (Array.isArray(result.deletedTransactions)) mergeDeletedTransactionTombstones(result.deletedTransactions);
+    if (render) renderCashflow();
+    return true;
+  } catch (error) {
+    if (!silent) toast(error.message || "Arsip arus kas belum bisa dimuat.");
+    return false;
+  }
+}
+
+function refreshCashflowSalesForSelection(options = {}) {
+  return refreshCashflowSalesPeriod({ ...options, month: selectedCashflowMonth() });
+}
+
+function refreshActiveCashflowSales() {
+  if (!document.querySelector("#view-cashflow")?.classList.contains("active")) return;
+  refreshCashflowSalesForSelection({ silent: true }).catch(() => null);
+}
+
 function renderCashflow() {
   const activePeriod = els.cashflowPeriodTabs?.querySelector("button.active")?.dataset?.cashflowPeriod || "month";
   const isDaily = activePeriod === "day";
@@ -3164,8 +3227,13 @@ function renderCashflow() {
     const entryDate = dateKey(entry.createdAt);
     return isDaily ? entryDate === selectedDateValue : entryDate.slice(0, 7) === selectedMonthValue;
   };
+  const isSaleInPeriod = (entry) => {
+    const entryDate = transactionReportDate(entry);
+    return isDaily ? entryDate === selectedDateValue : entryDate.slice(0, 7) === selectedMonthValue;
+  };
+  const salesSourceMonth = isDaily ? selectedDateValue.slice(0, 7) : selectedMonthValue;
   const periodExpenses = getCashflowExpenses().filter(isInPeriod);
-  const periodSales = revenueTransactions(getHistory()).filter(isInPeriod);
+  const periodSales = revenueTransactions(cashflowSalesSourceForMonth(salesSourceMonth)).filter(isSaleInPeriod);
   const salesIn = periodSales.reduce((sum, entry) => sum + entry.grandTotal, 0);
   const totalOut = periodExpenses.reduce((sum, entry) => sum + entry.amount, 0);
   const net = salesIn - totalOut;
@@ -3179,7 +3247,7 @@ function renderCashflow() {
 
   const activeFilter = els.cfFilterTabs?.querySelector("button.active")?.dataset?.cfFilter || "all";
   const salesList = periodSales
-    .map((entry) => ({ type: "in", category: "Masuk", label: `Penjualan · ${paidOrderDisplayCode(entry, periodSales)}`, amount: entry.grandTotal, note: entry.customer, createdAt: entry.createdAt }));
+    .map((entry) => ({ type: "in", category: "Masuk", label: `Penjualan · ${paidOrderDisplayCode(entry, periodSales)}`, amount: entry.grandTotal, note: entry.customer, createdAt: entry.createdAt, reportDate: transactionReportDate(entry) }));
   const expenseList = periodExpenses.map((entry) => ({
     type: "out",
     category: entry.category || "Lain-lain",
@@ -3196,7 +3264,7 @@ function renderCashflow() {
 
   if (els.cashflowList) {
     const grouped = combined.reduce((map, entry) => {
-      const key = dateKey(entry.createdAt);
+      const key = entry.reportDate || dateKey(entry.createdAt);
       if (!map.has(key)) map.set(key, []);
       map.get(key).push(entry);
       return map;
@@ -6318,6 +6386,11 @@ function setActiveView(viewName, { persist = true } = {}) {
   tab.classList.add("active");
   target.classList.add("active");
   if (persist) localStorage.setItem(storageKeys.activeView, viewName);
+  if (viewName === "cashflow") {
+    refreshCashflowSalesForSelection({ silent: true }).then((loaded) => {
+      if (!loaded) renderCashflow();
+    });
+  }
   return true;
 }
 
@@ -6885,11 +6958,21 @@ els.cashflowPeriodTabs?.addEventListener("click", (event) => {
   const button = event.target.closest("button[data-cashflow-period]");
   if (!button) return;
   els.cashflowPeriodTabs.querySelectorAll("button").forEach((entry) => entry.classList.toggle("active", entry === button));
-  renderCashflow();
+  refreshCashflowSalesForSelection({ silent: true }).then((loaded) => {
+    if (!loaded) renderCashflow();
+  });
 });
 
-els.cashflowMonth?.addEventListener("change", renderCashflow);
-els.cashflowDate?.addEventListener("change", renderCashflow);
+els.cashflowMonth?.addEventListener("change", () => {
+  refreshCashflowSalesForSelection({ silent: true }).then((loaded) => {
+    if (!loaded) renderCashflow();
+  });
+});
+els.cashflowDate?.addEventListener("change", () => {
+  refreshCashflowSalesForSelection({ silent: true }).then((loaded) => {
+    if (!loaded) renderCashflow();
+  });
+});
 
 els.cashflowList?.addEventListener("click", (event) => {
   const deleteBtn = event.target.closest("button[data-delete-expense]");
@@ -7092,12 +7175,14 @@ setInterval(() => {
   if (document.visibilityState === "visible") {
     refreshOnlineData({ render: true }).catch(() => null);
     refreshAnalyticsPeriod({ silent: true }).catch(() => null);
+    refreshActiveCashflowSales();
   }
 }, 30000);
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible") {
     refreshOnlineData({ render: true }).catch(() => null);
     refreshAnalyticsPeriod({ silent: true }).catch(() => null);
+    refreshActiveCashflowSales();
   }
 });
 restoreActiveView();
