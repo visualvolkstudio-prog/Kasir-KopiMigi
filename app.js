@@ -72,6 +72,7 @@ const state = {
   search: "",
   payment: "Tunai",
   orderType: "normal",
+  serviceType: "dine_in",
   discountType: "none",
   discountValue: 0,
   discountNote: "",
@@ -241,6 +242,8 @@ const els = {
   cartSubtotal: document.querySelector("#cartSubtotal"),
   cartGrandTotal: document.querySelector("#cartGrandTotal"),
   orderTypeTabs: document.querySelector("#orderTypeTabs"),
+  dineTakeBox: document.querySelector("#dineTakeBox"),
+  dineTakeTabs: document.querySelector("#dineTakeTabs"),
   staffDrinkInfo: document.querySelector("#staffDrinkInfo"),
   discountBox: document.querySelector("#discountBox"),
   discountVoucherSelect: document.querySelector("#discountVoucherSelect"),
@@ -2671,10 +2674,19 @@ function syncOrderTypeUi() {
     button.classList.toggle("active", button.dataset.payment === state.payment);
   });
   updateChange();
+  if (els.dineTakeBox) els.dineTakeBox.hidden = staffDrinkActive;
+  syncDineTakeUi();
+}
+
+function syncDineTakeUi() {
+  els.dineTakeTabs?.querySelectorAll("button[data-service-type]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.serviceType === state.serviceType);
+  });
 }
 
 function resetOrderAdjustments() {
   state.orderType = "normal";
+  state.serviceType = "dine_in";
   clearDiscountState();
   if (els.paidAmount) {
     els.paidAmount.disabled = false;
@@ -2804,6 +2816,7 @@ function ingredientOptions(selectedId = "") {
 
 function recipeRowHtml(recipe = {}) {
   const ingredient = getInventory()[recipe.ingredientId];
+  const type = recipe.type || "all";
   return `
     <div class="recipe-ingredient-row">
       <label>
@@ -2819,6 +2832,14 @@ function recipeRowHtml(recipe = {}) {
       <label>
         Satuan
         <input class="recipe-unit-preview" type="text" value="${ingredient?.unit || ""}" disabled />
+      </label>
+      <label>
+        Penyajian
+        <select class="recipe-service-select">
+          <option value="all" ${type === "all" ? "selected" : ""}>Semua</option>
+          <option value="dine_in" ${type === "dine_in" ? "selected" : ""}>Dine In</option>
+          <option value="take_away" ${type === "take_away" ? "selected" : ""}>Take Away</option>
+        </select>
       </label>
       <button class="secondary-button compact danger-text recipe-remove-button" type="button" aria-label="Hapus bahan">Hapus</button>
     </div>
@@ -2852,6 +2873,7 @@ function recipeDraftRows() {
   return rows.map((row) => ({
     ingredientId: row.querySelector(".recipe-ingredient-select")?.value || "",
     qty: row.querySelector(".recipe-qty-input")?.value || "",
+    type: row.querySelector(".recipe-service-select")?.value || "all",
   }));
 }
 
@@ -2875,18 +2897,19 @@ function collectRecipeRows() {
   for (const row of rows) {
     const ingredientId = row.querySelector(".recipe-ingredient-select")?.value || "";
     const qtyValue = row.querySelector(".recipe-qty-input")?.value || "";
+    const type = row.querySelector(".recipe-service-select")?.value || "all";
     const qty = Number(qtyValue);
     if (!ingredientId && !qtyValue) continue;
     if (!inventory[ingredientId] || !Number.isFinite(qty) || qty <= 0) {
       toast("Lengkapi bahan dan jumlah pemakaian, atau kosongkan barisnya.");
       return null;
     }
-    filledRows.push({ ingredientId, qty });
+    filledRows.push({ ingredientId, qty, type });
   }
 
-  const duplicateIngredient = filledRows.find((row, index) => filledRows.findIndex((entry) => entry.ingredientId === row.ingredientId) !== index);
+  const duplicateIngredient = filledRows.find((row, index) => filledRows.findIndex((entry) => entry.ingredientId === row.ingredientId && entry.type === row.type) !== index);
   if (duplicateIngredient) {
-    toast("Bahan yang sama cukup diisi satu kali per menu.");
+    toast("Bahan yang sama dengan penyajian sama cukup diisi satu kali per menu.");
     return null;
   }
   return filledRows;
@@ -3803,6 +3826,7 @@ function currentTransaction(draft = false) {
     employeeId: activeEmployeeId(),
     dutyRole: currentDutyRole(),
     orderType,
+    serviceType: staffDrink ? "dine_in" : (state.serviceType || "dine_in"),
     isStaffDrink: staffDrink,
     staffDrinkDate: staffDrink ? dateKey(now) : "",
     discountVoucherId: discountAllowed ? voucher.id : "",
@@ -3833,11 +3857,15 @@ function currentTransaction(draft = false) {
   };
 }
 
-function requiredIngredientsForItems(items) {
+function requiredIngredientsForItems(items, serviceType = state.serviceType) {
   const recipes = getRecipes();
+  const servType = serviceType || "dine_in";
   return items.reduce((required, item) => {
     (recipes[item.id] || []).forEach((recipe) => {
-      required[recipe.ingredientId] = (required[recipe.ingredientId] || 0) + Number(recipe.qty || 0) * Number(item.qty || 0);
+      const recipeType = recipe.type || "all";
+      if (recipeType === "all" || recipeType === servType) {
+        required[recipe.ingredientId] = (required[recipe.ingredientId] || 0) + Number(recipe.qty || 0) * Number(item.qty || 0);
+      }
     });
     (item.customStockUsage || []).forEach((usage) => {
       if (!usage.ingredientId) return;
@@ -3853,7 +3881,7 @@ function ingredientUsageFromHistory(history = []) {
     .filter(isPaidTransaction)
     .reduce((required, entry) => {
       const items = Array.isArray(entry.items) ? entry.items : [];
-      const itemRequired = requiredIngredientsForItems(items);
+      const itemRequired = requiredIngredientsForItems(items, entry.serviceType);
       Object.entries(itemRequired).forEach(([ingredientId, qty]) => {
         required[ingredientId] = (required[ingredientId] || 0) + Number(qty || 0);
       });
@@ -3887,7 +3915,7 @@ function validateStockForCart() {
 
 function deductStockForTransaction(transaction) {
   const inventory = getInventory();
-  const required = requiredIngredientsForItems(transaction.items);
+  const required = requiredIngredientsForItems(transaction.items, transaction.serviceType);
   let changed = false;
   Object.entries(required).forEach(([ingredientId, qty]) => {
     if (!inventory[ingredientId]) return;
@@ -3899,9 +3927,9 @@ function deductStockForTransaction(transaction) {
   return changed;
 }
 
-function stockDeltaByIngredient(oldItems = [], newItems = []) {
-  const oldRequired = requiredIngredientsForItems(oldItems);
-  const newRequired = requiredIngredientsForItems(newItems);
+function stockDeltaByIngredient(oldItems = [], newItems = [], serviceType = state.serviceType) {
+  const oldRequired = requiredIngredientsForItems(oldItems, serviceType);
+  const newRequired = requiredIngredientsForItems(newItems, serviceType);
   const ids = new Set([...Object.keys(oldRequired), ...Object.keys(newRequired)]);
   return [...ids].reduce((delta, id) => {
     const diff = Number(newRequired[id] || 0) - Number(oldRequired[id] || 0);
@@ -3910,8 +3938,8 @@ function stockDeltaByIngredient(oldItems = [], newItems = []) {
   }, {});
 }
 
-function applyStockDeltaForEdit(oldItems = [], newItems = [], timestamp = new Date().toISOString()) {
-  const delta = stockDeltaByIngredient(oldItems, newItems);
+function applyStockDeltaForEdit(oldItems = [], newItems = [], timestamp = new Date().toISOString(), serviceType = state.serviceType) {
+  const delta = stockDeltaByIngredient(oldItems, newItems, serviceType);
   const entries = Object.entries(delta);
   if (!entries.length) return { changed: false };
   const inventory = getInventory();
@@ -3952,7 +3980,7 @@ async function syncTodayStockFromSales() {
     if (transaction.status && transaction.status !== "paid") return;
     if (transaction.stockSyncedAt) return;
 
-    const required = requiredIngredientsForItems(transaction.items || []);
+    const required = requiredIngredientsForItems(transaction.items || [], transaction.serviceType);
     const entries = Object.entries(required).filter(([ingredientId, qty]) => inventory[ingredientId] && Number(qty || 0) > 0);
     if (!entries.length) {
       skippedNoRecipe += 1;
@@ -4042,6 +4070,7 @@ function receiptHtml(transaction, kind = "paid") {
     <p>${escapeHtml(new Date(transaction.createdAt).toLocaleString("id-ID"))}</p>
     <p>Kasir: ${escapeHtml(transactionEmployeeDisplay(transaction))} (${escapeHtml(transactionShift(transaction))})</p>
     <p>Channel: ${escapeHtml(transaction.channel || "Kasir")}</p>
+    ${!staffDrink ? `<p>Penyajian: ${transaction.serviceType === "take_away" ? "Take Away (Bungkus)" : "Dine In (Makan Sini)"}</p>` : ""}
     <p>Customer: ${escapeHtml(transaction.customer)}</p>
     <p>Nomor: ${tableLabel}</p>
     <div class="receipt-rule"></div>
@@ -4092,6 +4121,7 @@ function receiptText(transaction, kind = "paid", { includeFooter = true } = {}) 
     new Date(transaction.createdAt).toLocaleString("id-ID"),
     `Kasir: ${transactionEmployeeDisplay(transaction)} (${transactionShift(transaction)})`,
     `Channel: ${transaction.channel || "Kasir"}`,
+    ...(!staffDrink ? [`Penyajian: ${transaction.serviceType === "take_away" ? "Take Away (Bungkus)" : "Dine In (Makan Sini)"}`] : []),
     `Customer: ${transaction.customer}`,
     `Nomor: ${tableLabel}`,
     line,
@@ -4409,7 +4439,7 @@ function renderHistory() {
               <article class="history-card">
                 <div>
                   <strong>${transaction.orderCode || transaction.id} · ${money(transaction.grandTotal)}${isStaffDrinkTransaction(transaction) ? " · Staff Drink" : ""}</strong>
-                  <p>${new Date(transaction.createdAt).toLocaleString("id-ID")} · ${transactionShift(transaction)} · ${transactionEmployeeDisplay(transaction)} · ${transaction.customer} · ${transactionPaymentMethod(transaction)}${transaction.discountTotal ? ` · Diskon ${money(transaction.discountTotal)}` : ""}${transaction.boothCode ? ` · Booth ${transaction.boothCode}` : ""}</p>
+                  <p>${new Date(transaction.createdAt).toLocaleString("id-ID")} · ${transactionShift(transaction)} · ${transactionEmployeeDisplay(transaction)} · ${!isStaffDrinkTransaction(transaction) ? (transaction.serviceType === "take_away" ? "Take Away · " : "Dine In · ") : ""}${transaction.customer} · ${transactionPaymentMethod(transaction)}${transaction.discountTotal ? ` · Diskon ${money(transaction.discountTotal)}` : ""}${transaction.boothCode ? ` · Booth ${transaction.boothCode}` : ""}</p>
                   <p>${mergeLineItems(transaction.items).map((item) => `${item.qty}x ${item.name}`).join(", ")}</p>
                 </div>
               </article>
@@ -4474,7 +4504,7 @@ function orderCard(transaction, kind, displayCode = "") {
     <article class="history-card order-card-row">
       <div>
         <strong>${orderCode} · ${money(transaction.grandTotal)}</strong>
-        <p>${new Date(transaction.createdAt).toLocaleString("id-ID")} · ${transaction.channel || "Kasir"} · ${transaction.customer} · ${paymentLabel}</p>
+        <p>${new Date(transaction.createdAt).toLocaleString("id-ID")} · ${transaction.channel || "Kasir"} · ${!isStaffDrinkTransaction(transaction) ? (transaction.serviceType === "take_away" ? "Take Away" : "Dine In") + " · " : ""}${transaction.customer} · ${paymentLabel}</p>
         <p>${items}</p>
       </div>
       ${actions}
@@ -4655,7 +4685,7 @@ async function saveTransactionEdit(event) {
   const items = mergeLineItems(state.editingTransactionItems).filter((item) => Number(item.qty || 0) > 0);
   if (!items.length) return toast("Transaksi harus punya minimal satu item.");
   const now = new Date().toISOString();
-  const stockResult = applyStockDeltaForEdit(transaction.items || [], items, now);
+  const stockResult = applyStockDeltaForEdit(transaction.items || [], items, now, transaction.serviceType);
   if (stockResult.error) return toast(stockResult.error);
   const nextTotals = totalsForEditedTransaction(transaction, items);
   const selectedPayment = els.transactionEditPayment?.value || "Tunai";
@@ -5161,6 +5191,8 @@ function loadDraftToCart(id) {
   if (els.orderShift) els.orderShift.value = draft.shift || currentShiftName(draft.createdAt);
   setOrderChannel(draft.channel || "Kasir");
   resetOrderAdjustments();
+  state.serviceType = draft.serviceType || "dine_in";
+  syncDineTakeUi();
   renderCart();
   renderMenuGrid();
   return draft;
@@ -6506,6 +6538,13 @@ els.orderTypeTabs?.addEventListener("click", (event) => {
     clearDiscountState();
   }
   renderCart();
+});
+
+els.dineTakeTabs?.addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-service-type]");
+  if (!button) return;
+  state.serviceType = button.dataset.serviceType || "dine_in";
+  syncDineTakeUi();
 });
 
 els.discountVoucherSelect?.addEventListener("change", () => {
