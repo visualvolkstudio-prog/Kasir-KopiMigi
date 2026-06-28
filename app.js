@@ -4901,10 +4901,10 @@ async function postSupabaseAction(action, payload = {}) {
 }
 
 async function syncHistoryToCloud() {
+  // Hanya sync transaksi yang belum tersinkron ke Supabase,
+  // bukan semua history — mencegah ribuan request berulang.
   if (!navigator.onLine) return;
-  for (const transaction of getHistory()) {
-    await postSupabaseAction("sync-transaction", { transaction });
-  }
+  await syncPendingTransactions({ pull: false });
 }
 
 async function syncCashflowToCloud() {
@@ -7021,6 +7021,9 @@ els.cashflowList?.addEventListener("click", (event) => {
     return;
   }
   const id = deleteBtn.dataset.deleteExpense;
+  const expense = getCashflowExpenses().find((entry) => entry.id === id);
+  const label = expense?.note || "pengeluaran ini";
+  if (!window.confirm(`Hapus "${label}"?`)) return;
   const expenses = getCashflowExpenses().filter((entry) => entry.id !== id);
   writeJson(storageKeys.cashflowExpenses, expenses);
   renderCashflow();
@@ -7064,6 +7067,7 @@ els.stockTable?.addEventListener("click", (event) => {
     const inventory = getInventory();
     if (!inventory[id]) return;
     const name = inventory[id].name;
+    if (!window.confirm(`Hapus bahan "${name}" dari daftar? Data stok dan harganya akan hilang.`)) return;
     delete inventory[id];
     saveLocalInventoryChange(inventory);
     renderInventory();
@@ -7138,10 +7142,13 @@ els.menuTable.addEventListener("click", async (event) => {
   }
 
   if (deleteButton) {
+    const item = menu.find((entry) => entry.id === deleteButton.dataset.deleteMenu);
+    if (!item) return;
+    if (!window.confirm(`Hapus menu "${item.name}"? Resepnya juga akan ikut terhapus.`)) return;
     const recipes = getRecipes();
     delete recipes[deleteButton.dataset.deleteMenu];
     saveRecipes(recipes);
-    writeJson(storageKeys.menu, menu.filter((item) => item.id !== deleteButton.dataset.deleteMenu));
+    writeJson(storageKeys.menu, menu.filter((entry) => entry.id !== deleteButton.dataset.deleteMenu));
     markSettingsDirty();
     renderAll();
     try {
