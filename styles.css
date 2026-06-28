@@ -1708,7 +1708,6 @@ input:focus, select:focus {
 }
 
 .order-type-tabs,
-.dine-take-tabs,
 .payment-methods {
   width: 100%;
 }
@@ -1718,6 +1717,65 @@ input:focus, select:focus {
   flex: 1;
 }
 
+/* ── Dine In / Take Away Tabs ─────────────────── */
+.dine-take-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+  width: 100%;
+}
+
+.dine-take-tabs button {
+  --dt-tone: var(--accent);
+  --dt-soft: var(--accent-soft);
+  min-height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--soft);
+  color: var(--ink);
+  font-weight: 800;
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  transition: background 0.13s, border-color 0.13s, color 0.13s, box-shadow 0.13s;
+}
+
+.dine-take-tabs button[data-service-type="dine_in"] {
+  --dt-tone: #0b4db3;
+  --dt-soft: #eaf1ff;
+}
+
+.dine-take-tabs button[data-service-type="take_away"] {
+  --dt-tone: #c2600a;
+  --dt-soft: #fff4e6;
+}
+
+.dine-take-tabs button i {
+  width: 18px;
+  height: 18px;
+  border-radius: 6px;
+  display: inline-grid;
+  place-items: center;
+  color: var(--dt-tone);
+  background: var(--white);
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.08);
+  font-size: 14px;
+}
+
+.dine-take-tabs button.active {
+  border-color: var(--dt-tone);
+  color: var(--dt-tone);
+  background: var(--dt-soft);
+  box-shadow: inset 0 0 0 1px var(--dt-tone);
+}
+
+.dine-take-tabs button.active i {
+  color: var(--white);
+  background: var(--dt-tone);
+  box-shadow: none;
+}
 .payment-methods button {
   --payment-tone: var(--accent);
   --payment-soft: var(--accent-soft);
