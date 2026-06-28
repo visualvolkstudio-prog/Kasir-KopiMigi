@@ -4,11 +4,11 @@ const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const API_SESSION_SECRET = process.env.API_SESSION_SECRET;
 const AUTH_SESSION_TTL_MS = 10 * 60 * 60 * 1000;
-const OWNER_USERNAME = process.env.OWNER_USERNAME;
-const OWNER_PASSWORD = process.env.OWNER_PASSWORD;
-const CASHIER_USERNAME = process.env.CASHIER_USERNAME;
-const CASHIER_ALIASES = (process.env.CASHIER_ALIASES || "").split(",").map((entry) => entry.trim()).filter(Boolean);
-const CASHIER_PASSWORD = process.env.CASHIER_PASSWORD;
+const OWNER_USERNAME = process.env.OWNER_USERNAME || "gilfram";
+const OWNER_PASSWORD = process.env.OWNER_PASSWORD || "Generasimikagilang456";
+const CASHIER_USERNAME = process.env.CASHIER_USERNAME || "kopimigi";
+const CASHIER_ALIASES = (process.env.CASHIER_ALIASES || "kompimigi").split(",").map((entry) => entry.trim()).filter(Boolean);
+const CASHIER_PASSWORD = process.env.CASHIER_PASSWORD || "migi46";
 
 const activeWindowMs = 2 * 60 * 1000;
 const transactionCacheLimit = 2000;
