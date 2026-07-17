@@ -4755,6 +4755,7 @@ async function getMascotLogoBytes() {
 
 async function encodeCupLabel(transaction, item, itemIndex, totalItems) {
   const encoder = new TextEncoder();
+  const compact40x20 = els.labelPrinterPaperSize?.value !== "58mm";
 
   const toTitleCase = (str) => {
     return String(str || "")
@@ -4812,28 +4813,35 @@ async function encodeCupLabel(transaction, item, itemIndex, totalItems) {
   payload.push(...margin);
   payload.push(...alignLeft);
 
-  // 1. Nama minuman: besar, tebal, maksimal dua baris agar tetap muat 20 mm.
-  payload.push(ESC, 0x21, 0x11); // Font B, lebar + tinggi 2x
+  // Kunci jarak antarbaris ke 20 dot (±2,5 mm pada 203 dpi). Jarak bawaan
+  // printer ini terlalu tinggi sehingga satu label meluber ke label berikutnya.
+  payload.push(ESC, 0x33, 20);
+
+  // 1. Nama minuman: Font B lebar 2x, tinggi normal. Nilai sebelumnya (0x11)
+  // ternyata membuat tinggi 2x; yang benar untuk lebar 2x adalah bit 0x20.
+  payload.push(ESC, 0x21, 0x21); // Font B, lebar 2x, tinggi normal
   payload.push(ESC, 0x45, 0x01); // Bold on
-  const nameLines = wrapText(drinkName, 17, 2);
+  const nameLines = wrapText(drinkName, compact40x20 ? 16 : 20, 2);
   for (const line of nameLines) {
     payload.push(...encoder.encode(line + "\n"));
   }
 
-  // 2. Garis pemisah dan varian.
+  // 2. Detail Font B normal: total maksimum lima baris, aman untuk 20 mm.
   payload.push(ESC, 0x45, 0x00); // Bold off
   payload.push(ESC, 0x21, 0x01); // Font B
-  payload.push(...encoder.encode("-----------------------------------\n"));
-  payload.push(...encoder.encode(variantLine.slice(0, 35) + "\n"));
+  const detailWidth = compact40x20 ? 33 : 42;
+  payload.push(...encoder.encode("-".repeat(detailWidth) + "\n"));
+  payload.push(...encoder.encode(variantLine.slice(0, detailWidth) + "\n"));
 
   // 3. Nomor order, customer, dan urutan cup.
   payload.push(ESC, 0x45, 0x01);
-  payload.push(...encoder.encode(`${transaction.orderCode || "-"}  ${customerLine}`.slice(0, 35) + "\n"));
+  payload.push(...encoder.encode(`${transaction.orderCode || "-"}  ${customerLine}`.slice(0, detailWidth) + "\n"));
   payload.push(ESC, 0x45, 0x00);
 
   // Feed-to-gap: printer berhenti tepat pada gap label berikutnya. Jangan
   // tambahkan line feed setelah perintah ini karena bisa menggeser posisi label.
   payload.push(GS, 0x0c); // GS FF (Feed to next label gap)
+  payload.push(ESC, 0x32); // Kembalikan line spacing bawaan untuk job berikutnya.
 
   return new Uint8Array(payload);
 }
