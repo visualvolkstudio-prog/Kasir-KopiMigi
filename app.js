@@ -4486,7 +4486,7 @@ async function escPosLogoBytes() {
     const img = new Image();
     img.onload = () => resolve(img);
     img.onerror = () => reject(new Error("Logo PNG tidak bisa dibaca browser."));
-    img.src = "/assets/logo-migi-print.png";
+    img.src = "assets/logo-migi-print.png";
   });
 
   const targetWidth = els.printerPaperSize.value === "80mm" ? 128 : 96;
