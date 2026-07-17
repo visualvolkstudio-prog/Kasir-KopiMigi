@@ -4784,19 +4784,26 @@ async function encodeCupLabel(transaction, item, itemIndex, totalItems) {
   payload.push(...margin);
   payload.push(...alignLeft);
 
-  // 1. Nama Minuman (Bold, Font A)
+  // 1. Nama Minuman (Extra Bold, Font A)
+  payload.push(ESC, 0x21, 0x00); // Font A, normal
   payload.push(ESC, 0x45, 0x01); // Bold on
+  payload.push(ESC, 0x47, 0x01); // Double strike on (Extra Bold)
   const nameLines = wrapText(drinkName, 32); 
   for (const line of nameLines) {
     payload.push(...encoder.encode(line + "\n"));
   }
 
-  // 2. Varian (Normal, Font A)
+  // 2. Varian (Normal, Font B ~ 1/1.618 ukuran sebelumnya)
   payload.push(ESC, 0x45, 0x00); // Bold off
+  payload.push(ESC, 0x47, 0x00); // Double strike off
+  payload.push(ESC, 0x21, 0x01); // Font B
   payload.push(...encoder.encode(variantLine + "\n"));
 
-  // 3. User Pembeli + Counter (Normal, Font A)
+  // 3. User Pembeli + Counter (Normal, Font B)
   payload.push(...encoder.encode(customerLine + "\n"));
+
+  // 4. Tambahan Feed agar berhentinya tidak terlalu pendek (2 baris)
+  payload.push(ESC, 0x64, 0x02); // ESC d 2 (Feed 2 lines)
 
   // Precision Stop gap sensor
   payload.push(GS, 0x0c); // GS FF (Feed to next label gap)
