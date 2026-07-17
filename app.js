@@ -4798,48 +4798,45 @@ async function encodeCupLabel(transaction, item, itemIndex, totalItems) {
 
   const ESC = 0x1b, GS = 0x1d;
   const init = [ESC, 0x40];
-  const fontA = [ESC, 0x4d, 0x00]; // Font A
-  const margin = [GS, 0x4c, 0x10, 0x00]; // Margin kiri 2mm
-  const tightSpacing = [ESC, 0x33, 24]; // Spasi baris rapat (24 dots)
+  const margin = [GS, 0x4c, 0x08, 0x00]; // Margin kiri 1mm (8 unit) agar memuat teks lebih lebar
+  const tightSpacing = [ESC, 0x33, 18]; // Spasi baris sangat rapat (18 dots = 2.25mm) agar tidak luber melewati tinggi stiker 20mm
   const alignCenter = [ESC, 0x61, 0x01]; // Rata tengah
   const alignLeft = [ESC, 0x61, 0x00]; // Rata kiri
   
   let payload = [];
   payload.push(...init);
-  payload.push(...fontA);
   payload.push(...margin);
   payload.push(...tightSpacing);
 
-  // 1. Nama Menu: Double Size (Double Width & Height) & Bold
+  // 1. Nama Menu: Double Size (Double Width & Height), Bold, Font B
   payload.push(...alignLeft);
-  payload.push(GS, 0x21, 0x11); // GS ! 0x11 (Double size)
-  payload.push(ESC, 0x45, 0x01); // ESC E 1 (Bold)
-  const nameLines = wrapText(drinkName, 14); // Double size max ~14 karakter per baris
+  payload.push(ESC, 0x21, 0x39); // ESC ! 0x39 (Font B + Bold + Double Size)
+  const nameLines = wrapText(drinkName, 20); // Font B double size memuat max 20 karakter per baris
   for (const line of nameLines) {
     payload.push(...encoder.encode(line + "\n"));
   }
 
-  // Reset format ke normal
-  payload.push(GS, 0x21, 0x00);
-  payload.push(ESC, 0x45, 0x00);
+  // Reset format ke Font B Normal
+  payload.push(ESC, 0x21, 0x01); // ESC ! 0x01 (Font B Normal)
 
   // 2. Garis Pembatas Pertama
   payload.push(...alignCenter);
-  payload.push(...encoder.encode("----------------------------\n"));
+  payload.push(...encoder.encode("------------------------------------\n")); // 36 dashes
 
-  // 3. Varian (Ice * Normal * Regular)
-  payload.push(ESC, 0x45, 0x01); // Bold untuk varian
+  // 3. Varian (Ice * Normal * Regular): Bold, Font B Normal
+  payload.push(ESC, 0x21, 0x09); // ESC ! 0x09 (Font B Bold)
   payload.push(...encoder.encode(variantLine + "\n"));
-  payload.push(ESC, 0x45, 0x00);
+  payload.push(ESC, 0x21, 0x01); // Reset ke Font B Normal
 
   // 4. Garis Pembatas Kedua
-  payload.push(...encoder.encode("----------------------------\n"));
+  payload.push(...encoder.encode("------------------------------------\n"));
 
-  // 5. Footer (Kode Order, Username, Counter)
+  // 5. Footer (Kode Order, Username, Counter): Font B Normal
   payload.push(...alignLeft);
-  const footerText = formatThreeColumns(orderCode, username, counter, 28);
+  const footerText = formatThreeColumns(orderCode, username, counter, 36); // 36 karakter untuk Font B
   payload.push(...encoder.encode(footerText + "\n"));
 
+  // Precision Stop gap sensor
   payload.push(GS, 0x0c); // GS FF (Feed to next label gap)
 
   return new Uint8Array(payload);
