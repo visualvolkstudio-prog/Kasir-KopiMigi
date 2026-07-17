@@ -248,6 +248,13 @@ const els = {
   itemCustomForm: document.querySelector("#itemCustomForm"),
   customItemName: document.querySelector("#customItemName"),
   closeItemCustom: document.querySelector("#closeItemCustom"),
+  itemCustomSaveBtn: document.querySelector("#itemCustomSaveBtn"),
+  itemCustomNoteOptions: document.querySelector("#itemCustomNoteOptions"),
+  printModal: document.querySelector("#printModal"),
+  closePrintModal: document.querySelector("#closePrintModal"),
+  btnCetakStruk: document.querySelector("#btnCetakStruk"),
+  btnCetakLabel: document.querySelector("#btnCetakLabel"),
+  btnSelesaiPrint: document.querySelector("#btnSelesaiPrint"),
   customTemp: document.querySelector("#customTemp"),
   customSugar: document.querySelector("#customSugar"),
   customSize: document.querySelector("#customSize"),
@@ -1477,12 +1484,12 @@ function applyAccessControls() {
   document.body.classList.toggle("role-cashier", isLoggedIn() && isCashier());
   document.querySelector('[data-view="cashflow"]')?.classList.toggle("owner-only", !owner);
   document.querySelector("#view-cashflow")?.classList.toggle("owner-only", !owner);
-  document.querySelector('[data-view="menu"]')?.classList.toggle("owner-only", !owner);
-  document.querySelector("#view-menu")?.classList.toggle("owner-only", !owner);
   document.querySelector("#view-stock .inventory-grid > .settings-panel")?.classList.toggle("owner-only", !owner);
   els.employeeAddForm?.classList.toggle("owner-only", !owner);
   els.employeeList?.classList.toggle("owner-only", !owner);
-  if (!owner && (document.querySelector("#view-cashflow")?.classList.contains("active") || document.querySelector("#view-menu")?.classList.contains("active"))) {
+  
+  // Hanya blok akses ke view-cashflow jika bukan owner
+  if (!owner && document.querySelector("#view-cashflow")?.classList.contains("active")) {
     setActiveView("pos");
   }
 }
@@ -3979,6 +3986,18 @@ function addToCart(id) {
   renderMenuGrid();
 }
 
+function openPrintModal(transaction, kind) {
+  state.activePrintTransaction = transaction;
+  state.activePrintKind = kind;
+  if (els.printModal) els.printModal.setAttribute("aria-hidden", "false");
+}
+
+function closePrintModal() {
+  if (els.printModal) els.printModal.setAttribute("aria-hidden", "true");
+  state.activePrintTransaction = null;
+  state.activePrintKind = null;
+}
+
 async function startOrder(event) {
   event.preventDefault();
   if (state.orderProcessing) return;
@@ -4019,16 +4038,10 @@ async function startOrder(event) {
     };
     await saveOfflineTransaction(offlineRecord).catch(() => null);
     if (navigator.onLine) await syncPendingTransactions({ pull: false }).catch(() => null);
-    const printed = await printReceipt(transaction, "paid");
-    // Cetak label cup ke printer label (jika tersambung) — bersifat opsional, tidak blokir checkout
-    printCupLabels(transaction).catch(() => null);
-    transaction.printStatus = printed ? "PRINTED" : "PRINT_FAILED";
-    patchLocalHistoryTransaction(transaction.id, { printStatus: transaction.printStatus });
-    await saveOfflineTransaction(
-      { ...transaction, localId: transaction.id, idempotencyKey: transaction.id },
-      { syncStatus: "PENDING_SYNC", printStatus: transaction.printStatus },
-    ).catch(() => null);
-    if (navigator.onLine) await syncPendingTransactions({ pull: false }).catch(() => null);
+    
+    // Matikan auto-print. Transaksi default ke PRINT_PENDING.
+    transaction.printStatus = "PRINT_PENDING";
+    
     state.cart = [];
     state.pendingBoothCode = "";
     els.paidAmount.value = "";
@@ -4054,11 +4067,11 @@ async function startOrder(event) {
       });
       renderOrders();
     }
-    if (printed) {
-      toast(transaction.boothCode ? `Checkout selesai. Kode photobooth: ${transaction.boothCode}` : "Checkout selesai. Segera buat pesanan! ☕");
-    } else {
-      toast(transaction.boothCode ? `Checkout tersimpan. Kode photobooth: ${transaction.boothCode}. Sambungkan printer lalu cetak ulang.` : "Checkout tersimpan. Sambungkan printer lalu cetak ulang.");
-    }
+    
+    // Tampilkan modal opsi cetak
+    openPrintModal(transaction, "paid");
+    
+    toast(transaction.boothCode ? `Checkout selesai. Kode photobooth: ${transaction.boothCode}` : "Checkout selesai. Segera buat pesanan! ☕");
     completeDeferredShiftLogout();
   } finally {
     setOrderProcessing(false);
@@ -4722,7 +4735,7 @@ async function getMascotLogoBytes() {
 
 async function encodeCupLabel(transaction, item, itemIndex, totalItems) {
   const encoder = new TextEncoder();
-  const dotsToFeed = 160; // Feed per dot (bisa disesuaikan manual)
+  const dotsToFeed = 160;
 
   const toTitleCase = (str) => {
     return String(str || "")
@@ -4732,116 +4745,42 @@ async function encodeCupLabel(transaction, item, itemIndex, totalItems) {
       .join(" ");
   };
 
-  const wrapText = (text, maxLength) => {
-    const words = text.split(" ");
-    const lines = [];
-    let currentLine = "";
-    
-    for (const word of words) {
-      const testLine = currentLine ? (currentLine + " " + word) : word;
-      if (testLine.length <= maxLength) {
-        currentLine = testLine;
-      } else {
-        if (currentLine) lines.push(currentLine);
-        if (word.length > maxLength) {
-          lines.push(word);
-          currentLine = "";
-        } else {
-          currentLine = word;
-        }
-      }
-    }
-    if (currentLine) lines.push(currentLine);
-    return lines;
-  };
-
-  const formatThreeColumns = (left, middle, right, width = 24) => {
-    const leftStr = String(left).slice(0, 8);
-    const rightStr = String(right).slice(0, 6);
-    const middleMaxLen = width - leftStr.length - rightStr.length - 2;
-    const middleStr = String(middle).slice(0, Math.max(3, middleMaxLen));
-    
-    const totalContentLen = leftStr.length + middleStr.length + rightStr.length;
-    if (totalContentLen >= width) {
-      return `${leftStr} ${middleStr} ${rightStr}`.slice(0, width);
-    }
-    
-    const totalSpaces = width - totalContentLen;
-    const spaceLeft = Math.floor(totalSpaces / 2);
-    const spaceRight = totalSpaces - spaceLeft;
-    
-    return leftStr + " ".repeat(spaceLeft) + middleStr + " ".repeat(spaceRight) + rightStr;
-  };
-
-  // Get mascot logo bytes (cached)
-  const mascotBytes = await getMascotLogoBytes();
-  
-  // Format year
-  const year = new Date(transaction.createdAt || Date.now()).getFullYear();
-  let headerTextBytes = [];
-  if (mascotBytes.length > 0) {
-    headerTextBytes.push(0x1b, 0x61, 0x01); // Center align
-    headerTextBytes.push(...encoder.encode(`© ${year}\n`));
-    headerTextBytes.push(0x1b, 0x61, 0x00); // Reset to left align
-  }
-
   const drinkName = toTitleCase(item.name || "Minuman");
-  
-  let nameBytes = [];
-  const nameLines = wrapText(drinkName, 12); // Lebar efektif double-size (~12 karakter)
-  
-  // Set tebal & double-size
-  nameBytes.push(0x1d, 0x21, 0x11); // GS ! 0x11 (double width, double height)
-  nameBytes.push(0x1b, 0x45, 0x01); // ESC E 1 (bold)
-  for (const line of nameLines) {
-    nameBytes.push(...encoder.encode(line + "\n"));
-  }
-  nameBytes.push(0x1d, 0x21, 0x00); // GS ! 0x00 (normal size)
-  nameBytes.push(0x1b, 0x45, 0x00); // ESC E 0 (normal weight)
-
-  let variantBytes = [];
-  variantBytes.push(...encoder.encode("------------------------\n"));
+  const customer = toTitleCase(transaction.customer || "Teman Migi");
+  const counter = `[${itemIndex + 1}/${totalItems}]`;
   
   const notesText = item.notes || "ICE · NORMAL · REGULAR";
   const tags = notesText.split(" · ").filter(Boolean).map(toTitleCase);
-  const variantLine = tags.join("  *  ");
-  const variantLines = wrapText(variantLine, 24); // Lebar efektif normal (~24 karakter)
-  
-  variantBytes.push(0x1b, 0x61, 0x01); // Center align for variants
-  variantBytes.push(0x1b, 0x45, 0x01); // ESC E 1 (bold)
-  for (const line of variantLines) {
-    variantBytes.push(...encoder.encode(line + "\n"));
-  }
-  variantBytes.push(0x1b, 0x45, 0x00); // ESC E 0 (normal weight)
-  variantBytes.push(0x1b, 0x61, 0x00); // Reset to left align
-  variantBytes.push(...encoder.encode("------------------------\n"));
-
-  const orderCode = transaction.orderCode || transaction.id?.slice(-4) || "000";
-  const customer = toTitleCase(transaction.customer || "Teman Migi");
-  const counter = `[${itemIndex + 1}/${totalItems}]`;
-
-  let footerBytes = [];
-  const footerLine = formatThreeColumns(orderCode, customer, counter, 24);
-  footerBytes.push(...encoder.encode(footerLine + "\n"));
+  const variantLine = tags.join(" * ");
 
   const ESC = 0x1b, GS = 0x1d;
   const init = [ESC, 0x40];
-  const margin = [GS, 0x4c, 0x10, 0x00]; // Margin kiri 2mm (16 unit)
-  const alignLeft = [ESC, 0x61, 0x00];   // Rata kiri
-  const feedBytes = [ESC, 0x4a, dotsToFeed]; // Precision feed ke gap stiker berikutnya
+  const fontB = [ESC, 0x4d, 0x01]; // ESC M 1 (Font B)
+  const resetSize = [GS, 0x21, 0x00]; // GS ! 0
+  const tightSpacing = [ESC, 0x33, 16]; // ESC 3 16 (16 dots line spacing)
+  const margin = [GS, 0x4c, 0x10, 0x00]; // Margin kiri 2mm
+  const alignLeft = [ESC, 0x61, 0x00]; // Rata kiri
+  const feedBytes = [ESC, 0x4a, dotsToFeed];
 
-  const parts = [
-    ...init,
-    ...margin,
-    ...alignLeft,
-    ...mascotBytes,
-    ...headerTextBytes,
-    ...nameBytes,
-    ...variantBytes,
-    ...footerBytes,
-    ...feedBytes
-  ];
-  return new Uint8Array(parts);
+  let payload = [];
+  payload.push(...init);
+  payload.push(...fontB);
+  payload.push(...resetSize);
+  payload.push(...tightSpacing);
+  payload.push(...margin);
+  payload.push(...alignLeft);
+
+  // Layout sangat padat:
+  // [Nama Customer] [1/1]
+  // Butterscotch Creamy
+  // Ice * Normal * Reg
+  payload.push(...encoder.encode(`${customer} ${counter}\n`));
+  payload.push(...encoder.encode(`${drinkName}\n`));
+  payload.push(...encoder.encode(`${variantLine}\n`));
+  
+  payload.push(...feedBytes);
+
+  return new Uint8Array(payload);
 }
 
 async function printCupLabels(transaction) {
@@ -5077,8 +5016,7 @@ async function printBill() {
       printStatus: "PRINT_PENDING",
     }).catch(() => null);
     if (navigator.onLine) await syncPendingTransactions({ pull: false }).catch(() => null);
-    const printed = await printReceipt(draft, "bill");
-    const printStatus = printed ? "PRINTED" : "PRINT_FAILED";
+    const printStatus = "PRINT_PENDING";
     draft.printStatus = printStatus;
     patchLocalOrderDraft(draft.id, { printStatus });
     await saveOfflineTransaction(
@@ -5086,10 +5024,15 @@ async function printBill() {
       { syncStatus: "PENDING_SYNC", printStatus },
     ).catch(() => null);
     if (navigator.onLine) await syncPendingTransactions({ pull: false }).catch(() => null);
+    
     clearActiveOrder({ silent: true });
     renderOrders();
     renderPendingSync();
-    toast(printed ? "Bill dicetak dan masuk ke Order Belum Dibayar." : "Bill disimpan. Sambungkan printer lalu cetak ulang.");
+    
+    // Tampilkan modal opsi cetak
+    openPrintModal(draft, "bill");
+    
+    toast("Bill disimpan ke daftar Order Belum Dibayar.");
     completeDeferredShiftLogout();
   } finally {
     setOrderProcessing(false);
@@ -8075,6 +8018,46 @@ els.roleList?.addEventListener("click", async (event) => {
 });
 els.orderForm.addEventListener("submit", startOrder);
 els.cancelOrderModal.addEventListener("click", closeOrderModal);
+els.closePrintModal?.addEventListener("click", closePrintModal);
+els.btnSelesaiPrint?.addEventListener("click", closePrintModal);
+
+els.btnCetakStruk?.addEventListener("click", async () => {
+  if (!state.activePrintTransaction) return;
+  els.btnCetakStruk.disabled = true;
+  els.btnCetakStruk.textContent = "Mencetak...";
+  try {
+    const transaction = state.activePrintTransaction;
+    const printed = await printReceipt(transaction, state.activePrintKind || "paid");
+    transaction.printStatus = printed ? "PRINTED" : "PRINT_FAILED";
+    if (state.activePrintKind === "bill") {
+      patchLocalOrderDraft(transaction.id, { printStatus: transaction.printStatus });
+    } else {
+      patchLocalHistoryTransaction(transaction.id, { printStatus: transaction.printStatus });
+    }
+    await updateOfflineTransaction(transaction.localId || transaction.id, { printStatus: transaction.printStatus }).catch(() => null);
+  } finally {
+    els.btnCetakStruk.disabled = false;
+    els.btnCetakStruk.textContent = "Cetak Struk";
+    // Opsional: langsung tutup setelah cetak
+    // closePrintModal(); 
+  }
+});
+
+els.btnCetakLabel?.addEventListener("click", async () => {
+  if (!state.activePrintTransaction) return;
+  if (!state.labelPrinterCharacteristic) {
+    toast("Printer Label belum tersambung.");
+    return;
+  }
+  els.btnCetakLabel.disabled = true;
+  els.btnCetakLabel.textContent = "Mencetak...";
+  try {
+    await printCupLabels(state.activePrintTransaction);
+  } finally {
+    els.btnCetakLabel.disabled = false;
+    els.btnCetakLabel.textContent = "Cetak Label Cup";
+  }
+});
 
 els.analyticsMonth.value = monthKey();
 if (els.analyticsDate) els.analyticsDate.value = dateKey();
