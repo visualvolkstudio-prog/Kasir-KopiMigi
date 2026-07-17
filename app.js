@@ -4765,76 +4765,38 @@ async function encodeCupLabel(transaction, item, itemIndex, totalItems) {
     return lines;
   };
 
-  const formatThreeColumns = (left, center, right, maxLen) => {
-    const leftLen = left.length;
-    const rightLen = right.length;
-    const centerLen = center.length;
-    
-    const totalSpaces = maxLen - leftLen - rightLen;
-    if (totalSpaces <= 0) return left + " " + center + " " + right;
-    
-    const centerStart = Math.floor((maxLen - centerLen) / 2);
-    let line = left;
-    while (line.length < centerStart) {
-      line += " ";
-    }
-    line += center;
-    while (line.length < maxLen - rightLen) {
-      line += " ";
-    }
-    line += right;
-    return line;
-  };
-
   const drinkName = toTitleCase(item.name || "Minuman");
   const counter = `[${itemIndex + 1}/${totalItems}]`;
+  const customer = transaction.customer || "Teman Migi";
+  const customerLine = `${customer} ${counter}`;
   
   const notesText = item.notes || "ICE · NORMAL · REGULAR";
   const tags = notesText.split(" · ").filter(Boolean).map(toTitleCase);
-  const variantLine = tags.join("   *   ");
-
-  const orderCode = transaction.orderCode || "Order";
-  const username = transactionEmployeeDisplay(transaction) || "kasir";
+  const variantLine = tags.join(" * ");
 
   const ESC = 0x1b, GS = 0x1d;
   const init = [ESC, 0x40];
-  const margin = [GS, 0x4c, 0x08, 0x00]; // Margin kiri 1mm (8 unit) agar memuat teks lebih lebar
-  const tightSpacing = [ESC, 0x33, 18]; // Spasi baris sangat rapat (18 dots = 2.25mm) agar tidak luber melewati tinggi stiker 20mm
-  const alignCenter = [ESC, 0x61, 0x01]; // Rata tengah
+  const margin = [GS, 0x4c, 0x10, 0x00]; // Margin kiri 2mm
   const alignLeft = [ESC, 0x61, 0x00]; // Rata kiri
   
   let payload = [];
   payload.push(...init);
   payload.push(...margin);
-  payload.push(...tightSpacing);
-
-  // 1. Nama Menu: Double Size (Double Width & Height), Bold, Font B
   payload.push(...alignLeft);
-  payload.push(ESC, 0x21, 0x39); // ESC ! 0x39 (Font B + Bold + Double Size)
-  const nameLines = wrapText(drinkName, 20); // Font B double size memuat max 20 karakter per baris
+
+  // 1. Nama Minuman (Bold, Font A)
+  payload.push(ESC, 0x45, 0x01); // Bold on
+  const nameLines = wrapText(drinkName, 32); 
   for (const line of nameLines) {
     payload.push(...encoder.encode(line + "\n"));
   }
 
-  // Reset format ke Font B Normal
-  payload.push(ESC, 0x21, 0x01); // ESC ! 0x01 (Font B Normal)
-
-  // 2. Garis Pembatas Pertama
-  payload.push(...alignCenter);
-  payload.push(...encoder.encode("------------------------------------\n")); // 36 dashes
-
-  // 3. Varian (Ice * Normal * Regular): Bold, Font B Normal
-  payload.push(ESC, 0x21, 0x09); // ESC ! 0x09 (Font B Bold)
+  // 2. Varian (Normal, Font A)
+  payload.push(ESC, 0x45, 0x00); // Bold off
   payload.push(...encoder.encode(variantLine + "\n"));
-  payload.push(ESC, 0x21, 0x01); // Reset ke Font B Normal
 
-  // 4. Garis Pembatas Kedua
-  payload.push(...encoder.encode("------------------------------------\n"));
-
-  // 5. Footer (Kode Order, Username, Counter): Font B Normal
-  payload.push(...alignLeft);
-  const footerText = formatThreeColumns(orderCode, username, counter, 36); // 36 karakter untuk Font B
-  payload.push(...encoder.encode(footerText + "\n"));
+  // 3. User Pembeli + Counter (Normal, Font A)
+  payload.push(...encoder.encode(customerLine + "\n"));
 
   // Precision Stop gap sensor
   payload.push(GS, 0x0c); // GS FF (Feed to next label gap)
