@@ -495,7 +495,7 @@ async function syncTransaction(body) {
       },
     };
   }
-  if (existingRow && transactionVersion(existing) > transactionVersion(transaction)) {
+  if (existingRow && !payingRecentDraft && transactionVersion(existing) > transactionVersion(transaction)) {
     return { status: 200, payload: { success: true, id: row.id, ignored: true, reason: "stale" } };
   }
   if (isStaffDrinkPayload(transaction)) {
