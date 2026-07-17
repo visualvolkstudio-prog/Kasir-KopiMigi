@@ -4399,8 +4399,9 @@ async function printReceipt(transaction, kind = "paid") {
   if (state.printerCharacteristic) {
     return printThermalReceipt(transaction, kind);
   }
-  promptPrinterConnection();
-  return false;
+  // Fallback ke sistem cetak bawaan browser/sistem jika printer termal BLE tidak tersambung
+  window.print();
+  return true;
 }
 
 function receiptText(transaction, kind = "paid", { includeFooter = true } = {}) {
@@ -4974,9 +4975,9 @@ function promptPrinterConnection() {
 }
 
 function ensurePrinterReadyForOrderPrint() {
-  if (state.printerCharacteristic) return true;
-  promptPrinterConnection();
-  return false;
+  // Tidak memblokir alur order jika printer termal BLE belum tersambung.
+  // Printer termal BLE akan dicek di printReceipt, jika tidak ada akan otomatis fallback ke window.print().
+  return true;
 }
 
 function generateBoothCode() {
