@@ -1663,6 +1663,27 @@ function dedupeTransactionsById(list = []) {
   return [...map.values()].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
 }
 
+function transactionUpdatedMs(transaction = {}) {
+  return Math.max(
+    ...["updatedAt", "editedAt", "paymentEditedAt", "stockSyncedAt", "kitchenCompletedAt", "createdAt"]
+      .map((key) => new Date(transaction[key] || 0).getTime())
+      .filter(Number.isFinite),
+  );
+}
+
+function preferredTransaction(current, incoming) {
+  if (!current) return incoming;
+  if (!incoming) return current;
+
+  // Pembayaran adalah perubahan satu arah: respons cloud yang masih membawa bill
+  // tidak boleh mengembalikan transaksi lokal yang sudah lunas ke Belum Bayar.
+  const currentPaid = isPaidTransaction(current);
+  const incomingPaid = isPaidTransaction(incoming);
+  if (currentPaid !== incomingPaid) return currentPaid ? current : incoming;
+
+  return transactionUpdatedMs(incoming) > transactionUpdatedMs(current) ? incoming : current;
+}
+
 function saveOrderDrafts(drafts) {
   writeJson(storageKeys.orderDrafts, dedupeTransactionsById(drafts).slice(0, 200));
 }
@@ -4124,6 +4145,7 @@ function currentTransaction(draft = false) {
   const discountAllowed = Boolean(voucher);
   return {
     id: generatedId,
+    updatedAt: now.toISOString(),
     orderCode: displayedOrderCode,
     createdAt: existingDraft?.createdAt || now.toISOString(),
     customer: els.customerName.value.trim() || "Teman Migi",
@@ -4742,7 +4764,7 @@ async function encodeCupLabel(transaction, item, itemIndex, totalItems) {
       .join(" ");
   };
 
-  const wrapText = (text, maxLength) => {
+  const wrapText = (text, maxLength, maxLines = 2) => {
     const words = text.split(" ");
     const lines = [];
     let currentLine = "";
@@ -4762,7 +4784,10 @@ async function encodeCupLabel(transaction, item, itemIndex, totalItems) {
       }
     }
     if (currentLine) lines.push(currentLine);
-    return lines;
+    if (lines.length <= maxLines) return lines;
+    const clipped = lines.slice(0, maxLines);
+    clipped[maxLines - 1] = `${clipped[maxLines - 1].slice(0, Math.max(1, maxLength - 1)).trim()}.`;
+    return clipped;
   };
 
   const drinkName = toTitleCase(item.name || "Minuman");
@@ -4772,11 +4797,14 @@ async function encodeCupLabel(transaction, item, itemIndex, totalItems) {
   
   const notesText = item.notes || "ICE · NORMAL · REGULAR";
   const tags = notesText.split(" · ").filter(Boolean).map(toTitleCase);
-  const variantLine = tags.join(" * ");
+  // Karakter ASCII dipakai agar konsisten pada semua code page ESC/POS.
+  const variantLine = tags.join("  *  ");
 
   const ESC = 0x1b, GS = 0x1d;
   const init = [ESC, 0x40];
-  const margin = [GS, 0x4c, 0x10, 0x00]; // Margin kiri 2mm
+  // Lebar label 40 mm pada printer 203 dpi ≈ 320 dot. Seluruh layout ini
+  // memakai font internal ESC/POS, jadi tidak ada bitmap/raster yang dikirim.
+  const margin = [GS, 0x4c, 0x08, 0x00]; // Margin kiri ±1 mm
   const alignLeft = [ESC, 0x61, 0x00]; // Rata kiri
   
   let payload = [];
@@ -4784,28 +4812,27 @@ async function encodeCupLabel(transaction, item, itemIndex, totalItems) {
   payload.push(...margin);
   payload.push(...alignLeft);
 
-  // 1. Nama Minuman (Extra Bold, Font A)
-  payload.push(ESC, 0x21, 0x00); // Font A, normal
+  // 1. Nama minuman: besar, tebal, maksimal dua baris agar tetap muat 20 mm.
+  payload.push(ESC, 0x21, 0x11); // Font B, lebar + tinggi 2x
   payload.push(ESC, 0x45, 0x01); // Bold on
-  payload.push(ESC, 0x47, 0x01); // Double strike on (Extra Bold)
-  const nameLines = wrapText(drinkName, 32); 
+  const nameLines = wrapText(drinkName, 17, 2);
   for (const line of nameLines) {
     payload.push(...encoder.encode(line + "\n"));
   }
 
-  // 2. Varian (Normal, Font B ~ 1/1.618 ukuran sebelumnya)
+  // 2. Garis pemisah dan varian.
   payload.push(ESC, 0x45, 0x00); // Bold off
-  payload.push(ESC, 0x47, 0x00); // Double strike off
   payload.push(ESC, 0x21, 0x01); // Font B
-  payload.push(...encoder.encode(variantLine + "\n"));
+  payload.push(...encoder.encode("-----------------------------------\n"));
+  payload.push(...encoder.encode(variantLine.slice(0, 35) + "\n"));
 
-  // 3. User Pembeli + Counter (Normal, Font B)
-  payload.push(...encoder.encode(customerLine + "\n"));
+  // 3. Nomor order, customer, dan urutan cup.
+  payload.push(ESC, 0x45, 0x01);
+  payload.push(...encoder.encode(`${transaction.orderCode || "-"}  ${customerLine}`.slice(0, 35) + "\n"));
+  payload.push(ESC, 0x45, 0x00);
 
-  // 4. Tambahan Feed agar berhentinya tidak terlalu pendek (2 baris)
-  payload.push(ESC, 0x64, 0x02); // ESC d 2 (Feed 2 lines)
-
-  // Precision Stop gap sensor
+  // Feed-to-gap: printer berhenti tepat pada gap label berikutnya. Jangan
+  // tambahkan line feed setelah perintah ini karena bisa menggeser posisi label.
   payload.push(GS, 0x0c); // GS FF (Feed to next label gap)
 
   return new Uint8Array(payload);
@@ -5695,20 +5722,14 @@ function cacheCloudTransactions(transactions = [], localPending = []) {
   const blockedIds = new Set([...pendingDeletes, ...deletedTransactions]);
   const byId = new Map();
 
-  sortTransactionsNewestFirst(list).forEach((entry) => {
+  const merge = (entry) => {
     if (!entry?.id || blockedIds.has(entry.id)) return;
-    byId.set(entry.id, entry);
-  });
+    byId.set(entry.id, preferredTransaction(byId.get(entry.id), entry));
+  };
 
-  sortTransactionsNewestFirst(getHistory()).forEach((entry) => {
-    if (!entry?.id || blockedIds.has(entry.id) || byId.has(entry.id)) return;
-    byId.set(entry.id, entry);
-  });
-
-  sortTransactionsNewestFirst(localPending).forEach((entry) => {
-    if (!entry?.id || blockedIds.has(entry.id)) return;
-    byId.set(entry.id, byId.has(entry.id) ? { ...byId.get(entry.id), ...entry } : entry);
-  });
+  sortTransactionsNewestFirst(list).forEach(merge);
+  sortTransactionsNewestFirst(getHistory()).forEach(merge);
+  sortTransactionsNewestFirst(localPending).forEach(merge);
 
   const merged = sortTransactionsNewestFirst([...byId.values()]);
   const unpaid = merged.filter(isUnpaidTransaction).map((entry) => ({ ...entry, status: "unpaid", payment: entry.payment || "Bill" }));
@@ -8077,21 +8098,29 @@ registerServiceWorker();
 initAuth();
 updateClock();
 setInterval(updateClock, 1000);
-setInterval(() => updateDevicePresence().catch(() => null), 30000);
-setInterval(() => refreshActiveCashierPresence().catch(() => null), 30000);
-setInterval(() => checkRemoteLogout().catch(() => null), 30000);
+setInterval(() => updateDevicePresence().catch(() => null), 60000);
+setInterval(() => refreshActiveCashierPresence().catch(() => null), 60000);
+setInterval(() => checkRemoteLogout().catch(() => null), 60000);
 setInterval(() => {
   if (document.visibilityState === "visible") {
-    refreshOnlineData({ render: true }).catch(() => null);
-    refreshAnalyticsPeriod({ silent: true }).catch(() => null);
+    // Refresh ringan di background: jangan muat bootstrap dan arsip analitik
+    // puluhan ribu transaksi setiap 30 detik saat kasir sedang bekerja.
+    syncPendingTransactions({ pull: false })
+      .then(() => pullTransactionsFromSupabase({ render: false }))
+      .then(() => {
+        renderHistory();
+        renderOrders();
+        renderCashflow();
+        renderPendingSync();
+      })
+      .catch(() => null);
     refreshActiveCashflowSales();
   }
-}, 30000);
+}, 120000);
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible") {
     refreshOnlineData({ render: true }).catch(() => null);
-    refreshAnalyticsPeriod({ silent: true }).catch(() => null);
-    refreshActiveCashflowSales();
+    if (document.querySelector("#view-cashflow")?.classList.contains("active")) refreshActiveCashflowSales();
   }
 });
 restoreActiveView();
