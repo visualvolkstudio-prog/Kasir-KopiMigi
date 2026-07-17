@@ -250,11 +250,7 @@ const els = {
   closeItemCustom: document.querySelector("#closeItemCustom"),
   itemCustomSaveBtn: document.querySelector("#itemCustomSaveBtn"),
   itemCustomNoteOptions: document.querySelector("#itemCustomNoteOptions"),
-  printModal: document.querySelector("#printModal"),
-  closePrintModal: document.querySelector("#closePrintModal"),
-  btnCetakStruk: document.querySelector("#btnCetakStruk"),
-  btnCetakLabel: document.querySelector("#btnCetakLabel"),
-  btnSelesaiPrint: document.querySelector("#btnSelesaiPrint"),
+
   customTemp: document.querySelector("#customTemp"),
   customSugar: document.querySelector("#customSugar"),
   customSize: document.querySelector("#customSize"),
@@ -3986,18 +3982,6 @@ function addToCart(id) {
   renderMenuGrid();
 }
 
-function openPrintModal(transaction, kind) {
-  state.activePrintTransaction = transaction;
-  state.activePrintKind = kind;
-  if (els.printModal) els.printModal.setAttribute("aria-hidden", "false");
-}
-
-function closePrintModal() {
-  if (els.printModal) els.printModal.setAttribute("aria-hidden", "true");
-  state.activePrintTransaction = null;
-  state.activePrintKind = null;
-}
-
 async function startOrder(event) {
   event.preventDefault();
   if (state.orderProcessing) return;
@@ -4039,8 +4023,13 @@ async function startOrder(event) {
     await saveOfflineTransaction(offlineRecord).catch(() => null);
     if (navigator.onLine) await syncPendingTransactions({ pull: false }).catch(() => null);
     
-    // Matikan auto-print. Transaksi default ke PRINT_PENDING.
-    transaction.printStatus = "PRINT_PENDING";
+    // Auto-print struk & label setelah bayar
+    const printed = await printReceipt(transaction, "paid");
+    printCupLabels(transaction).catch(() => null);
+    
+    transaction.printStatus = printed ? "PRINTED" : "PRINT_FAILED";
+    patchLocalHistoryTransaction(transaction.id, { printStatus: transaction.printStatus });
+    await updateOfflineTransaction(transaction.localId || transaction.id, { printStatus: transaction.printStatus }).catch(() => null);
     
     state.cart = [];
     state.pendingBoothCode = "";
@@ -4058,6 +4047,7 @@ async function startOrder(event) {
     renderAll();
     syncPendingTransactions();
     if (stockChanged) syncInventoryToCloud().catch(() => null);
+    
     // Setelah checkout order normal → pindah ke tab Order > Diproses
     if (transaction.orderType !== "staff_drink") {
       setActiveView("orders");
@@ -4068,10 +4058,11 @@ async function startOrder(event) {
       renderOrders();
     }
     
-    // Tampilkan modal opsi cetak
-    openPrintModal(transaction, "paid");
-    
-    toast(transaction.boothCode ? `Checkout selesai. Kode photobooth: ${transaction.boothCode}` : "Checkout selesai. Segera buat pesanan! ☕");
+    if (printed) {
+      toast(transaction.boothCode ? `Checkout selesai. Kode photobooth: ${transaction.boothCode}` : "Checkout selesai. Segera buat pesanan! ☕");
+    } else {
+      toast(transaction.boothCode ? `Checkout tersimpan. Kode photobooth: ${transaction.boothCode}. Sambungkan printer lalu cetak ulang.` : "Checkout tersimpan. Sambungkan printer lalu cetak ulang.");
+    }
     completeDeferredShiftLogout();
   } finally {
     setOrderProcessing(false);
@@ -5029,9 +5020,6 @@ async function printBill() {
     renderOrders();
     renderPendingSync();
     
-    // Tampilkan modal opsi cetak
-    openPrintModal(draft, "bill");
-    
     toast("Bill disimpan ke daftar Order Belum Dibayar.");
     completeDeferredShiftLogout();
   } finally {
@@ -5088,6 +5076,7 @@ function orderCard(transaction, kind, displayCode = "") {
       <div class="history-actions">
         <button class="secondary-button compact" data-pay-draft="${transaction.id}" type="button">Bayar</button>
         <button class="secondary-button compact" data-edit-draft="${transaction.id}" type="button">Tambah Menu</button>
+        <button class="secondary-button compact" data-print-label="${transaction.id}" data-print-kind="bill" type="button">Cetak Label Cup</button>
         <button class="secondary-button compact" data-reprint-order="${transaction.id}" data-reprint-kind="bill" type="button">Cetak Ulang Bill</button>
         ${isOwner() ? `<button class="secondary-button compact danger-text" data-delete-draft="${transaction.id}" type="button">Hapus</button>` : ""}
       </div>
@@ -5096,6 +5085,7 @@ function orderCard(transaction, kind, displayCode = "") {
       ? `
         <div class="history-actions">
           <button class="secondary-button compact" data-complete-kitchen-order="${transaction.id}" type="button">Selesai Dibuat</button>
+          <button class="secondary-button compact" data-print-label="${transaction.id}" data-print-kind="paid" type="button">Cetak Label Cup</button>
           <button class="secondary-button compact" data-reprint-order="${transaction.id}" data-reprint-kind="paid" type="button">Cetak Ulang Struk</button>
           ${isOwner() ? `<button class="secondary-button compact danger-text" data-delete-transaction="${transaction.id}" type="button">Hapus</button>` : ""}
         </div>
@@ -5103,6 +5093,7 @@ function orderCard(transaction, kind, displayCode = "") {
     : `
       <div class="history-actions">
         ${isOwner() ? `<button class="secondary-button compact" data-edit-transaction="${transaction.id}" type="button">Edit Struk</button>` : ""}
+        <button class="secondary-button compact" data-print-label="${transaction.id}" data-print-kind="paid" type="button">Cetak Label Cup</button>
         <button class="secondary-button compact" data-reprint-order="${transaction.id}" data-reprint-kind="paid" type="button">Cetak Ulang Struk</button>
         ${
           isStaffDrinkTransaction(transaction)
@@ -7360,6 +7351,7 @@ els.orderList?.addEventListener("click", (event) => {
   const deleteTransactionButton = event.target.closest("button[data-delete-transaction]");
   const editTransactionButton = event.target.closest("button[data-edit-transaction]");
   const completeKitchenButton = event.target.closest("button[data-complete-kitchen-order]");
+  const printLabelButton = event.target.closest("button[data-print-label]");
   if (payButton) {
     payDraftOrder(payButton.dataset.payDraft);
     return;
@@ -7382,6 +7374,22 @@ els.orderList?.addEventListener("click", (event) => {
   }
   if (reprintButton) {
     reprintOrder(reprintButton.dataset.reprintOrder, reprintButton.dataset.reprintKind);
+    return;
+  }
+  if (printLabelButton) {
+    const id = printLabelButton.dataset.printLabel;
+    const kind = printLabelButton.dataset.printKind;
+    const source = kind === "bill" ? getOrderDrafts() : getHistory();
+    const transaction = source.find((entry) => entry.id === id);
+    if (transaction) {
+      if (!state.labelPrinterCharacteristic) {
+        toast("Printer Label belum tersambung.");
+      } else {
+        printCupLabels(transaction);
+      }
+    } else {
+      toast("Data order tidak ditemukan.");
+    }
     return;
   }
   if (deleteButton) {
@@ -8018,46 +8026,6 @@ els.roleList?.addEventListener("click", async (event) => {
 });
 els.orderForm.addEventListener("submit", startOrder);
 els.cancelOrderModal.addEventListener("click", closeOrderModal);
-els.closePrintModal?.addEventListener("click", closePrintModal);
-els.btnSelesaiPrint?.addEventListener("click", closePrintModal);
-
-els.btnCetakStruk?.addEventListener("click", async () => {
-  if (!state.activePrintTransaction) return;
-  els.btnCetakStruk.disabled = true;
-  els.btnCetakStruk.textContent = "Mencetak...";
-  try {
-    const transaction = state.activePrintTransaction;
-    const printed = await printReceipt(transaction, state.activePrintKind || "paid");
-    transaction.printStatus = printed ? "PRINTED" : "PRINT_FAILED";
-    if (state.activePrintKind === "bill") {
-      patchLocalOrderDraft(transaction.id, { printStatus: transaction.printStatus });
-    } else {
-      patchLocalHistoryTransaction(transaction.id, { printStatus: transaction.printStatus });
-    }
-    await updateOfflineTransaction(transaction.localId || transaction.id, { printStatus: transaction.printStatus }).catch(() => null);
-  } finally {
-    els.btnCetakStruk.disabled = false;
-    els.btnCetakStruk.textContent = "Cetak Struk";
-    // Opsional: langsung tutup setelah cetak
-    // closePrintModal(); 
-  }
-});
-
-els.btnCetakLabel?.addEventListener("click", async () => {
-  if (!state.activePrintTransaction) return;
-  if (!state.labelPrinterCharacteristic) {
-    toast("Printer Label belum tersambung.");
-    return;
-  }
-  els.btnCetakLabel.disabled = true;
-  els.btnCetakLabel.textContent = "Mencetak...";
-  try {
-    await printCupLabels(state.activePrintTransaction);
-  } finally {
-    els.btnCetakLabel.disabled = false;
-    els.btnCetakLabel.textContent = "Cetak Label Cup";
-  }
-});
 
 els.analyticsMonth.value = monthKey();
 if (els.analyticsDate) els.analyticsDate.value = dateKey();
