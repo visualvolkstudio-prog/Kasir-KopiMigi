@@ -4820,7 +4820,8 @@ async function encodeCupLabel(transaction, item, itemIndex, totalItems) {
   // 1. Nama minuman: Font B lebar 2x, tinggi normal. Nilai sebelumnya (0x11)
   // ternyata membuat tinggi 2x; yang benar untuk lebar 2x adalah bit 0x20.
   payload.push(ESC, 0x21, 0x21); // Font B, lebar 2x, tinggi normal
-  payload.push(ESC, 0x45, 0x01); // Bold on
+  payload.push(ESC, 0x45, 0x01); // Bold on — khusus nama produk
+  payload.push(ESC, 0x47, 0x01); // Double-strike untuk hasil hitam/heavy
   const nameLines = wrapText(drinkName, compact40x20 ? 16 : 20, 2);
   for (const line of nameLines) {
     payload.push(...encoder.encode(line + "\n"));
@@ -4828,6 +4829,7 @@ async function encodeCupLabel(transaction, item, itemIndex, totalItems) {
 
   // 2. Detail Font B normal: total maksimum lima baris, aman untuk 20 mm.
   payload.push(ESC, 0x45, 0x00); // Bold off
+  payload.push(ESC, 0x47, 0x00); // Double-strike off untuk detail
   payload.push(ESC, 0x21, 0x01); // Font B
   const detailWidth = compact40x20 ? 33 : 42;
   payload.push(...encoder.encode("-".repeat(detailWidth) + "\n"));
@@ -4838,9 +4840,13 @@ async function encodeCupLabel(transaction, item, itemIndex, totalItems) {
   payload.push(...encoder.encode(`${transaction.orderCode || "-"}  ${customerLine}`.slice(0, detailWidth) + "\n"));
   payload.push(ESC, 0x45, 0x00);
 
-  // Feed-to-gap: printer berhenti tepat pada gap label berikutnya. Jangan
-  // tambahkan line feed setelah perintah ini karena bisa menggeser posisi label.
-  payload.push(GS, 0x0c); // GS FF (Feed to next label gap)
+  // Printer ini tidak menjalankan GS FF sebagai feed-to-gap secara konsisten
+  // pada mode ESC/POS. Gunakan pitch tetap: 20 mm pada head 203 dpi = 160 dot.
+  // Setiap LF sudah memakan 20 dot, jadi yang dikirim hanya sisa tingginya.
+  const labelPitchDots = compact40x20 ? 160 : 160;
+  const linesPrinted = nameLines.length + 3; // nama, garis, varian, footer
+  const remainingFeedDots = Math.max(0, labelPitchDots - (linesPrinted * 20));
+  payload.push(ESC, 0x4a, remainingFeedDots); // ESC J n: print lalu feed n dot
   payload.push(ESC, 0x32); // Kembalikan line spacing bawaan untuk job berikutnya.
 
   return new Uint8Array(payload);
