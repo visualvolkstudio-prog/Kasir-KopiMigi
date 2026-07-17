@@ -20,6 +20,7 @@ const storageKeys = {
   employee: "kasir-migi-employee",
   employees: "kasir-migi-employees",
   employeeLeaves: "kasir-migi-employee-leaves",
+  employeeRoles: "kasir-migi-employee-roles",
   deletedEmployees: "kasir-migi-deleted-employees",
   sessionShift: "kasir-migi-session-shift",
   activeShift: "kasir-migi-active-shift",
@@ -184,6 +185,9 @@ const els = {
   employeeAddForm: document.querySelector("#employeeAddForm"),
   employeeNewName: document.querySelector("#employeeNewName"),
   employeeList: document.querySelector("#employeeList"),
+  roleAddForm: document.querySelector("#roleAddForm"),
+  roleNewName: document.querySelector("#roleNewName"),
+  roleList: document.querySelector("#roleList"),
   employeeDeleteModal: document.querySelector("#employeeDeleteModal"),
   employeeDeleteForm: document.querySelector("#employeeDeleteForm"),
   employeeDeleteName: document.querySelector("#employeeDeleteName"),
@@ -596,11 +600,16 @@ function isHelperDay(value = new Date()) {
 }
 
 function normalizeDutyRole(value, date = new Date()) {
-  return value === "helper" && isHelperDay(date) ? "helper" : "karyawan";
+  if (value === "helper") {
+    return isHelperDay(date) ? "helper" : "karyawan";
+  }
+  return value || "karyawan";
 }
 
 function dutyRoleLabel(value = currentDutyRole()) {
-  return value === "helper" ? "Helper" : "Karyawan";
+  if (value === "helper") return "Helper";
+  if (value === "karyawan") return "Karyawan";
+  return value ? value.charAt(0).toUpperCase() + value.slice(1) : "Karyawan";
 }
 
 function orderSequenceFromId(id, prefix) {
@@ -754,6 +763,43 @@ function saveEmployeeRoster(names) {
   const roster = filterDeletedEmployees(names);
   writeJson(storageKeys.employees, roster);
   return roster;
+}
+
+function getEmployeeRoles() {
+  const roles = readJson(storageKeys.employeeRoles, []);
+  return roles.length ? roles : ["karyawan", "helper"];
+}
+
+function saveEmployeeRoles(roles, { dirty = true } = {}) {
+  const cleanRoles = [...new Set(roles.map((r) => String(r || "").trim().toLowerCase()).filter(Boolean))];
+  if (!cleanRoles.includes("karyawan")) {
+    cleanRoles.unshift("karyawan");
+  }
+  writeJson(storageKeys.employeeRoles, cleanRoles);
+  if (dirty) markSettingsDirty();
+}
+
+function renderEmployeeRolesControls() {
+  if (!els.roleList) return;
+  const roles = getEmployeeRoles();
+  els.roleList.innerHTML = roles
+    .map((role) => {
+      const isDefault = role === "karyawan" || role === "helper";
+      const displayLabel = role === "karyawan" ? "Karyawan" : role === "helper" ? "Helper" : (role.charAt(0).toUpperCase() + role.slice(1));
+      const statusLabel = isDefault ? "Default" : "Kustom";
+      const statusClass = isDefault ? "active" : "";
+      
+      return `
+        <article class="employee-list-row ${isDefault ? "active" : ""} ${isDefault ? "leave" : ""}">
+          <span>${escapeHtml(displayLabel)}</span>
+          <div>
+            <small class="employee-row-status ${statusClass}">${statusLabel}</small>
+            <button class="secondary-button compact danger-text" data-delete-role="${encodeURIComponent(role)}" type="button" ${isDefault ? "disabled" : ""}>Hapus</button>
+          </div>
+        </article>
+      `;
+    })
+    .join("");
 }
 
 function getEmployeeLeaveMap() {
@@ -916,7 +962,9 @@ function currentDutyRole() {
 
 function activeEmployeeDisplayName(name = activeEmployeeName(), dutyRole = currentDutyRole()) {
   if (!name) return "";
-  return dutyRole === "helper" ? `${name} (Helper)` : name;
+  if (!dutyRole || dutyRole === "karyawan" || dutyRole === "owner") return name;
+  const label = dutyRole === "helper" ? "Helper" : (dutyRole.charAt(0).toUpperCase() + dutyRole.slice(1));
+  return `${name} (${label})`;
 }
 
 function transactionEmployeeDisplay(transaction) {
@@ -929,7 +977,6 @@ function renderEmployeeControls() {
   const selectedLoginShift = autoShiftName();
   const helperDay = isHelperDay();
   const selectedDutyRole = normalizeDutyRole(els.loginDutyRole?.value || "karyawan");
-  els.loginForm?.classList.toggle("helper-day", helperDay);
   const activeCandidate = availableRoster.includes(activeEmployeeName()) ? activeEmployeeName() : availableRoster[0] || "";
   const active = isEmployeeUsedInOtherShift(activeCandidate, selectedLoginShift)
     ? availableRoster.find((name) => !isEmployeeUsedInOtherShift(name, selectedLoginShift)) || activeCandidate
@@ -1004,10 +1051,19 @@ function renderEmployeeControls() {
     const selectable = options.find((option) => !option.disabled);
     els.loginEmployee.value = active || selectable?.value || "";
   }
-  if (els.loginDutyRoleWrap) els.loginDutyRoleWrap.hidden = !helperDay;
+  const roles = getEmployeeRoles();
+  const showDutyRole = roles.length > 1;
+  els.loginForm?.classList.toggle("helper-day", showDutyRole);
+  if (els.loginDutyRoleWrap) els.loginDutyRoleWrap.hidden = !showDutyRole;
   if (els.loginDutyRole) {
-    els.loginDutyRole.value = helperDay ? selectedDutyRole : "karyawan";
-    els.loginDutyRole.disabled = !helperDay;
+    const options = roles.map((role) => {
+      const label = role === "helper" ? "Helper" : role === "karyawan" ? "Karyawan" : (role.charAt(0).toUpperCase() + role.slice(1));
+      return new Option(label, role);
+    });
+    const currentVal = els.loginDutyRole.value || selectedDutyRole;
+    els.loginDutyRole.replaceChildren(...options);
+    els.loginDutyRole.value = roles.includes(currentVal) ? currentVal : "karyawan";
+    els.loginDutyRole.disabled = false;
   }
   if (els.loginShift) els.loginShift.value = selectedLoginShift;
 }
@@ -1723,6 +1779,7 @@ function getSettingsPayload() {
     employeeLeaves: getEmployeeLeaveMap(),
     dailyCashReports: getDailyCashReports(),
     wifiReceipt: getWifiReceiptSettings(),
+    employeeRoles: getEmployeeRoles(),
   };
 }
 
@@ -1763,6 +1820,10 @@ function applyCloudSettings(settings) {
   }
   if (settings.wifiReceipt && typeof settings.wifiReceipt === "object" && !Array.isArray(settings.wifiReceipt)) {
     writeJson(storageKeys.wifiReceipt, settings.wifiReceipt);
+    changed = true;
+  }
+  if (Array.isArray(settings.employeeRoles)) {
+    saveEmployeeRoles(settings.employeeRoles, { dirty: false });
     changed = true;
   }
   return changed;
@@ -4601,53 +4662,68 @@ function isBeverageItem(item) {
   return !SKIP_LABEL_CATEGORIES.some((kw) => cat.includes(kw));
 }
 
-async function encodeCupLabel(transaction, item, itemIndex, totalItems) {
-  // Tunggu sampai Google Font Geist termuat sempurna di browser
-  await document.fonts.ready;
+let cachedMascotBytes = null;
+async function getMascotLogoBytes() {
+  if (cachedMascotBytes) return cachedMascotBytes;
+  try {
+    const image = await new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error("Mascot logo failed to load."));
+      img.src = "/assets/logo-miginew-transparent.png";
+    });
 
-  // 1. Load Logo Utama (Cartoon Cup) untuk Kanan Atas dari assets
-  const mainLogo = await new Promise((resolve) => {
-    const img = new Image();
-    img.onload = () => resolve(img);
-    img.onerror = () => resolve(null);
-    img.src = "/assets/logo-miginew-transparent.png";
-  });
+    const size = 64; // 64px mascot
+    const canvas = document.createElement("canvas");
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, size, size);
+    ctx.drawImage(image, 0, 0, size, size);
 
-  // 2. Load Logo Divider (Asterisk/Flower) untuk pemisah varian dari assets
-  const dividerLogo = await new Promise((resolve) => {
-    const img = new Image();
-    img.onload = () => resolve(img);
-    img.onerror = () => resolve(null);
-    img.src = "/assets/logo-migi-print.png";
-  });
+    const pixels = ctx.getImageData(0, 0, size, size).data;
+    const raster = [];
+    const widthBytes = size / 8;
+    for (let y = 0; y < size; y++) {
+      for (let xByte = 0; xByte < widthBytes; xByte++) {
+        let byte = 0;
+        for (let bit = 0; bit < 8; bit++) {
+          const x = xByte * 8 + bit;
+          const index = (y * size + x) * 4;
+          const alpha = pixels[index + 3];
+          const luminance = 0.299 * pixels[index] + 0.587 * pixels[index + 1] + 0.114 * pixels[index + 2];
+          if (alpha > 128 && luminance < 180) {
+            byte |= (0x80 >> bit);
+          }
+        }
+        raster.push(byte);
+      }
+    }
 
-  // Printer label EPPOS 58mm (lebar print head 384px / 48mm).
-  // Konten stiker 40mm (320px) diletakkan di tengah dengan padding kiri 32px agar pas di stiker pre-cut.
-  const width = 384;
-  const height = 160;
-  const offsetX = 32;
-  const canvas = document.createElement("canvas");
-  canvas.width = width;
-  canvas.height = height;
-  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    const xL = widthBytes & 0xff;
+    const xH = (widthBytes >> 8) & 0xff;
+    const yL = size & 0xff;
+    const yH = (size >> 8) & 0xff;
 
-  // 1. Bersihkan background stiker (putih bersih)
-  ctx.fillStyle = "#ffffff";
-  ctx.fillRect(0, 0, width, height);
-
-  // 2. Gambar Logo Kopi Migi Utama di Kanan Atas
-  if (mainLogo) {
-    ctx.drawImage(mainLogo, 250 + offsetX, 10, 60, 60);
+    cachedMascotBytes = [
+      0x1b, 0x61, 0x01, // Center align for mascot
+      0x1d, 0x76, 0x30, 0x00, xL, xH, yL, yH,
+      ...raster,
+      0x0a, // Line feed
+      0x1b, 0x61, 0x00  // Reset to left align
+    ];
+    return cachedMascotBytes;
+  } catch (err) {
+    console.warn("Mascot failed to load:", err);
+    return [];
   }
+}
 
-  // 3. Gambar Tahun Hak Cipta (© 2026) di bawah Logo
-  const year = new Date(transaction.createdAt || Date.now()).getFullYear();
-  ctx.fillStyle = "#000000";
-  ctx.font = "600 12px Geist, system-ui";
-  ctx.textAlign = "right";
-  ctx.fillText(`© ${year}`, 310 + offsetX, 95);
+async function encodeCupLabel(transaction, item, itemIndex, totalItems) {
+  const encoder = new TextEncoder();
+  const dotsToFeed = 160; // Feed per dot (bisa disesuaikan manual)
 
-  // Helper untuk mengubah teks menjadi Title Case (Huruf besar di awal kata)
   const toTitleCase = (str) => {
     return String(str || "")
       .toLowerCase()
@@ -4656,137 +4732,114 @@ async function encodeCupLabel(transaction, item, itemIndex, totalItems) {
       .join(" ");
   };
 
-  // 4. Gambar Nama Menu Utama di Kiri (Rata Kiri, Tebal, Auto-wrap, Title Case, batas lebar)
-  ctx.fillStyle = "#000000";
-  ctx.font = "800 24px Geist, system-ui";
-  ctx.textAlign = "left";
-  
-  const drinkName = toTitleCase(item.name || "Minuman");
-  const words = drinkName.split(" ");
-  let line = "";
-  let currentY = 32;
-  const lineHeight = 28;
-  const maxTextWidth = 230; // Batas absolut kolom kiri (garis merah)
-
-  for (let n = 0; n < words.length; n++) {
-    const testLine = line + words[n] + " ";
-    if (ctx.measureText(testLine).width > maxTextWidth && n > 0) {
-      ctx.fillText(line.trim(), 10 + offsetX, currentY, maxTextWidth);
-      line = words[n] + " ";
-      currentY += lineHeight;
-    } else {
-      line = testLine;
-    }
-  }
-  ctx.fillText(line.trim(), 10 + offsetX, currentY, maxTextWidth);
-
-  // 5. Gambar Garis Pembatas Pertama (di atas varian)
-  ctx.beginPath();
-  ctx.moveTo(10 + offsetX, 110);
-  ctx.lineTo(310 + offsetX, 110);
-  ctx.lineWidth = 1.5;
-  ctx.strokeStyle = "#000000";
-  ctx.stroke();
-
-  // 6. Gambar Baris Varian secara dinamis menggunakan Logo Migi asli sebagai pemisah
-  // Fallback default: Jika kasir lupa input, otomatis cetak resep standar "Ice · Normal · Regular"
-  const notesText = item.notes || "ICE · NORMAL · REGULAR";
-  const tags = notesText.split(" · ").filter(Boolean).map(toTitleCase);
-
-  if (tags.length > 0) {
-    ctx.font = "700 13px Geist, system-ui";
-    ctx.fillStyle = "#000000";
-    ctx.textAlign = "center";
+  const wrapText = (text, maxLength) => {
+    const words = text.split(" ");
+    const lines = [];
+    let currentLine = "";
     
-    const totalWidth = 300; // dari x=10 ke x=310
-    const numTags = tags.length;
-    const segmentWidth = totalWidth / numTags;
-    
-    // Gambar tag varian (Title Case)
-    for (let i = 0; i < numTags; i++) {
-      const x = 10 + offsetX + (segmentWidth * i) + (segmentWidth / 2);
-      ctx.fillText(tags[i], x, 126);
-    }
-    
-    // Gambar logo Migi sebagai pemisah di antara tag
-    if (dividerLogo) {
-      const logoSize = 14;
-      for (let i = 0; i < numTags - 1; i++) {
-        const x = 10 + offsetX + (segmentWidth * (i + 1)) - (logoSize / 2);
-        ctx.drawImage(dividerLogo, x, 115, logoSize, logoSize);
-      }
-    }
-  } else {
-    ctx.font = "700 13px Geist, system-ui";
-    ctx.fillStyle = "#000000";
-    ctx.textAlign = "center";
-    ctx.fillText("NORMAL VARIANT", 160 + offsetX, 126);
-  }
-
-  // 7. Gambar Garis Pembatas Kedua (di bawah varian, di atas footer)
-  ctx.beginPath();
-  ctx.moveTo(10 + offsetX, 134);
-  ctx.lineTo(310 + offsetX, 134);
-  ctx.lineWidth = 1.5;
-  ctx.strokeStyle = "#000000";
-  ctx.stroke();
-
-  // 8. Gambar Baris Footer (Kode Order, Petugas, Urutan Cup)
-  const orderCode = transaction.orderCode || transaction.id?.slice(-4) || "000";
-  const customer = transaction.customer || "Teman Migi";
-  const counter = `[${itemIndex + 1}/${totalItems}]`;
-
-  ctx.font = "700 13px Geist, system-ui";
-  
-  // Kode antrean di ujung kiri
-  ctx.textAlign = "left";
-  ctx.fillText(orderCode, 10 + offsetX, 150);
-
-  // Nama pelanggan/petugas di tengah
-  ctx.textAlign = "center";
-  ctx.fillText(customer, 160 + offsetX, 150);
-
-  // Penghitung Cup di ujung kanan
-  ctx.textAlign = "right";
-  ctx.fillText(counter, 310 + offsetX, 150);
-
-  // 9. Konversi pixel canvas menjadi bit raster ESC/POS
-  const widthBytes = width / 8; // 384px / 8 = 48 byte lebar
-  const pixels = ctx.getImageData(0, 0, width, height).data;
-  const raster = [];
-  for (let y = 0; y < height; y++) {
-    for (let xByte = 0; xByte < widthBytes; xByte++) {
-      let byte = 0;
-      for (let bit = 0; bit < 8; bit++) {
-        const x = xByte * 8 + bit;
-        const index = (y * width + x) * 4;
-        const r = pixels[index];
-        const g = pixels[index + 1];
-        const b = pixels[index + 2];
-        const alpha = pixels[index + 3];
-        const luminance = 0.299 * r + 0.587 * g + 0.114 * b;
-        // Pixel hitam jika tidak transparan dan tingkat kecerahan rendah
-        if (alpha > 128 && luminance < 180) {
-          byte |= (0x80 >> bit);
+    for (const word of words) {
+      const testLine = currentLine ? (currentLine + " " + word) : word;
+      if (testLine.length <= maxLength) {
+        currentLine = testLine;
+      } else {
+        if (currentLine) lines.push(currentLine);
+        if (word.length > maxLength) {
+          lines.push(word);
+          currentLine = "";
+        } else {
+          currentLine = word;
         }
       }
-      raster.push(byte);
     }
+    if (currentLine) lines.push(currentLine);
+    return lines;
+  };
+
+  const formatThreeColumns = (left, middle, right, width = 24) => {
+    const leftStr = String(left).slice(0, 8);
+    const rightStr = String(right).slice(0, 6);
+    const middleMaxLen = width - leftStr.length - rightStr.length - 2;
+    const middleStr = String(middle).slice(0, Math.max(3, middleMaxLen));
+    
+    const totalContentLen = leftStr.length + middleStr.length + rightStr.length;
+    if (totalContentLen >= width) {
+      return `${leftStr} ${middleStr} ${rightStr}`.slice(0, width);
+    }
+    
+    const totalSpaces = width - totalContentLen;
+    const spaceLeft = Math.floor(totalSpaces / 2);
+    const spaceRight = totalSpaces - spaceLeft;
+    
+    return leftStr + " ".repeat(spaceLeft) + middleStr + " ".repeat(spaceRight) + rightStr;
+  };
+
+  // Get mascot logo bytes (cached)
+  const mascotBytes = await getMascotLogoBytes();
+  
+  // Format year
+  const year = new Date(transaction.createdAt || Date.now()).getFullYear();
+  let headerTextBytes = [];
+  if (mascotBytes.length > 0) {
+    headerTextBytes.push(0x1b, 0x61, 0x01); // Center align
+    headerTextBytes.push(...encoder.encode(`© ${year}\n`));
+    headerTextBytes.push(0x1b, 0x61, 0x00); // Reset to left align
   }
 
-  const xL = widthBytes & 0xff;
-  const xH = (widthBytes >> 8) & 0xff;
-  const yL = height & 0xff;
-  const yH = (height >> 8) & 0xff;
+  const drinkName = toTitleCase(item.name || "Minuman");
+  
+  let nameBytes = [];
+  const nameLines = wrapText(drinkName, 12); // Lebar efektif double-size (~12 karakter)
+  
+  // Set tebal & double-size
+  nameBytes.push(0x1d, 0x21, 0x11); // GS ! 0x11 (double width, double height)
+  nameBytes.push(0x1b, 0x45, 0x01); // ESC E 1 (bold)
+  for (const line of nameLines) {
+    nameBytes.push(...encoder.encode(line + "\n"));
+  }
+  nameBytes.push(0x1d, 0x21, 0x00); // GS ! 0x00 (normal size)
+  nameBytes.push(0x1b, 0x45, 0x00); // ESC E 0 (normal weight)
 
-  const ESC = 0x1b, GS = 0x1d, FF = 0x0c;
+  let variantBytes = [];
+  variantBytes.push(...encoder.encode("------------------------\n"));
+  
+  const notesText = item.notes || "ICE · NORMAL · REGULAR";
+  const tags = notesText.split(" · ").filter(Boolean).map(toTitleCase);
+  const variantLine = tags.join("  *  ");
+  const variantLines = wrapText(variantLine, 24); // Lebar efektif normal (~24 karakter)
+  
+  variantBytes.push(0x1b, 0x61, 0x01); // Center align for variants
+  variantBytes.push(0x1b, 0x45, 0x01); // ESC E 1 (bold)
+  for (const line of variantLines) {
+    variantBytes.push(...encoder.encode(line + "\n"));
+  }
+  variantBytes.push(0x1b, 0x45, 0x00); // ESC E 0 (normal weight)
+  variantBytes.push(0x1b, 0x61, 0x00); // Reset to left align
+  variantBytes.push(...encoder.encode("------------------------\n"));
+
+  const orderCode = transaction.orderCode || transaction.id?.slice(-4) || "000";
+  const customer = toTitleCase(transaction.customer || "Teman Migi");
+  const counter = `[${itemIndex + 1}/${totalItems}]`;
+
+  let footerBytes = [];
+  const footerLine = formatThreeColumns(orderCode, customer, counter, 24);
+  footerBytes.push(...encoder.encode(footerLine + "\n"));
+
+  const ESC = 0x1b, GS = 0x1d;
   const init = [ESC, 0x40];
+  const margin = [GS, 0x4c, 0x10, 0x00]; // Margin kiri 2mm (16 unit)
+  const alignLeft = [ESC, 0x61, 0x00];   // Rata kiri
+  const feedBytes = [ESC, 0x4a, dotsToFeed]; // Precision feed ke gap stiker berikutnya
 
   const parts = [
     ...init,
-    GS, 0x76, 0x30, 0x00, xL, xH, yL, yH,
-    ...raster,
-    FF, // Geser kertas ke gap stiker berikutnya
+    ...margin,
+    ...alignLeft,
+    ...mascotBytes,
+    ...headerTextBytes,
+    ...nameBytes,
+    ...variantBytes,
+    ...footerBytes,
+    ...feedBytes
   ];
   return new Uint8Array(parts);
 }
@@ -7081,6 +7134,7 @@ function renderAll() {
   syncCfExpenseNoteField();
   renderWifiReceiptSettings();
   renderPendingSync();
+  renderEmployeeRolesControls();
 }
 
 function registerServiceWorker() {
@@ -7968,6 +8022,57 @@ els.toggleWifiPassword?.addEventListener("click", () => {
   els.toggleWifiPassword.setAttribute("aria-label", isHidden ? "Sembunyikan password" : "Tampilkan password");
 });
 els.loginDutyRole?.addEventListener("change", renderEmployeeControls);
+els.roleAddForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (!isOwner()) {
+    toast("Tambah role hanya untuk Owner.");
+    return;
+  }
+  const newRoleName = els.roleNewName?.value.trim();
+  if (!newRoleName) return;
+  const newRole = newRoleName.toLowerCase();
+  
+  const roles = getEmployeeRoles();
+  if (roles.includes(newRole)) {
+    toast(`Role "${newRoleName}" sudah terdaftar.`);
+    return;
+  }
+  
+  saveEmployeeRoles([...roles, newRole]);
+  if (els.roleNewName) els.roleNewName.value = "";
+  renderEmployeeRolesControls();
+  renderEmployeeControls();
+  toast(`Role "${newRoleName}" berhasil ditambahkan.`);
+  
+  if (navigator.onLine) {
+    await syncSettingsToCloud({ force: true }).catch(() => null);
+  }
+});
+
+els.roleList?.addEventListener("click", async (event) => {
+  const deleteBtn = event.target.closest("button[data-delete-role]");
+  if (!deleteBtn) return;
+  if (!isOwner()) {
+    toast("Hapus role hanya untuk Owner.");
+    return;
+  }
+  const roleToDelete = decodeURIComponent(deleteBtn.dataset.deleteRole);
+  if (roleToDelete === "karyawan" || roleToDelete === "helper") {
+    toast("Role default tidak dapat dihapus.");
+    return;
+  }
+  
+  const roles = getEmployeeRoles();
+  const nextRoles = roles.filter((r) => r !== roleToDelete);
+  saveEmployeeRoles(nextRoles);
+  renderEmployeeRolesControls();
+  renderEmployeeControls();
+  toast(`Role "${roleToDelete.charAt(0).toUpperCase() + roleToDelete.slice(1)}" berhasil dihapus.`);
+  
+  if (navigator.onLine) {
+    await syncSettingsToCloud({ force: true }).catch(() => null);
+  }
+});
 els.orderForm.addEventListener("submit", startOrder);
 els.cancelOrderModal.addEventListener("click", closeOrderModal);
 
