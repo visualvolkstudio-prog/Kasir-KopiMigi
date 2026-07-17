@@ -4934,9 +4934,9 @@ function promptPrinterConnection() {
 }
 
 function ensurePrinterReadyForOrderPrint() {
-  // Tidak memblokir alur order jika printer termal BLE belum tersambung.
-  // Printer termal BLE akan dicek di printReceipt, jika tidak ada akan otomatis fallback ke window.print().
-  return true;
+  if (state.printerCharacteristic) return true;
+  promptPrinterConnection();
+  return false;
 }
 
 function generateBoothCode() {
@@ -5018,7 +5018,6 @@ async function printBill() {
       toast("Keranjang masih kosong.");
       return;
     }
-    if (!ensurePrinterReadyForOrderPrint()) return;
     els.customerName.value = els.orderCustomerName.value.trim();
     els.tableNumber.value = els.orderTableNumber.value.trim();
     const draft = currentTransaction(true);
