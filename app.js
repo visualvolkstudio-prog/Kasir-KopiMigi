@@ -130,6 +130,19 @@ const bleCharacteristicUuids = [
   "bef8d6c9-9c21-4c9e-b632-bd58c1009f9f",
 ];
 
+function ensureBluetoothDevice(device) {
+  if (!device || !device.gatt || typeof device.gatt.connect !== "function") {
+    throw new Error("Perangkat Bluetooth tidak valid. Pilih printer lagi dari daftar Bluetooth.");
+  }
+  return device;
+}
+
+function onBluetoothDisconnected(device, handler) {
+  if (typeof device?.addEventListener === "function") {
+    device.addEventListener("gattserverdisconnected", handler);
+  }
+}
+
 const rupiah = new Intl.NumberFormat("id-ID", {
   style: "currency",
   currency: "IDR",
@@ -2433,11 +2446,12 @@ async function connectPrinter(existingDevice = null) {
         optionalServices: bleServiceUuids,
       });
     }
+    state.printerDevice = ensureBluetoothDevice(state.printerDevice);
 
     // Simpan ID untuk koneksi ulang otomatis saat refresh
     localStorage.setItem("last_printer_id", state.printerDevice.id);
 
-    state.printerDevice.addEventListener("gattserverdisconnected", () => {
+    onBluetoothDisconnected(state.printerDevice, () => {
       state.printerCharacteristic = null;
       setPrinterStatus("Terputus", "disconnected", "Printer terputus. Sambungkan ulang sebelum cetak.");
       toast("Printer Bluetooth terputus.");
@@ -2499,11 +2513,12 @@ async function connectLabelPrinter(existingDevice = null) {
         optionalServices: bleServiceUuids,
       });
     }
+    state.labelPrinterDevice = ensureBluetoothDevice(state.labelPrinterDevice);
 
     // Simpan ID untuk koneksi ulang otomatis saat refresh
     localStorage.setItem("last_label_printer_id", state.labelPrinterDevice.id);
 
-    state.labelPrinterDevice.addEventListener("gattserverdisconnected", () => {
+    onBluetoothDisconnected(state.labelPrinterDevice, () => {
       state.labelPrinterCharacteristic = null;
       setLabelPrinterStatus("Terputus", "disconnected", "Label printer terputus. Sambungkan ulang.");
       toast("Label printer Bluetooth terputus.");
