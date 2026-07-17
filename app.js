@@ -2416,19 +2416,26 @@ function syncFullscreenButton() {
   els.fullscreenToggle?.classList.toggle("active", !!document.fullscreenElement);
 }
 
-async function connectPrinter() {
+async function connectPrinter(existingDevice = null) {
   if (!navigator.bluetooth) {
     toast("Web Bluetooth belum didukung. Coba Chrome atau Brave desktop.");
     setPrinterStatus("Tidak didukung", "disconnected", "Browser ini belum mendukung Web Bluetooth.");
     return;
   }
 
-  setPrinterStatus("Menghubungkan", "connecting", "Pilih printer thermal ESC/POS dari dialog Bluetooth.");
+  setPrinterStatus("Menghubungkan", "connecting", existingDevice ? "Menghubungkan ulang printer..." : "Pilih printer thermal ESC/POS dari dialog Bluetooth.");
   try {
-    state.printerDevice = await navigator.bluetooth.requestDevice({
-      acceptAllDevices: true,
-      optionalServices: bleServiceUuids,
-    });
+    if (existingDevice) {
+      state.printerDevice = existingDevice;
+    } else {
+      state.printerDevice = await navigator.bluetooth.requestDevice({
+        acceptAllDevices: true,
+        optionalServices: bleServiceUuids,
+      });
+    }
+
+    // Simpan ID untuk koneksi ulang otomatis saat refresh
+    localStorage.setItem("last_printer_id", state.printerDevice.id);
 
     state.printerDevice.addEventListener("gattserverdisconnected", () => {
       state.printerCharacteristic = null;
@@ -2475,19 +2482,26 @@ async function connectPrinter() {
   }
 }
 
-async function connectLabelPrinter() {
+async function connectLabelPrinter(existingDevice = null) {
   if (!navigator.bluetooth) {
     toast("Web Bluetooth belum didukung. Coba Chrome atau Brave desktop.");
     setLabelPrinterStatus("Tidak didukung", "disconnected", "Browser ini belum mendukung Web Bluetooth.");
     return;
   }
 
-  setLabelPrinterStatus("Menghubungkan", "connecting", "Pilih printer label ESC/POS dari dialog Bluetooth.");
+  setLabelPrinterStatus("Menghubungkan", "connecting", existingDevice ? "Menghubungkan ulang label printer..." : "Pilih printer label ESC/POS dari dialog Bluetooth.");
   try {
-    state.labelPrinterDevice = await navigator.bluetooth.requestDevice({
-      acceptAllDevices: true,
-      optionalServices: bleServiceUuids,
-    });
+    if (existingDevice) {
+      state.labelPrinterDevice = existingDevice;
+    } else {
+      state.labelPrinterDevice = await navigator.bluetooth.requestDevice({
+        acceptAllDevices: true,
+        optionalServices: bleServiceUuids,
+      });
+    }
+
+    // Simpan ID untuk koneksi ulang otomatis saat refresh
+    localStorage.setItem("last_label_printer_id", state.labelPrinterDevice.id);
 
     state.labelPrinterDevice.addEventListener("gattserverdisconnected", () => {
       state.labelPrinterCharacteristic = null;
@@ -2525,6 +2539,26 @@ async function connectLabelPrinter() {
     if (!String(error.message).toLowerCase().includes("cancel")) {
       toast(`Koneksi label printer gagal: ${error.message}`);
     }
+  }
+}
+
+async function autoConnectPrinters() {
+  if (!navigator.bluetooth || !navigator.bluetooth.getDevices) return;
+  try {
+    const devices = await navigator.bluetooth.getDevices();
+    const lastPrinterId = localStorage.getItem("last_printer_id");
+    const lastLabelPrinterId = localStorage.getItem("last_label_printer_id");
+
+    for (const device of devices) {
+      if (lastPrinterId && device.id === lastPrinterId) {
+        connectPrinter(device).catch(() => null);
+      }
+      if (lastLabelPrinterId && device.id === lastLabelPrinterId) {
+        connectLabelPrinter(device).catch(() => null);
+      }
+    }
+  } catch (err) {
+    console.warn("Auto-reconnect printers failed:", err);
   }
 }
 
@@ -7981,6 +8015,7 @@ if (state.payment === "Kartu") state.payment = "Tunai";
 syncCfExpenseNoteField();
 renderAnalyticsControls();
 registerServiceWorker();
+autoConnectPrinters();
 initAuth();
 updateClock();
 setInterval(updateClock, 1000);
