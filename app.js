@@ -4000,12 +4000,13 @@ async function startOrder(event) {
     if (!ensurePrinterReadyForOrderPrint()) return;
     els.customerName.value = els.orderCustomerName.value.trim();
     els.tableNumber.value = els.orderTableNumber.value.trim();
-    closeOrderModal();
     const transaction = currentTransaction(false);
     if (!isOnlineChannel(transaction.channel) && state.payment === "Tunai" && transaction.paid < transaction.grandTotal) {
       toast("Nominal tunai belum cukup.");
+      if (els.paidAmount) els.paidAmount.focus();
       return;
     }
+    closeOrderModal();
     transaction.boothCode = createBoothQueue(transaction);
     clearPendingDelete("transaction", transaction.id);
     const stockChanged = deductStockForTransaction(transaction);
@@ -5881,6 +5882,7 @@ function loadDraftToCart(id) {
 function payDraftOrder(id) {
   const draft = loadDraftToCart(id);
   if (!draft) return;
+  els.paidAmount.value = totals().grandTotal;
   openOrderModal();
 }
 
