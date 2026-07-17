@@ -4621,9 +4621,11 @@ async function encodeCupLabel(transaction, item, itemIndex, totalItems) {
     img.src = "/assets/logo-migi-print.png";
   });
 
-  // Printer label 203 DPI: stiker 40mm x 20mm dikonversi menjadi pixel (lebar 320px, tinggi 160px)
-  const width = 320;
+  // Printer label EPPOS 58mm (lebar print head 384px / 48mm).
+  // Konten stiker 40mm (320px) diletakkan di tengah dengan padding kiri 32px agar pas di stiker pre-cut.
+  const width = 384;
   const height = 160;
+  const offsetX = 32;
   const canvas = document.createElement("canvas");
   canvas.width = width;
   canvas.height = height;
@@ -4635,7 +4637,7 @@ async function encodeCupLabel(transaction, item, itemIndex, totalItems) {
 
   // 2. Gambar Logo Kopi Migi Utama di Kanan Atas
   if (mainLogo) {
-    ctx.drawImage(mainLogo, 250, 10, 60, 60);
+    ctx.drawImage(mainLogo, 250 + offsetX, 10, 60, 60);
   }
 
   // 3. Gambar Tahun Hak Cipta (© 2026) di bawah Logo
@@ -4643,7 +4645,7 @@ async function encodeCupLabel(transaction, item, itemIndex, totalItems) {
   ctx.fillStyle = "#000000";
   ctx.font = "600 12px Geist, system-ui";
   ctx.textAlign = "right";
-  ctx.fillText(`© ${year}`, 310, 95);
+  ctx.fillText(`© ${year}`, 310 + offsetX, 95);
 
   // Helper untuk mengubah teks menjadi Title Case (Huruf besar di awal kata)
   const toTitleCase = (str) => {
@@ -4669,19 +4671,19 @@ async function encodeCupLabel(transaction, item, itemIndex, totalItems) {
   for (let n = 0; n < words.length; n++) {
     const testLine = line + words[n] + " ";
     if (ctx.measureText(testLine).width > maxTextWidth && n > 0) {
-      ctx.fillText(line.trim(), 10, currentY, maxTextWidth);
+      ctx.fillText(line.trim(), 10 + offsetX, currentY, maxTextWidth);
       line = words[n] + " ";
       currentY += lineHeight;
     } else {
       line = testLine;
     }
   }
-  ctx.fillText(line.trim(), 10, currentY, maxTextWidth);
+  ctx.fillText(line.trim(), 10 + offsetX, currentY, maxTextWidth);
 
   // 5. Gambar Garis Pembatas Pertama (di atas varian)
   ctx.beginPath();
-  ctx.moveTo(10, 110);
-  ctx.lineTo(310, 110);
+  ctx.moveTo(10 + offsetX, 110);
+  ctx.lineTo(310 + offsetX, 110);
   ctx.lineWidth = 1.5;
   ctx.strokeStyle = "#000000";
   ctx.stroke();
@@ -4702,7 +4704,7 @@ async function encodeCupLabel(transaction, item, itemIndex, totalItems) {
     
     // Gambar tag varian (Title Case)
     for (let i = 0; i < numTags; i++) {
-      const x = 10 + (segmentWidth * i) + (segmentWidth / 2);
+      const x = 10 + offsetX + (segmentWidth * i) + (segmentWidth / 2);
       ctx.fillText(tags[i], x, 126);
     }
     
@@ -4710,7 +4712,7 @@ async function encodeCupLabel(transaction, item, itemIndex, totalItems) {
     if (dividerLogo) {
       const logoSize = 14;
       for (let i = 0; i < numTags - 1; i++) {
-        const x = 10 + (segmentWidth * (i + 1)) - (logoSize / 2);
+        const x = 10 + offsetX + (segmentWidth * (i + 1)) - (logoSize / 2);
         ctx.drawImage(dividerLogo, x, 115, logoSize, logoSize);
       }
     }
@@ -4718,13 +4720,13 @@ async function encodeCupLabel(transaction, item, itemIndex, totalItems) {
     ctx.font = "700 13px Geist, system-ui";
     ctx.fillStyle = "#000000";
     ctx.textAlign = "center";
-    ctx.fillText("NORMAL VARIANT", 160, 126);
+    ctx.fillText("NORMAL VARIANT", 160 + offsetX, 126);
   }
 
   // 7. Gambar Garis Pembatas Kedua (di bawah varian, di atas footer)
   ctx.beginPath();
-  ctx.moveTo(10, 134);
-  ctx.lineTo(310, 134);
+  ctx.moveTo(10 + offsetX, 134);
+  ctx.lineTo(310 + offsetX, 134);
   ctx.lineWidth = 1.5;
   ctx.strokeStyle = "#000000";
   ctx.stroke();
@@ -4738,18 +4740,18 @@ async function encodeCupLabel(transaction, item, itemIndex, totalItems) {
   
   // Kode antrean di ujung kiri
   ctx.textAlign = "left";
-  ctx.fillText(orderCode, 10, 150);
+  ctx.fillText(orderCode, 10 + offsetX, 150);
 
   // Nama pelanggan/petugas di tengah
   ctx.textAlign = "center";
-  ctx.fillText(customer, 160, 150);
+  ctx.fillText(customer, 160 + offsetX, 150);
 
   // Penghitung Cup di ujung kanan
   ctx.textAlign = "right";
-  ctx.fillText(counter, 310, 150);
+  ctx.fillText(counter, 310 + offsetX, 150);
 
   // 9. Konversi pixel canvas menjadi bit raster ESC/POS
-  const widthBytes = width / 8; // 320px / 8 = 40 byte lebar
+  const widthBytes = width / 8; // 384px / 8 = 48 byte lebar
   const pixels = ctx.getImageData(0, 0, width, height).data;
   const raster = [];
   for (let y = 0; y < height; y++) {
