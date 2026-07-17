@@ -4730,20 +4730,8 @@ async function getMascotLogoBytes() {
   }
 }
 
-let cachedMascotImage = null;
-
 async function encodeCupLabel(transaction, item, itemIndex, totalItems) {
-  // Tunggu sampai Google Font Geist termuat sempurna di browser
-  await document.fonts.ready;
-
-  if (!cachedMascotImage) {
-    cachedMascotImage = await new Promise((resolve) => {
-      const img = new Image();
-      img.onload = () => resolve(img);
-      img.onerror = () => resolve(null);
-      img.src = "assets/logo-miginew-transparent.png";
-    });
-  }
+  const encoder = new TextEncoder();
 
   const toTitleCase = (str) => {
     return String(str || "")
@@ -4753,146 +4741,107 @@ async function encodeCupLabel(transaction, item, itemIndex, totalItems) {
       .join(" ");
   };
 
-  const wrapTextCanvas = (ctx, text, x, y, maxWidth, lineHeight) => {
+  const wrapText = (text, maxLength) => {
     const words = text.split(" ");
-    let line = "";
-    let currentY = y;
-    for (let n = 0; n < words.length; n++) {
-      let testLine = line + words[n] + " ";
-      let metrics = ctx.measureText(testLine);
-      let testWidth = metrics.width;
-      if (testWidth > maxWidth && n > 0) {
-        ctx.fillText(line, x, currentY);
-        line = words[n] + " ";
-        currentY += lineHeight;
+    const lines = [];
+    let currentLine = "";
+    
+    for (const word of words) {
+      const testLine = currentLine ? (currentLine + " " + word) : word;
+      if (testLine.length <= maxLength) {
+        currentLine = testLine;
       } else {
-        line = testLine;
+        if (currentLine) lines.push(currentLine);
+        if (word.length > maxLength) {
+          lines.push(word);
+          currentLine = "";
+        } else {
+          currentLine = word;
+        }
       }
     }
-    ctx.fillText(line, x, currentY);
+    if (currentLine) lines.push(currentLine);
+    return lines;
+  };
+
+  const formatThreeColumns = (left, center, right, maxLen) => {
+    const leftLen = left.length;
+    const rightLen = right.length;
+    const centerLen = center.length;
+    
+    const totalSpaces = maxLen - leftLen - rightLen;
+    if (totalSpaces <= 0) return left + " " + center + " " + right;
+    
+    const centerStart = Math.floor((maxLen - centerLen) / 2);
+    let line = left;
+    while (line.length < centerStart) {
+      line += " ";
+    }
+    line += center;
+    while (line.length < maxLen - rightLen) {
+      line += " ";
+    }
+    line += right;
+    return line;
   };
 
   const drinkName = toTitleCase(item.name || "Minuman");
-  const customer = toTitleCase(transaction.customer || "Teman Migi");
   const counter = `[${itemIndex + 1}/${totalItems}]`;
   
   const notesText = item.notes || "ICE · NORMAL · REGULAR";
   const tags = notesText.split(" · ").filter(Boolean).map(toTitleCase);
-  const variantLine = tags.join("  *  ");
+  const variantLine = tags.join("   *   ");
 
-  // Printer label EPPOS 58mm (lebar print head 384px / 48mm).
-  // Konten stiker 40mm (320px) diletakkan di tengah dengan padding kiri 16px (2mm) agar pas di stiker pre-cut.
-  const width = 384;
-  const height = 120;
-  const offsetX = 16; // 2mm kiri
-  const stickerWidth = 320; // 40mm stiker
-
-  const canvas = document.createElement("canvas");
-  canvas.width = width;
-  canvas.height = height;
-  const ctx = canvas.getContext("2d", { willReadFrequently: true });
-
-  // 1. Bersihkan background stiker (putih bersih)
-  ctx.fillStyle = "#ffffff";
-  ctx.fillRect(0, 0, width, height);
-
-  // 2. Gambar Logo Kopi Migi Utama di Kanan Atas
-  const mascotSize = 50;
-  if (cachedMascotImage) {
-    ctx.drawImage(cachedMascotImage, offsetX + stickerWidth - mascotSize - 5, 5, mascotSize, mascotSize);
-  }
-
-  // 3. Gambar Tahun Hak Cipta (© 2026) di bawah Logo
-  const year = new Date(transaction.createdAt || Date.now()).getFullYear();
-  ctx.fillStyle = "#000000";
-  ctx.font = "600 9px Geist, system-ui";
-  ctx.textAlign = "right";
-  ctx.textBaseline = "top";
-  ctx.fillText(`© ${year}`, offsetX + stickerWidth - 5, 58);
-
-  // 4. Gambar Nama Menu Utama di Kiri (Rata Kiri, Tebal, font Geist)
-  ctx.fillStyle = "#000000";
-  ctx.font = "700 14px Geist, system-ui";
-  ctx.textAlign = "left";
-  ctx.textBaseline = "top";
-  const maxTextWidth = stickerWidth - mascotSize - 15;
-  wrapTextCanvas(ctx, drinkName, offsetX + 5, 5, maxTextWidth, 17);
-
-  // 5. Gambar Garis Pembatas Pertama
-  ctx.strokeStyle = "#000000";
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo(offsetX, 72);
-  ctx.lineTo(offsetX + stickerWidth, 72);
-  ctx.stroke();
-
-  // 6. Gambar Varian/Notes di tengah
-  ctx.fillStyle = "#000000";
-  ctx.font = "600 10px Geist, system-ui";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "top";
-  ctx.fillText(variantLine, offsetX + stickerWidth / 2, 77);
-
-  // 7. Gambar Garis Pembatas Kedua
-  ctx.beginPath();
-  ctx.moveTo(offsetX, 93);
-  ctx.lineTo(offsetX + stickerWidth, 93);
-  ctx.stroke();
-
-  // 8. Gambar Footer (Kode Order, Customer, Counter)
-  ctx.fillStyle = "#000000";
-  ctx.font = "600 10px Geist, system-ui";
-  ctx.textBaseline = "top";
-
-  // Left: Kode Order
-  ctx.textAlign = "left";
-  ctx.fillText(transaction.orderCode || "Order", offsetX + 5, 98);
-
-  // Center: Customer Name
-  ctx.textAlign = "center";
-  ctx.fillText(customer, offsetX + stickerWidth / 2, 98);
-
-  // Right: Counter
-  ctx.textAlign = "right";
-  ctx.fillText(counter, offsetX + stickerWidth - 5, 98);
-
-  // 9. Konversi pixel canvas menjadi bit raster ESC/POS
-  const widthBytes = width / 8; // 48 byte lebar
-  const pixels = ctx.getImageData(0, 0, width, height).data;
-  const raster = [];
-  for (let y = 0; y < height; y++) {
-    for (let xByte = 0; xByte < widthBytes; xByte++) {
-      let byte = 0;
-      for (let bit = 0; bit < 8; bit++) {
-        const x = xByte * 8 + bit;
-        const index = (y * width + x) * 4;
-        const r = pixels[index];
-        const g = pixels[index + 1];
-        const b = pixels[index + 2];
-        const alpha = pixels[index + 3];
-        const luminance = 0.299 * r + 0.587 * g + 0.114 * b;
-        if (alpha > 128 && luminance < 180) {
-          byte |= (0x80 >> bit);
-        }
-      }
-      raster.push(byte);
-    }
-  }
-
-  const xL = widthBytes & 0xff;
-  const xH = (widthBytes >> 8) & 0xff;
-  const yL = height & 0xff;
-  const yH = (height >> 8) & 0xff;
+  const orderCode = transaction.orderCode || "Order";
+  const username = transactionEmployeeDisplay(transaction) || "kasir";
 
   const ESC = 0x1b, GS = 0x1d;
   const init = [ESC, 0x40];
+  const fontA = [ESC, 0x4d, 0x00]; // Font A
+  const margin = [GS, 0x4c, 0x10, 0x00]; // Margin kiri 2mm
+  const tightSpacing = [ESC, 0x33, 24]; // Spasi baris rapat (24 dots)
+  const alignCenter = [ESC, 0x61, 0x01]; // Rata tengah
+  const alignLeft = [ESC, 0x61, 0x00]; // Rata kiri
+  
+  let payload = [];
+  payload.push(...init);
+  payload.push(...fontA);
+  payload.push(...margin);
+  payload.push(...tightSpacing);
 
-  return new Uint8Array([
-    ...init,
-    GS, 0x76, 0x30, 0x00, xL, xH, yL, yH,
-    ...raster,
-    GS, 0x0c // GS FF (Feed to next label gap)
-  ]);
+  // 1. Nama Menu: Double Size (Double Width & Height) & Bold
+  payload.push(...alignLeft);
+  payload.push(GS, 0x21, 0x11); // GS ! 0x11 (Double size)
+  payload.push(ESC, 0x45, 0x01); // ESC E 1 (Bold)
+  const nameLines = wrapText(drinkName, 14); // Double size max ~14 karakter per baris
+  for (const line of nameLines) {
+    payload.push(...encoder.encode(line + "\n"));
+  }
+
+  // Reset format ke normal
+  payload.push(GS, 0x21, 0x00);
+  payload.push(ESC, 0x45, 0x00);
+
+  // 2. Garis Pembatas Pertama
+  payload.push(...alignCenter);
+  payload.push(...encoder.encode("----------------------------\n"));
+
+  // 3. Varian (Ice * Normal * Regular)
+  payload.push(ESC, 0x45, 0x01); // Bold untuk varian
+  payload.push(...encoder.encode(variantLine + "\n"));
+  payload.push(ESC, 0x45, 0x00);
+
+  // 4. Garis Pembatas Kedua
+  payload.push(...encoder.encode("----------------------------\n"));
+
+  // 5. Footer (Kode Order, Username, Counter)
+  payload.push(...alignLeft);
+  const footerText = formatThreeColumns(orderCode, username, counter, 28);
+  payload.push(...encoder.encode(footerText + "\n"));
+
+  payload.push(GS, 0x0c); // GS FF (Feed to next label gap)
+
+  return new Uint8Array(payload);
 }
 
 async function printCupLabels(transaction) {
