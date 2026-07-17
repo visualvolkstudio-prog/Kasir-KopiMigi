@@ -1163,7 +1163,7 @@ input:focus, select:focus {
 
 .stack-form { display: grid; gap: 13px; margin-top: 14px; }
 .button-row { display: flex; align-items: center; justify-content: space-between; gap: 9px; }
-.hidden-field { display: none; }
+.hidden-field { display: none !important; }
 
 .image-preview {
   min-height: 86px;
