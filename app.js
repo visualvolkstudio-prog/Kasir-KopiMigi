@@ -4017,7 +4017,7 @@ async function startOrder(event) {
     const offlineRecord = {
       ...transaction,
       localId: transaction.id,
-      idempotencyKey: transaction.id,
+      idempotencyKey: state.activeDraftId ? `${transaction.id}-paid` : transaction.id,
       syncStatus: "PENDING_SYNC",
       printStatus: "PRINT_PENDING",
     };
@@ -5356,7 +5356,7 @@ async function saveTransactionEdit(event) {
   history[index] = next;
   writeJson(storageKeys.history, history.slice(0, 2000));
   await saveOfflineTransaction(
-    { ...next, localId: next.id, idempotencyKey: next.id },
+    { ...next, localId: next.id, idempotencyKey: `${next.id}-edit-${Date.now()}` },
     { syncStatus: "PENDING_SYNC", printStatus: next.printStatus || "PRINT_PENDING" },
   ).catch(() => null);
   if (navigator.onLine) {
