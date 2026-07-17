@@ -1,0 +1,13 @@
+{
+  "name": "kasir-kopi-migi",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "node build.js",
+    "dev": "node build.js && npx serve dist -p ${PORT:-3000}"
+  },
+  "devDependencies": {
+    "terser": "^5.31.0",
+    "lightningcss": "^1.25.0"
+  }
+}

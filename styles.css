@@ -199,6 +199,51 @@ h3 { font-size: 16px; font-weight: 700; }
   font-size: 19px;
 }
 
+/* Kitchen badge pada nav tab Order */
+.nav-tab {
+  position: relative; /* Diperlukan untuk penempatan badge secara absolut */
+}
+
+.nav-kitchen-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: #e05a2b;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  display: grid;
+  place-items: center;
+  line-height: 1;
+  border: 2px solid var(--sidebar-bg); /* Garis pembatas agar kontras dengan background */
+  animation: badge-pop 0.25s cubic-bezier(0.34,1.56,0.64,1);
+  pointer-events: none; /* Klik tembus ke tombol */
+}
+
+/* Biar warnanya tetap kontras saat menu sedang aktif/biru */
+.nav-tab.active .nav-kitchen-badge {
+  border-color: var(--accent);
+}
+
+/* Penting: override display:grid supaya hidden attribute tetap berfungsi */
+.nav-kitchen-badge[hidden] { display: none !important; }
+
+@keyframes badge-pop {
+  from { transform: scale(0.5); opacity: 0; }
+  to   { transform: scale(1);   opacity: 1; }
+}
+
+/* Kitchen order card — tampilan lebih menonjol */
+.kitchen-order-card {
+  border-color: #e8a44a !important;
+  background: #fffbf3 !important;
+  box-shadow: 0 0 0 2px rgba(232, 164, 74, 0.18);
+}
+
 /* Shift card */
 .shift-card {
   margin: 10px;
@@ -290,9 +335,65 @@ h3 { font-size: 16px; font-weight: 700; }
   justify-content: space-between;
   gap: 14px;
   margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.section-heading > div:first-child {
+  flex-shrink: 0;
 }
 
 .section-heading > div > h3 { margin-top: 3px; }
+
+/* Cashflow history controls */
+.cashflow-history-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.cashflow-search-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 200px;
+  max-width: 260px;
+}
+
+.cashflow-search-wrap .ph {
+  position: absolute;
+  left: 10px;
+  font-size: 16px;
+  color: var(--muted);
+  pointer-events: none;
+}
+
+.cashflow-search-wrap input[type="search"] {
+  width: 100%;
+  padding: 8px 12px 8px 34px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--soft);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.cashflow-search-wrap input[type="search"]:focus {
+  outline: none;
+  border-color: var(--brand);
+  background: var(--white);
+}
+
+.cashflow-search-wrap input[type="search"]::-webkit-search-cancel-button {
+  cursor: pointer;
+}
+
 
 .menu-section-actions {
   display: flex;
@@ -470,6 +571,7 @@ h3 { font-size: 16px; font-weight: 700; }
   transition: opacity 0.15s ease, transform 0.15s ease;
   z-index: 20;
   overflow: hidden;
+  white-space: normal; /* Prevent inheritance of nowrap from .head-meta */
 }
 
 .printer-dropdown > * { min-width: 0; max-width: 100%; }
@@ -493,6 +595,66 @@ h3 { font-size: 16px; font-weight: 700; }
 
 .printer-hint { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
 .full-button { width: 100%; }
+
+/* Printer icon badge (shows when label printer disconnected) */
+.printer-menu-wrap { position: relative; min-width: 0; }
+.printer-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--amber);
+  border: 2px solid var(--white);
+  pointer-events: none;
+}
+.printer-badge.hidden { display: none; }
+
+/* Printer dropdown tab switcher */
+.printer-tab-bar {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  background: var(--soft);
+  border-radius: 8px;
+  padding: 3px;
+  gap: 3px;
+}
+.printer-tab {
+  padding: 5px 10px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.printer-tab.active {
+  background: var(--white);
+  color: var(--ink);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+}
+
+/* Printer panel sections */
+.printer-panel {
+  display: grid;
+  gap: 11px;
+}
+.printer-panel[hidden] { display: none; }
+
+/* Divider label inside dropdown */
+.printer-section-label {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  margin: 0;
+}
+
 
 /* ── Status Pills ────────────────────────────── */
 .status-pill {
@@ -1717,6 +1879,10 @@ input:focus, select:focus {
   flex: 1;
 }
 
+.cashflow-content-grid {
+  margin-top: 24px;
+}
+
 /* ── Dine In / Take Away Tabs ─────────────────── */
 .dine-take-tabs {
   display: grid;
@@ -2187,7 +2353,14 @@ input:focus, select:focus {
 
 .history-card:hover { box-shadow: var(--shadow-sm); }
 .history-card p { margin: 3px 0 0; color: var(--muted); font-size: 12.5px; }
-.history-actions { display: flex; align-items: center; gap: 7px; }
+
+/* Cashflow Card Modifiers */
+.cashflow-card-in { border-left: 3px solid #2f7a46; }
+.cashflow-card-in strong { color: #2f7a46; }
+
+.cashflow-card-out { border-left: 3px solid #e05c3a; }
+.cashflow-card-out strong { color: #e05c3a; }
+.history-actions { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
 
 .payment-edit-control {
   display: inline-flex;
@@ -2454,6 +2627,106 @@ body.locked .login-screen { display: grid; }
 .order-modal.open { display: grid; }
 .custom-order-modal { z-index: 84; }
 .stock-edit-modal { z-index: 86; }
+#itemCustomModal { z-index: 85; }
+
+/* Compact modal card for custom item options */
+.compact-card {
+  width: min(360px, 100%) !important;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.custom-options-grid {
+  display: grid;
+  gap: 16px;
+  padding: 20px 22px 14px;
+}
+
+.compact-card button[type="submit"] {
+  margin: 0 22px 22px;
+  width: calc(100% - 44px);
+}
+
+#itemCustomModal .segmented button {
+  flex: 1;
+  text-align: center;
+}
+
+#itemCustomModal .segmented button:focus,
+#itemCustomModal .segmented button:active {
+  outline: none;
+  box-shadow: var(--shadow-sm); /* Keep the subtle card shadow, but remove outline */
+}
+
+.custom-group {
+  display: grid;
+  gap: 6px;
+}
+
+.custom-label {
+  font-size: 11.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  margin: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.custom-group input[type="text"] {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--soft);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink);
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.custom-group input[type="text"]:focus {
+  outline: none;
+  border-color: var(--brand);
+  background: var(--white);
+}
+
+/* Edit icon on cart item */
+.cart-item-edit-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--white);
+  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.12s;
+  margin-left: 6px;
+}
+
+.cart-item-edit-btn:hover {
+  background: var(--soft);
+  color: var(--ink);
+  border-color: var(--muted);
+}
+
+/* Badge for active variants under item name in cart */
+.item-notes-badge {
+  display: inline-block;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--brand);
+  background: rgba(0, 52, 155, 0.06);
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-top: 4px;
+  letter-spacing: 0.02em;
+}
 
 .login-card {
   width: min(380px, 100%);
@@ -2471,6 +2744,36 @@ body.locked .login-screen { display: grid; }
 .login-hint { margin: 0; color: var(--muted); font-size: 11.5px; font-weight: 600; }
 .login-card:not(.employee-step) .login-session-grid { display: none; }
 .login-card.employee-step .login-credential-field { display: none; }
+
+/* Password show/hide toggle */
+.password-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.password-input-wrap input {
+  width: 100%;
+  padding-right: 40px; /* ruang untuk tombol */
+}
+
+.password-toggle {
+  position: absolute;
+  right: 10px;
+  background: none;
+  border: none;
+  padding: 4px;
+  cursor: pointer;
+  color: var(--muted);
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  transition: color 0.15s;
+  line-height: 1;
+}
+
+.password-toggle:hover { color: var(--ink); }
+.password-toggle .ph { font-size: 18px; }
 .login-session-grid {
   display: grid;
   grid-template-columns: 0.8fr 1.2fr;
@@ -3137,6 +3440,8 @@ body.locked .login-screen { display: grid; }
   .analytics-actions { width: 100%; justify-content: flex-start; }
   .cashflow-controls input { width: min(180px, 100%); }
   .cashflow-filter-tabs { width: 100%; }
+  .cashflow-history-controls { width: 100%; justify-content: flex-start; flex-direction: column; align-items: stretch; }
+  .cashflow-search-wrap { max-width: 100%; }
   .daily-summary { grid-template-columns: 1fr; }
   .voucher-field-grid,
   .discount-analytics-row {

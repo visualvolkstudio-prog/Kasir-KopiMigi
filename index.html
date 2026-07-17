@@ -13,6 +13,9 @@
     <link rel="icon" href="/assets/favicon-migi.png?v=18" />
     <link rel="apple-touch-icon" href="/assets/pwa-icon-512.png?v=18" />
     <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css?v=18" />
   </head>
   <body>
@@ -27,7 +30,12 @@
         </label>
         <label class="login-credential-field">
           Password
-          <input id="loginPassword" type="password" autocomplete="current-password" placeholder="Password" required />
+          <div class="password-input-wrap">
+            <input id="loginPassword" type="password" autocomplete="current-password" placeholder="Password" required />
+            <button type="button" class="password-toggle" id="toggleLoginPassword" aria-label="Tampilkan password" tabindex="-1">
+              <i class="ph ph-eye" id="toggleLoginPasswordIcon"></i>
+            </button>
+          </div>
         </label>
         <div class="login-session-grid">
           <label>
@@ -404,11 +412,12 @@
             </span>
             <span class="nav-label">Kasir</span>
           </button>
-          <button class="nav-tab" data-view="orders" type="button">
+          <button class="nav-tab" data-view="orders" type="button" id="navTabOrders">
             <span class="tab-icon" aria-hidden="true">
               <i class="ph ph-receipt"></i>
             </span>
             <span class="nav-label">Order</span>
+            <span class="nav-kitchen-badge" id="navKitchenBadge" hidden>0</span>
           </button>
           <button class="nav-tab" data-view="menu" type="button">
             <span class="tab-icon" aria-hidden="true">
@@ -470,24 +479,55 @@
               <button class="printer-toggle disconnected" id="printerToggle" type="button" title="Printer termal" aria-expanded="false">
                 <i class="ph ph-printer" aria-hidden="true"></i>
               </button>
+              <span class="printer-badge hidden" id="printerBadge" title="Label printer belum tersambung"></span>
               <div class="printer-dropdown" id="printerDropdown">
-                <div class="printer-dropdown-head">
-                  <div>
-                    <p class="eyebrow">Printer Bluetooth</p>
-                    <strong>Thermal Receipt</strong>
-                  </div>
-                  <span class="printer-status disconnected" id="printerStatus">Terputus</span>
+                <!-- Tab bar -->
+                <div class="printer-tab-bar" role="tablist" aria-label="Pilih printer">
+                  <button class="printer-tab active" id="printerTabKasir" data-printer-tab="kasir" role="tab" aria-selected="true" type="button">🧾 Kasir</button>
+                  <button class="printer-tab" id="printerTabLabel" data-printer-tab="label" role="tab" aria-selected="false" type="button">🏷️ Label Cup</button>
                 </div>
-                <label>
-                  Ukuran kertas
-                  <select id="printerPaperSize">
-                    <option value="58mm">58mm</option>
-                    <option value="80mm">80mm</option>
-                  </select>
-                </label>
-                <button class="primary-button full-button" id="connectPrinter" type="button">Sambungkan Printer</button>
-                <button class="secondary-button full-button" id="testLogoPrint" type="button">Test Logo</button>
-                <p class="printer-hint" id="printerHint">Gunakan Chrome/Brave desktop jika tombol Bluetooth tidak muncul.</p>
+
+                <!-- Panel: Printer Kasir -->
+                <div class="printer-panel" id="printerPanelKasir">
+                  <div class="printer-dropdown-head">
+                    <div>
+                      <p class="eyebrow">Printer Bluetooth</p>
+                      <strong>Struk Pelanggan</strong>
+                    </div>
+                    <span class="printer-status disconnected" id="printerStatus">Terputus</span>
+                  </div>
+                  <label>
+                    Ukuran kertas
+                    <select id="printerPaperSize">
+                      <option value="58mm">58mm</option>
+                      <option value="80mm">80mm</option>
+                    </select>
+                  </label>
+                  <button class="primary-button full-button" id="connectPrinter" type="button">Sambungkan Printer</button>
+                  <button class="secondary-button full-button" id="testLogoPrint" type="button">Test Logo</button>
+                  <p class="printer-hint" id="printerHint">Gunakan Chrome/Brave desktop jika tombol Bluetooth tidak muncul.</p>
+                </div>
+
+                <!-- Panel: Printer Label Cup -->
+                <div class="printer-panel" id="printerPanelLabel" hidden>
+                  <div class="printer-dropdown-head">
+                    <div>
+                      <p class="eyebrow">Printer Label</p>
+                      <strong>Label Cup / Kemasan</strong>
+                    </div>
+                    <span class="printer-status disconnected" id="labelPrinterStatus">Terputus</span>
+                  </div>
+                  <label>
+                    Lebar kertas label
+                    <select id="labelPrinterPaperSize">
+                      <option value="40mm">40mm</option>
+                      <option value="58mm">58mm</option>
+                    </select>
+                  </label>
+                  <button class="primary-button full-button" id="connectLabelPrinter" type="button">Sambungkan Label Printer</button>
+                  <button class="secondary-button full-button" id="testLabelPrint" type="button">Test Label</button>
+                  <p class="printer-hint" id="labelPrinterHint">Label dicetak otomatis per item minuman saat checkout.</p>
+                </div>
               </div>
             </div>
           </div>
@@ -551,7 +591,8 @@
             </div>
             <div class="segmented order-status-tabs" id="orderStatusTabs" role="tablist" aria-label="Status order">
               <button class="active" data-order-status="unpaid" type="button">Belum Dibayar <span id="unpaidOrderCount">0</span></button>
-              <button data-order-status="paid" type="button">Sudah Dibayar <span id="paidOrderCount">0</span></button>
+              <button data-order-status="kitchen" type="button">Diproses <span id="kitchenOrderCount">0</span></button>
+              <button data-order-status="paid" type="button">Selesai <span id="paidOrderCount">0</span></button>
             </div>
             <input class="order-date-filter" id="paidOrderDate" type="date" hidden />
             <div class="segmented order-category-tabs" id="paidOrderCategoryTabs" role="tablist" aria-label="Kategori order sudah dibayar" hidden></div>
@@ -593,6 +634,10 @@
                 <label>
                   Harga
                   <input id="menuPrice" type="text" inputmode="numeric" placeholder="Rp 25.000" required />
+                </label>
+                <label class="toggle-line">
+                  <input id="menuPrintLabel" type="checkbox" checked />
+                  Cetak stiker label cup untuk produk ini
                 </label>
                 <label>
                   Gambar menu
@@ -737,7 +782,7 @@
             </article>
           </div>
 
-          <div class="analytics-grid" style="margin-top:24px;">
+          <div class="analytics-grid cashflow-content-grid">
             <!-- Form tambah pengeluaran manual -->
             <section class="settings-panel">
               <div class="section-heading">
@@ -790,6 +835,12 @@
                 <div>
                   <p class="eyebrow">Riwayat</p>
                   <h3>Mutasi Kas per Hari</h3>
+                </div>
+              </div>
+              <div class="cashflow-history-controls">
+                <div class="cashflow-search-wrap">
+                  <i class="ph ph-magnifying-glass" aria-hidden="true"></i>
+                  <input type="search" id="cashflowSearch" placeholder="Cari mutasi..." autocomplete="off" />
                 </div>
                 <div class="segmented cashflow-filter-tabs" id="cfFilterTabs" role="tablist" aria-label="Filter mutasi arus kas">
                   <button class="active" data-cf-filter="all" type="button">Semua</button>
@@ -994,16 +1045,41 @@
                   <input id="wifiReceiptEnabled" type="checkbox" />
                   Cetak QR WiFi pada struk lunas
                 </label>
-                <label>
-                  Nama WiFi
-                  <input id="wifiName" type="text" autocomplete="off" placeholder="Kopi Migi Guest" />
-                </label>
-                <label>
-                  Password WiFi
-                  <input id="wifiPassword" type="password" autocomplete="new-password" placeholder="Masukkan password WiFi tamu" />
-                </label>
-                <p class="settings-note">Gunakan jaringan WiFi tamu. QR dicetak sebelum ucapan terima kasih.</p>
-                <button class="primary-button" type="submit">Simpan Pengaturan WiFi</button>
+                
+                <!-- Info Tampilan Saat WiFi Aktif (Menyembunyikan Form Edit) -->
+                <div id="wifiDisplayInfo" class="menu-row hidden-field" style="margin-top: 10px;">
+                  <div class="menu-row-main">
+                    <span class="menu-thumb" style="background: rgba(0, 52, 155, 0.06); border-radius: 8px; display: flex; justify-content: center; align-items: center; width: 42px; height: 42px;">
+                      <i class="ph ph-wifi-high" style="font-size: 20px; color: var(--accent);"></i>
+                    </span>
+                    <div>
+                      <strong id="wifiDisplaySsid" style="font-size: 13px; color: var(--ink);">Kopi Migi Guest</strong>
+                      <span id="wifiDisplayPassword" style="font-size: 11px; color: var(--muted); display: block; margin-top: 2px;">Password: ••••••••</span>
+                    </div>
+                  </div>
+                  <div class="history-actions">
+                    <button type="button" class="secondary-button compact" id="btnEditWifi">Edit</button>
+                  </div>
+                </div>
+
+                <!-- Form Edit/Input WiFi -->
+                <div id="wifiFieldsContainer" class="wifi-fields-container hidden-field" style="margin-top: 10px; display: flex; flex-direction: column; gap: 10px;">
+                  <label>
+                    Nama WiFi
+                    <input id="wifiName" type="text" autocomplete="off" placeholder="Kopi Migi Guest" />
+                  </label>
+                  <label>
+                    Password WiFi
+                    <div class="password-input-wrap">
+                      <input id="wifiPassword" type="password" autocomplete="new-password" placeholder="Masukkan password WiFi tamu" />
+                      <button type="button" class="password-toggle" id="toggleWifiPassword" aria-label="Tampilkan password" tabindex="-1">
+                        <i class="ph ph-eye" id="toggleWifiPasswordIcon"></i>
+                      </button>
+                    </div>
+                  </label>
+                  <p class="settings-note" style="margin: 0; font-size: 11px; color: var(--muted);">Gunakan jaringan WiFi tamu. QR dicetak sebelum ucapan terima kasih.</p>
+                  <button class="primary-button" type="submit">Simpan Pengaturan WiFi</button>
+                </div>
               </form>
             </section>
             <section class="settings-panel">
@@ -1028,10 +1104,64 @@
       </main>
     </div>
 
+    <section class="order-modal" id="itemCustomModal" aria-label="Kustomisasi Item" aria-hidden="true">
+      <form class="order-card compact-card" id="itemCustomForm">
+        <div class="modal-head">
+          <div>
+            <p class="eyebrow">Kustomisasi</p>
+            <h2 id="customItemName">Nama Minuman</h2>
+          </div>
+          <button class="icon-button modal-close" id="closeItemCustom" type="button">
+            <i class="ph ph-x"></i>
+          </button>
+        </div>
+        
+        <div class="custom-options-grid">
+          <!-- Pilihan Suhu -->
+          <div class="custom-group">
+            <p class="custom-label">Suhu</p>
+            <div class="segmented" role="radiogroup" id="customTemp">
+              <button type="button" class="active" data-value="ICE">Dingin (Ice)</button>
+              <button type="button" data-value="HOT">Panas (Hot)</button>
+            </div>
+          </div>
+          
+          <!-- Pilihan Gula -->
+          <div class="custom-group">
+            <p class="custom-label">Level Gula</p>
+            <div class="segmented" role="radiogroup" id="customSugar">
+              <button type="button" class="active" data-value="NORMAL">Normal</button>
+              <button type="button" data-value="LESS SUGAR">Less Sugar</button>
+              <button type="button" data-value="NO SUGAR">No Sugar</button>
+            </div>
+          </div>
+
+          <!-- Pilihan Ukuran -->
+          <div class="custom-group">
+            <p class="custom-label">Ukuran</p>
+            <div class="segmented" role="radiogroup" id="customSize">
+              <button type="button" class="active" data-value="REGULAR">Regular</button>
+              <button type="button" data-value="LARGE">Large</button>
+            </div>
+          </div>
+
+          <!-- Catatan Custom -->
+          <div class="custom-group">
+            <label class="custom-label" for="customTextNote">
+              Catatan Tambahan
+              <input type="text" id="customTextNote" placeholder="Contoh: extra shot, creamer, dll" autocomplete="off" />
+            </label>
+          </div>
+        </div>
+
+        <button class="primary-button full-button" type="submit">Simpan Kustomisasi</button>
+      </form>
+    </section>
+
     <section class="receipt-paper" id="receiptPaper" aria-label="Struk cetak"></section>
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-    <script src="app.js?v=29"></script>
+    <script src="app.js?v=30"></script>
   </body>
 </html>

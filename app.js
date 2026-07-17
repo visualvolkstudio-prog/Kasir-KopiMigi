@@ -1,14 +1,14 @@
 const defaultMenu = [
-  { id: "esp", name: "Espresso", category: "Kopi", price: 18000 },
-  { id: "cap", name: "Cappuccino", category: "Kopi", price: 28000 },
-  { id: "lat", name: "Cafe Latte", category: "Kopi", price: 30000 },
-  { id: "aren", name: "Kopi Susu Aren", category: "Kopi", price: 26000 },
-  { id: "matcha", name: "Matcha Latte", category: "Non Kopi", price: 32000 },
-  { id: "choco", name: "Iced Chocolate", category: "Non Kopi", price: 29000 },
-  { id: "croissant", name: "Butter Croissant", category: "Snack", price: 24000 },
-  { id: "toast", name: "Smoked Beef Toast", category: "Snack", price: 36000 },
-  { id: "pb-classic", name: "Photobooth Classic", category: "Photobooth", price: 45000, boothPackage: "classic" },
-  { id: "pb-premium", name: "Photobooth Premium", category: "Photobooth", price: 75000, boothPackage: "premium" },
+  { id: "esp", name: "Espresso", category: "Kopi", price: 18000, printLabel: true },
+  { id: "cap", name: "Cappuccino", category: "Kopi", price: 28000, printLabel: true },
+  { id: "lat", name: "Cafe Latte", category: "Kopi", price: 30000, printLabel: true },
+  { id: "aren", name: "Kopi Susu Aren", category: "Kopi", price: 26000, printLabel: true },
+  { id: "matcha", name: "Matcha Latte", category: "Non Kopi", price: 32000, printLabel: true },
+  { id: "choco", name: "Iced Chocolate", category: "Non Kopi", price: 29000, printLabel: true },
+  { id: "croissant", name: "Butter Croissant", category: "Snack", price: 24000, printLabel: false },
+  { id: "toast", name: "Smoked Beef Toast", category: "Snack", price: 36000, printLabel: false },
+  { id: "pb-classic", name: "Photobooth Classic", category: "Photobooth", price: 45000, boothPackage: "classic", printLabel: false },
+  { id: "pb-premium", name: "Photobooth Premium", category: "Photobooth", price: 75000, boothPackage: "premium", printLabel: false },
 ];
 
 const storageKeys = {
@@ -94,6 +94,7 @@ const state = {
   editingTransactionId: "",
   editingTransactionItems: [],
   menuSaving: false,
+  wifiEditing: false,
   reportShareText: "",
   analyticsPeriodKey: "",
   analyticsPeriodTransactions: [],
@@ -111,6 +112,8 @@ const state = {
   pendingSyncCount: 0,
   printerDevice: null,
   printerCharacteristic: null,
+  labelPrinterDevice: null,
+  labelPrinterCharacteristic: null,
 };
 
 const bleServiceUuids = [
@@ -144,6 +147,8 @@ const els = {
   loginForm: document.querySelector("#loginForm"),
   loginUsername: document.querySelector("#loginUsername"),
   loginPassword: document.querySelector("#loginPassword"),
+  toggleLoginPassword: document.querySelector("#toggleLoginPassword"),
+  toggleLoginPasswordIcon: document.querySelector("#toggleLoginPasswordIcon"),
   loginShift: document.querySelector("#loginShift"),
   loginEmployee: document.querySelector("#loginEmployee"),
   loginDutyRoleWrap: document.querySelector("#loginDutyRoleWrap"),
@@ -195,6 +200,13 @@ const els = {
   wifiReceiptEnabled: document.querySelector("#wifiReceiptEnabled"),
   wifiName: document.querySelector("#wifiName"),
   wifiPassword: document.querySelector("#wifiPassword"),
+  toggleWifiPassword: document.querySelector("#toggleWifiPassword"),
+  toggleWifiPasswordIcon: document.querySelector("#toggleWifiPasswordIcon"),
+  wifiDisplayInfo: document.querySelector("#wifiDisplayInfo"),
+  wifiDisplaySsid: document.querySelector("#wifiDisplaySsid"),
+  wifiDisplayPassword: document.querySelector("#wifiDisplayPassword"),
+  btnEditWifi: document.querySelector("#btnEditWifi"),
+  wifiFieldsContainer: document.querySelector("#wifiFieldsContainer"),
   checkoutWifiLine: document.querySelector("#checkoutWifiLine"),
   checkoutWifiReceipt: document.querySelector("#checkoutWifiReceipt"),
   transactionEditModal: document.querySelector("#transactionEditModal"),
@@ -218,6 +230,24 @@ const els = {
   connectPrinter: document.querySelector("#connectPrinter"),
   testLogoPrint: document.querySelector("#testLogoPrint"),
   printerHint: document.querySelector("#printerHint"),
+  printerBadge: document.querySelector("#printerBadge"),
+  printerTabKasir: document.querySelector("#printerTabKasir"),
+  printerTabLabel: document.querySelector("#printerTabLabel"),
+  printerPanelKasir: document.querySelector("#printerPanelKasir"),
+  printerPanelLabel: document.querySelector("#printerPanelLabel"),
+  labelPrinterStatus: document.querySelector("#labelPrinterStatus"),
+  labelPrinterPaperSize: document.querySelector("#labelPrinterPaperSize"),
+  connectLabelPrinter: document.querySelector("#connectLabelPrinter"),
+  testLabelPrint: document.querySelector("#testLabelPrint"),
+  labelPrinterHint: document.querySelector("#labelPrinterHint"),
+  itemCustomModal: document.querySelector("#itemCustomModal"),
+  itemCustomForm: document.querySelector("#itemCustomForm"),
+  customItemName: document.querySelector("#customItemName"),
+  closeItemCustom: document.querySelector("#closeItemCustom"),
+  customTemp: document.querySelector("#customTemp"),
+  customSugar: document.querySelector("#customSugar"),
+  customSize: document.querySelector("#customSize"),
+  customTextNote: document.querySelector("#customTextNote"),
   categoryTabs: document.querySelector("#categoryTabs"),
   menuGrid: document.querySelector("#menuGrid"),
   menuSearch: document.querySelector("#menuSearch"),
@@ -285,6 +315,7 @@ const els = {
   orderStatusTabs: document.querySelector("#orderStatusTabs"),
   orderList: document.querySelector("#orderList"),
   unpaidOrderCount: document.querySelector("#unpaidOrderCount"),
+  kitchenOrderCount: document.querySelector("#kitchenOrderCount"),
   paidOrderCount: document.querySelector("#paidOrderCount"),
   paidOrderDate: document.querySelector("#paidOrderDate"),
   paidOrderCategoryTabs: document.querySelector("#paidOrderCategoryTabs"),
@@ -323,6 +354,7 @@ const els = {
   menuImageFile: document.querySelector("#menuImageFile"),
   menuImage: document.querySelector("#menuImage"),
   menuImagePreview: document.querySelector("#menuImagePreview"),
+  menuPrintLabel: document.querySelector("#menuPrintLabel"),
   cancelMenuEdit: document.querySelector("#cancelMenuEdit"),
   menuTable: document.querySelector("#menuTable"),
   menuEditSearch: document.querySelector("#menuEditSearch"),
@@ -354,6 +386,7 @@ const els = {
   cfExpenseAmount: document.querySelector("#cfExpenseAmount"),
   cfExpenseCategory: document.querySelector("#cfExpenseCategory"),
   cashflowList: document.querySelector("#cashflowList"),
+  cashflowSearch: document.querySelector("#cashflowSearch"),
   cfTotalIn: document.querySelector("#cfTotalIn"),
   cfTotalOut: document.querySelector("#cfTotalOut"),
   cfNet: document.querySelector("#cfNet"),
@@ -1388,10 +1421,14 @@ function applyAccessControls() {
   document.body.classList.toggle("role-cashier", isLoggedIn() && isCashier());
   document.querySelector('[data-view="cashflow"]')?.classList.toggle("owner-only", !owner);
   document.querySelector("#view-cashflow")?.classList.toggle("owner-only", !owner);
+  document.querySelector('[data-view="menu"]')?.classList.toggle("owner-only", !owner);
+  document.querySelector("#view-menu")?.classList.toggle("owner-only", !owner);
   document.querySelector("#view-stock .inventory-grid > .settings-panel")?.classList.toggle("owner-only", !owner);
   els.employeeAddForm?.classList.toggle("owner-only", !owner);
   els.employeeList?.classList.toggle("owner-only", !owner);
-  if (!owner && document.querySelector("#view-cashflow")?.classList.contains("active")) setActiveView("pos");
+  if (!owner && (document.querySelector("#view-cashflow")?.classList.contains("active") || document.querySelector("#view-menu")?.classList.contains("active"))) {
+    setActiveView("pos");
+  }
 }
 
 function markShiftActionOnce(action, date = new Date()) {
@@ -1510,6 +1547,13 @@ function patchLocalHistoryTransaction(id, patch) {
   if (index === -1) return;
   history[index] = { ...history[index], ...patch };
   writeJson(storageKeys.history, history.slice(0, 2000));
+}
+
+function patchAnalyticsPeriodTransaction(id, patch) {
+  if (!Array.isArray(state.analyticsPeriodTransactions)) return;
+  state.analyticsPeriodTransactions = state.analyticsPeriodTransactions.map((entry) => (
+    entry.id === id ? { ...entry, ...patch } : entry
+  ));
 }
 
 function getInventory() {
@@ -1744,12 +1788,52 @@ function saveWifiReceiptSettings(settings) {
   markSettingsDirty();
 }
 
+function toggleWifiFields() {
+  if (!els.wifiReceiptEnabled) return;
+  const enabled = els.wifiReceiptEnabled.checked;
+  const settings = getWifiReceiptSettings();
+  const hasSettings = Boolean(settings.ssid && settings.password);
+
+  if (!enabled) {
+    els.wifiDisplayInfo?.classList.add("hidden-field");
+    els.wifiFieldsContainer?.classList.add("hidden-field");
+  } else {
+    if (state.wifiEditing || !hasSettings) {
+      els.wifiDisplayInfo?.classList.add("hidden-field");
+      els.wifiFieldsContainer?.classList.remove("hidden-field");
+    } else {
+      els.wifiDisplayInfo?.classList.remove("hidden-field");
+      if (els.wifiDisplaySsid) {
+        els.wifiDisplaySsid.textContent = settings.ssid || "";
+      }
+      if (els.wifiDisplayPassword) {
+        const masked = "•".repeat(Math.max(4, settings.password ? settings.password.length : 8));
+        els.wifiDisplayPassword.textContent = `Password: ${masked}`;
+      }
+      els.wifiFieldsContainer?.classList.add("hidden-field");
+    }
+  }
+}
+
 function renderWifiReceiptSettings() {
   if (!els.wifiSettingsForm) return;
   const settings = getWifiReceiptSettings();
   els.wifiReceiptEnabled.checked = settings.enabled;
-  els.wifiName.value = settings.ssid;
-  els.wifiPassword.value = settings.password;
+  els.wifiName.value = settings.ssid || "";
+  els.wifiPassword.value = settings.password || "";
+
+  // Reset password field to masked type on render
+  if (els.wifiPassword) {
+    els.wifiPassword.type = "password";
+  }
+  if (els.toggleWifiPasswordIcon) {
+    els.toggleWifiPasswordIcon.className = "ph ph-eye";
+  }
+  if (els.toggleWifiPassword) {
+    els.toggleWifiPassword.setAttribute("aria-label", "Tampilkan password");
+  }
+
+  toggleWifiFields();
 }
 
 function canPrintWifiReceipt() {
@@ -2274,6 +2358,12 @@ function setPrinterStatus(status, tone, hint) {
   els.connectPrinter.textContent = tone === "connected" ? "Ganti Printer" : tone === "connecting" ? "Menghubungkan..." : "Sambungkan Printer";
   els.connectPrinter.disabled = tone === "connecting";
   els.printerHint.textContent = hint;
+
+  // Badge on printer icon: show amber dot when label printer disconnected (and kasir connected)
+  if (els.printerBadge) {
+    const showBadge = state.printerCharacteristic && !state.labelPrinterCharacteristic;
+    els.printerBadge.classList.toggle("hidden", !showBadge);
+  }
 }
 
 function togglePrinterDropdown(force) {
@@ -2281,6 +2371,33 @@ function togglePrinterDropdown(force) {
   els.printerDropdown.classList.toggle("open", isOpen);
   els.printerToggle.classList.toggle("active", isOpen);
   els.printerToggle.setAttribute("aria-expanded", String(isOpen));
+}
+
+function setLabelPrinterStatus(status, tone, hint) {
+  if (els.labelPrinterStatus) {
+    els.labelPrinterStatus.textContent = status;
+    els.labelPrinterStatus.className = `printer-status ${tone}`;
+  }
+  if (els.connectLabelPrinter) {
+    els.connectLabelPrinter.textContent = tone === "connected" ? "Ganti Label Printer" : tone === "connecting" ? "Menghubungkan..." : "Sambungkan Label Printer";
+    els.connectLabelPrinter.disabled = tone === "connecting";
+  }
+  if (els.labelPrinterHint) els.labelPrinterHint.textContent = hint;
+  // Badge on printer icon: show amber dot when label printer disconnected (and kasir connected)
+  if (els.printerBadge) {
+    const showBadge = state.printerCharacteristic && !state.labelPrinterCharacteristic;
+    els.printerBadge.classList.toggle("hidden", !showBadge);
+  }
+}
+
+function switchPrinterTab(tab) {
+  const isKasir = tab === "kasir";
+  els.printerTabKasir?.classList.toggle("active", isKasir);
+  els.printerTabKasir?.setAttribute("aria-selected", String(isKasir));
+  els.printerTabLabel?.classList.toggle("active", !isKasir);
+  els.printerTabLabel?.setAttribute("aria-selected", String(!isKasir));
+  if (els.printerPanelKasir) els.printerPanelKasir.hidden = !isKasir;
+  if (els.printerPanelLabel) els.printerPanelLabel.hidden = isKasir;
 }
 
 async function toggleFullscreen() {
@@ -2358,6 +2475,59 @@ async function connectPrinter() {
   }
 }
 
+async function connectLabelPrinter() {
+  if (!navigator.bluetooth) {
+    toast("Web Bluetooth belum didukung. Coba Chrome atau Brave desktop.");
+    setLabelPrinterStatus("Tidak didukung", "disconnected", "Browser ini belum mendukung Web Bluetooth.");
+    return;
+  }
+
+  setLabelPrinterStatus("Menghubungkan", "connecting", "Pilih printer label ESC/POS dari dialog Bluetooth.");
+  try {
+    state.labelPrinterDevice = await navigator.bluetooth.requestDevice({
+      acceptAllDevices: true,
+      optionalServices: bleServiceUuids,
+    });
+
+    state.labelPrinterDevice.addEventListener("gattserverdisconnected", () => {
+      state.labelPrinterCharacteristic = null;
+      setLabelPrinterStatus("Terputus", "disconnected", "Label printer terputus. Sambungkan ulang.");
+      toast("Label printer Bluetooth terputus.");
+    });
+
+    const server = await state.labelPrinterDevice.gatt.connect();
+    let service = null;
+    for (const uuid of bleServiceUuids) {
+      try { service = await server.getPrimaryService(uuid); break; } catch {}
+    }
+    if (!service) {
+      const services = await server.getPrimaryServices();
+      service = services[0];
+    }
+    if (!service) throw new Error("Service label printer tidak ditemukan.");
+
+    let characteristic = null;
+    for (const uuid of bleCharacteristicUuids) {
+      try { characteristic = await service.getCharacteristic(uuid); break; } catch {}
+    }
+    if (!characteristic) {
+      const chars = await service.getCharacteristics();
+      characteristic = chars.find((entry) => entry.properties.write || entry.properties.writeWithoutResponse);
+    }
+    if (!characteristic) throw new Error("Characteristic label printer tidak ditemukan.");
+
+    state.labelPrinterCharacteristic = characteristic;
+    setLabelPrinterStatus("Tersambung", "connected", `${state.labelPrinterDevice.name || "Label Printer"} siap cetak label cup.`);
+    toast("Label printer tersambung.");
+  } catch (error) {
+    state.labelPrinterCharacteristic = null;
+    setLabelPrinterStatus("Terputus", "disconnected", "Koneksi gagal atau dibatalkan. Coba sambungkan lagi.");
+    if (!String(error.message).toLowerCase().includes("cancel")) {
+      toast(`Koneksi label printer gagal: ${error.message}`);
+    }
+  }
+}
+
 async function testLogoPrint() {
   if (!state.printerCharacteristic) {
     toast("Sambungkan printer dulu untuk test logo.");
@@ -2382,6 +2552,42 @@ async function testLogoPrint() {
   } finally {
     els.testLogoPrint.disabled = false;
     els.testLogoPrint.textContent = "Test Logo";
+  }
+}
+
+async function testLabelPrint() {
+  if (!state.labelPrinterCharacteristic) {
+    toast("Sambungkan printer label dulu untuk test label.");
+    togglePrinterDropdown(true);
+    switchPrinterTab("label");
+    return;
+  }
+
+  try {
+    if (els.testLabelPrint) {
+      els.testLabelPrint.disabled = true;
+      els.testLabelPrint.textContent = "Mengirim...";
+    }
+    const mockTransaction = {
+      orderCode: "999",
+      customer: "Test Migi",
+      serviceType: "dine_in",
+      createdAt: new Date().toISOString()
+    };
+    const mockItem = {
+      name: "KOPI SUSU MIGI",
+      notes: "ICE · REGULAR · LESS SUGAR"
+    };
+    const bytes = await encodeCupLabel(mockTransaction, mockItem, 0, 1);
+    await writeLabelPrinterChunks(bytes);
+    toast("Test label dikirim ke printer.");
+  } catch (error) {
+    toast(`Test label gagal: ${error.message}`);
+  } finally {
+    if (els.testLabelPrint) {
+      els.testLabelPrint.disabled = false;
+      els.testLabelPrint.textContent = "Test Label";
+    }
   }
 }
 
@@ -2583,6 +2789,19 @@ function isUnpaidTransaction(transaction = {}) {
 
 function isPaidTransaction(transaction = {}) {
   return !isUnpaidTransaction(transaction);
+}
+
+function kitchenStatus(transaction = {}) {
+  if (!isPaidTransaction(transaction)) return "";
+  return String(transaction.kitchenStatus || "").toLowerCase() || "done";
+}
+
+function isKitchenPendingTransaction(transaction = {}) {
+  return isPaidTransaction(transaction) && kitchenStatus(transaction) !== "done";
+}
+
+function isKitchenDoneTransaction(transaction = {}) {
+  return isPaidTransaction(transaction) && kitchenStatus(transaction) === "done";
 }
 
 function revenueTransactions(list) {
@@ -3285,6 +3504,16 @@ function renderCashflow() {
   if (activeFilter === "in") combined = combined.filter((entry) => entry.type === "in");
   if (!["all", "in"].includes(activeFilter)) combined = combined.filter((entry) => entry.type === "out" && entry.category === activeFilter);
 
+  // Filter by search query
+  const searchQuery = (els.cashflowSearch?.value || "").trim().toLowerCase();
+  if (searchQuery) {
+    combined = combined.filter((entry) =>
+      (entry.label || "").toLowerCase().includes(searchQuery) ||
+      (entry.note || "").toLowerCase().includes(searchQuery) ||
+      (entry.category || "").toLowerCase().includes(searchQuery)
+    );
+  }
+
   if (els.cashflowList) {
     const grouped = combined.reduce((map, entry) => {
       const key = entry.reportDate || dateKey(entry.createdAt);
@@ -3303,11 +3532,11 @@ function renderCashflow() {
                 <span>Masuk ${money(dayTotalIn)} · Keluar ${money(dayTotalOut)}</span>
               </div>
               ${entries.map((entry) => `
-                <article class="history-card" style="border-left:3px solid ${entry.type === "in" ? "#2f7a46" : "#e05c3a"};">
-                  <div style="flex:1;">
-                    <strong style="color:${entry.type === "in" ? "#2f7a46" : "#e05c3a"}">${entry.type === "in" ? "+" : "-"}${money(entry.amount)}</strong>
+                <article class="history-card ${entry.type === "in" ? "cashflow-card-in" : "cashflow-card-out"}">
+                  <div class="history-card-content">
+                    <strong>${entry.type === "in" ? "+" : "-"}${money(entry.amount)}</strong>
                     <p>${entry.label}</p>
-                    <p style="color:var(--muted)">${entry.note} · ${new Date(entry.createdAt).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}</p>
+                    <p class="history-card-note">${entry.note} · ${new Date(entry.createdAt).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}</p>
                   </div>
                   ${entry.type === "out" ? `<button class="secondary-button compact danger-text" data-delete-expense="${entry.id}" type="button">Hapus</button>` : ""}
                 </article>
@@ -3439,6 +3668,7 @@ function lineItemMergeKey(item = {}) {
     String(item.category || "").trim().toLowerCase(),
     Number(item.price || 0),
     item.isCustomOrder ? "custom" : "menu",
+    String(item.notes || "").trim().toLowerCase(),
     stockUsage,
   ].join("|");
 }
@@ -3536,12 +3766,14 @@ function renderCart() {
               <div>
                 <strong>${item.name}</strong>
                 <span>${money(item.price)} x ${item.qty}${item.isCustomOrder ? " · Custom" : ""}</span>
+                ${item.notes ? `<div class="item-notes-badge">${escapeHtml(item.notes)}</div>` : ""}
                 ${item.customStockUsage ? `<small class="cart-stock-note">${customStockUsageLabel(item)}</small>` : ""}
               </div>
               <div class="item-controls">
                 <button class="qty-button" data-action="decrease" data-id="${item.id}" type="button">-</button>
                 <strong>${item.qty}</strong>
                 <button class="qty-button" data-action="increase" data-id="${item.id}" type="button" ${state.orderType === "staff_drink" ? "disabled" : ""}>+</button>
+                ${isBeverageItem(item) ? `<button class="cart-item-edit-btn" data-action="customize" data-id="${item.id}" type="button" title="Kustomisasi"><i class="ph ph-note-pencil"></i></button>` : ""}
               </div>
             </div>
           `,
@@ -3727,6 +3959,8 @@ async function startOrder(event) {
     await saveOfflineTransaction(offlineRecord).catch(() => null);
     if (navigator.onLine) await syncPendingTransactions({ pull: false }).catch(() => null);
     const printed = await printReceipt(transaction, "paid");
+    // Cetak label cup ke printer label (jika tersambung) — bersifat opsional, tidak blokir checkout
+    printCupLabels(transaction).catch(() => null);
     transaction.printStatus = printed ? "PRINTED" : "PRINT_FAILED";
     patchLocalHistoryTransaction(transaction.id, { printStatus: transaction.printStatus });
     await saveOfflineTransaction(
@@ -3750,8 +3984,17 @@ async function startOrder(event) {
     renderAll();
     syncPendingTransactions();
     if (stockChanged) syncInventoryToCloud().catch(() => null);
+    // Setelah checkout order normal → pindah ke tab Order > Diproses
+    if (transaction.orderType !== "staff_drink") {
+      setActiveView("orders");
+      state.orderStatus = "kitchen";
+      els.orderStatusTabs?.querySelectorAll("button[data-order-status]").forEach((btn) => {
+        btn.classList.toggle("active", btn.dataset.orderStatus === "kitchen");
+      });
+      renderOrders();
+    }
     if (printed) {
-      toast(transaction.boothCode ? `Checkout selesai. Kode photobooth: ${transaction.boothCode}` : "Checkout selesai.");
+      toast(transaction.boothCode ? `Checkout selesai. Kode photobooth: ${transaction.boothCode}` : "Checkout selesai. Segera buat pesanan! ☕");
     } else {
       toast(transaction.boothCode ? `Checkout tersimpan. Kode photobooth: ${transaction.boothCode}. Sambungkan printer lalu cetak ulang.` : "Checkout tersimpan. Sambungkan printer lalu cetak ulang.");
     }
@@ -3822,6 +4065,8 @@ function currentTransaction(draft = false) {
     shift: selectedShift,
     channel: state.orderChannel || "Kasir",
     status: draft ? "unpaid" : "paid",
+    kitchenStatus: draft ? "" : (staffDrink ? "done" : "pending"),
+    kitchenCompletedAt: staffDrink ? new Date().toISOString() : "",
     employee: activeEmployeeName(),
     employeeId: activeEmployeeId(),
     dutyRole: currentDutyRole(),
@@ -4208,16 +4453,69 @@ async function escPosLogoBytes() {
     }
   }
 
-  const xL = widthBytes & 0xff;
-  const xH = (widthBytes >> 8) & 0xff;
-  const yL = height & 0xff;
-  const yH = (height >> 8) & 0xff;
   return [
     0x1b, 0x61, 0x01,
     0x1d, 0x76, 0x30, 0x00, xL, xH, yL, yH,
     ...raster,
     0x0a, 0x1b, 0x61, 0x00,
   ];
+}
+
+async function escPosLabelLogoBytes() {
+  try {
+    const image = await new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error("Logo stiker tidak terbaca."));
+      img.src = "/assets/logo-migi-print.png";
+    });
+
+    const targetWidth = 48; // Lebar logo mini (6mm) agar muat di stiker 2cm
+    const ratio = image.height / image.width;
+    const width = Math.ceil(targetWidth / 8) * 8;
+    const height = Math.max(1, Math.round(width * ratio));
+    const widthBytes = Math.ceil(width / 8);
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    ctx.fillStyle = "#faf8ff";
+    ctx.fillRect(0, 0, width, height);
+    ctx.drawImage(image, 0, 0, width, height);
+
+    const pixels = ctx.getImageData(0, 0, width, height).data;
+    const raster = [];
+    for (let y = 0; y < height; y += 1) {
+      for (let xByte = 0; xByte < widthBytes; xByte += 1) {
+        let byte = 0;
+        for (let bit = 0; bit < 8; bit += 1) {
+          const x = xByte * 8 + bit;
+          if (x >= width) continue;
+          const index = (y * width + x) * 4;
+          const alpha = pixels[index + 3];
+          const luminance = 0.299 * pixels[index] + 0.587 * pixels[index + 1] + 0.114 * pixels[index + 2];
+          if (alpha > 24 && luminance < 170) byte |= 0x80 >> bit;
+        }
+        raster.push(byte);
+      }
+    }
+
+    const xL = widthBytes & 0xff;
+    const xH = (widthBytes >> 8) & 0xff;
+    const yL = height & 0xff;
+    const yH = (height >> 8) & 0xff;
+
+    return [
+      0x1b, 0x61, 0x01, // Center
+      0x1d, 0x76, 0x30, 0x00, xL, xH, yL, yH,
+      ...raster,
+      0x0a, // Line feed
+      0x1b, 0x61, 0x00, // Left align kembali
+    ];
+  } catch (err) {
+    console.warn("Logo stiker tidak dimuat:", err);
+    return []; // Return empty array if logo fails to load (fallback to text-only stiker)
+  }
 }
 
 function escapeWifiQrValue(value = "") {
@@ -4265,8 +4563,7 @@ async function encodeEscPosReceipt(transaction, kind) {
   }
 }
 
-async function writePrinterChunks(bytes) {
-  const characteristic = state.printerCharacteristic;
+async function writePrinterChunks(bytes, characteristic = state.printerCharacteristic) {
   if (!characteristic) return;
   // Gunakan chunk kecil (20 byte) agar kompatibel dengan semua printer BLE
   const chunkSize = 20;
@@ -4285,6 +4582,321 @@ async function writePrinterChunks(bytes) {
     // Delay pendek agar BLE tetap stabil tanpa membuat logo terasa macet terlalu lama.
     await new Promise((resolve) => setTimeout(resolve, 18));
   }
+}
+
+async function writeLabelPrinterChunks(bytes) {
+  return writePrinterChunks(bytes, state.labelPrinterCharacteristic);
+}
+
+// Kategori yang TIDAK perlu cetak label cup (makanan, non-minuman)
+const SKIP_LABEL_CATEGORIES = ["makanan", "snack", "pastry", "foto", "photo", "booth", "merchandise", "merch"];
+
+function isBeverageItem(item) {
+  // Prioritaskan saklar printLabel per produk jika didefinisikan
+  if (item.printLabel === false) return false;
+  if (item.printLabel === true) return true;
+
+  // Fallback berdasarkan kategori jika properti belum diset
+  const cat = String(item.category || "").toLowerCase();
+  return !SKIP_LABEL_CATEGORIES.some((kw) => cat.includes(kw));
+}
+
+async function encodeCupLabel(transaction, item, itemIndex, totalItems) {
+  // Tunggu sampai Google Font Geist termuat sempurna di browser
+  await document.fonts.ready;
+
+  // 1. Load Logo Utama (Cartoon Cup) untuk Kanan Atas dari assets
+  const mainLogo = await new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = "/assets/logo-miginew-transparent.png";
+  });
+
+  // 2. Load Logo Divider (Asterisk/Flower) untuk pemisah varian dari assets
+  const dividerLogo = await new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = "/assets/logo-migi-print.png";
+  });
+
+  // Printer label 203 DPI: stiker 40mm x 20mm dikonversi menjadi pixel (lebar 320px, tinggi 160px)
+  const width = 320;
+  const height = 160;
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+
+  // 1. Bersihkan background stiker (putih bersih)
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, width, height);
+
+  // 2. Gambar Logo Kopi Migi Utama di Kanan Atas
+  if (mainLogo) {
+    ctx.drawImage(mainLogo, 250, 10, 60, 60);
+  }
+
+  // 3. Gambar Tahun Hak Cipta (© 2026) di bawah Logo
+  const year = new Date(transaction.createdAt || Date.now()).getFullYear();
+  ctx.fillStyle = "#000000";
+  ctx.font = "600 12px Geist, system-ui";
+  ctx.textAlign = "right";
+  ctx.fillText(`© ${year}`, 310, 95);
+
+  // Helper untuk mengubah teks menjadi Title Case (Huruf besar di awal kata)
+  const toTitleCase = (str) => {
+    return String(str || "")
+      .toLowerCase()
+      .split(" ")
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(" ");
+  };
+
+  // 4. Gambar Nama Menu Utama di Kiri (Rata Kiri, Tebal, Auto-wrap, Title Case, batas lebar)
+  ctx.fillStyle = "#000000";
+  ctx.font = "800 24px Geist, system-ui";
+  ctx.textAlign = "left";
+  
+  const drinkName = toTitleCase(item.name || "Minuman");
+  const words = drinkName.split(" ");
+  let line = "";
+  let currentY = 32;
+  const lineHeight = 28;
+  const maxTextWidth = 230; // Batas absolut kolom kiri (garis merah)
+
+  for (let n = 0; n < words.length; n++) {
+    const testLine = line + words[n] + " ";
+    if (ctx.measureText(testLine).width > maxTextWidth && n > 0) {
+      ctx.fillText(line.trim(), 10, currentY, maxTextWidth);
+      line = words[n] + " ";
+      currentY += lineHeight;
+    } else {
+      line = testLine;
+    }
+  }
+  ctx.fillText(line.trim(), 10, currentY, maxTextWidth);
+
+  // 5. Gambar Garis Pembatas Pertama (di atas varian)
+  ctx.beginPath();
+  ctx.moveTo(10, 110);
+  ctx.lineTo(310, 110);
+  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = "#000000";
+  ctx.stroke();
+
+  // 6. Gambar Baris Varian secara dinamis menggunakan Logo Migi asli sebagai pemisah
+  // Fallback default: Jika kasir lupa input, otomatis cetak resep standar "Ice · Normal · Regular"
+  const notesText = item.notes || "ICE · NORMAL · REGULAR";
+  const tags = notesText.split(" · ").filter(Boolean).map(toTitleCase);
+
+  if (tags.length > 0) {
+    ctx.font = "700 13px Geist, system-ui";
+    ctx.fillStyle = "#000000";
+    ctx.textAlign = "center";
+    
+    const totalWidth = 300; // dari x=10 ke x=310
+    const numTags = tags.length;
+    const segmentWidth = totalWidth / numTags;
+    
+    // Gambar tag varian (Title Case)
+    for (let i = 0; i < numTags; i++) {
+      const x = 10 + (segmentWidth * i) + (segmentWidth / 2);
+      ctx.fillText(tags[i], x, 126);
+    }
+    
+    // Gambar logo Migi sebagai pemisah di antara tag
+    if (dividerLogo) {
+      const logoSize = 14;
+      for (let i = 0; i < numTags - 1; i++) {
+        const x = 10 + (segmentWidth * (i + 1)) - (logoSize / 2);
+        ctx.drawImage(dividerLogo, x, 115, logoSize, logoSize);
+      }
+    }
+  } else {
+    ctx.font = "700 13px Geist, system-ui";
+    ctx.fillStyle = "#000000";
+    ctx.textAlign = "center";
+    ctx.fillText("NORMAL VARIANT", 160, 126);
+  }
+
+  // 7. Gambar Garis Pembatas Kedua (di bawah varian, di atas footer)
+  ctx.beginPath();
+  ctx.moveTo(10, 134);
+  ctx.lineTo(310, 134);
+  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = "#000000";
+  ctx.stroke();
+
+  // 8. Gambar Baris Footer (Kode Order, Petugas, Urutan Cup)
+  const orderCode = transaction.orderCode || transaction.id?.slice(-4) || "000";
+  const customer = transaction.customer || "Teman Migi";
+  const counter = `[${itemIndex + 1}/${totalItems}]`;
+
+  ctx.font = "700 13px Geist, system-ui";
+  
+  // Kode antrean di ujung kiri
+  ctx.textAlign = "left";
+  ctx.fillText(orderCode, 10, 150);
+
+  // Nama pelanggan/petugas di tengah
+  ctx.textAlign = "center";
+  ctx.fillText(customer, 160, 150);
+
+  // Penghitung Cup di ujung kanan
+  ctx.textAlign = "right";
+  ctx.fillText(counter, 310, 150);
+
+  // 9. Konversi pixel canvas menjadi bit raster ESC/POS
+  const widthBytes = width / 8; // 320px / 8 = 40 byte lebar
+  const pixels = ctx.getImageData(0, 0, width, height).data;
+  const raster = [];
+  for (let y = 0; y < height; y++) {
+    for (let xByte = 0; xByte < widthBytes; xByte++) {
+      let byte = 0;
+      for (let bit = 0; bit < 8; bit++) {
+        const x = xByte * 8 + bit;
+        const index = (y * width + x) * 4;
+        const r = pixels[index];
+        const g = pixels[index + 1];
+        const b = pixels[index + 2];
+        const alpha = pixels[index + 3];
+        const luminance = 0.299 * r + 0.587 * g + 0.114 * b;
+        // Pixel hitam jika tidak transparan dan tingkat kecerahan rendah
+        if (alpha > 128 && luminance < 180) {
+          byte |= (0x80 >> bit);
+        }
+      }
+      raster.push(byte);
+    }
+  }
+
+  const xL = widthBytes & 0xff;
+  const xH = (widthBytes >> 8) & 0xff;
+  const yL = height & 0xff;
+  const yH = (height >> 8) & 0xff;
+
+  const ESC = 0x1b, GS = 0x1d, FF = 0x0c;
+  const init = [ESC, 0x40];
+
+  const parts = [
+    ...init,
+    GS, 0x76, 0x30, 0x00, xL, xH, yL, yH,
+    ...raster,
+    FF, // Geser kertas ke gap stiker berikutnya
+  ];
+  return new Uint8Array(parts);
+}
+
+async function printCupLabels(transaction) {
+  if (!state.labelPrinterCharacteristic) return; // Label printer opsional
+  // Expand items by qty and filter beverages only
+  const labelItems = [];
+  for (const item of (transaction.items || [])) {
+    if (!isBeverageItem(item)) continue;
+    const qty = Number(item.qty || 1);
+    for (let q = 0; q < qty; q++) {
+      labelItems.push(item);
+    }
+  }
+  if (!labelItems.length) return;
+
+  try {
+    for (let i = 0; i < labelItems.length; i++) {
+      const bytes = await encodeCupLabel(transaction, labelItems[i], i, labelItems.length);
+      await writeLabelPrinterChunks(bytes);
+      // Gap kecil antara label
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    }
+    toast(`${labelItems.length} label cup dicetak.`);
+  } catch (error) {
+    state.labelPrinterCharacteristic = null;
+    setLabelPrinterStatus("Terputus", "disconnected", "Label printer terputus. Sambungkan ulang.");
+    toast(`Cetak label gagal: ${error.message}`);
+  }
+}
+
+let currentCustomizingItemId = "";
+
+function openItemCustomModal(itemId) {
+  const item = state.cart.find((entry) => entry.id === itemId);
+  if (!item) return;
+  currentCustomizingItemId = itemId;
+  if (els.customItemName) els.customItemName.textContent = item.name;
+
+  // Parsing existing notes
+  const notesStr = (item.notes || "").toUpperCase();
+  
+  // Temp (ICE/HOT)
+  const isHot = notesStr.includes("HOT");
+  els.customTemp?.querySelectorAll("button").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.value === (isHot ? "HOT" : "ICE"));
+  });
+
+  // Sugar
+  let sugarVal = "NORMAL";
+  if (notesStr.includes("LESS SUGAR")) sugarVal = "LESS SUGAR";
+  else if (notesStr.includes("NO SUGAR")) sugarVal = "NO SUGAR";
+  els.customSugar?.querySelectorAll("button").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.value === sugarVal);
+  });
+
+  // Size
+  const isLarge = notesStr.includes("LARGE");
+  els.customSize?.querySelectorAll("button").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.value === (isLarge ? "LARGE" : "REGULAR"));
+  });
+
+  // Custom text note
+  let customText = (item.notes || "");
+  const standardTags = ["ICE", "HOT", "NORMAL", "LESS SUGAR", "NO SUGAR", "REGULAR", "LARGE"];
+  standardTags.forEach((tag) => {
+    customText = customText.replace(new RegExp(`\\b${tag}\\b`, "gi"), "");
+  });
+  customText = customText.replace(/·/g, "").replace(/\s+/g, " ").trim();
+  if (els.customTextNote) els.customTextNote.value = customText;
+
+  if (els.itemCustomModal) {
+    els.itemCustomModal.classList.add("open");
+    els.itemCustomModal.setAttribute("aria-hidden", "false");
+  }
+}
+
+function closeItemCustomModal() {
+  if (els.itemCustomModal) {
+    els.itemCustomModal.classList.remove("open");
+    els.itemCustomModal.setAttribute("aria-hidden", "true");
+  }
+  currentCustomizingItemId = "";
+}
+
+function saveItemCustomization(event) {
+  if (event) event.preventDefault();
+  const item = state.cart.find((entry) => entry.id === currentCustomizingItemId);
+  if (!item) {
+    closeItemCustomModal();
+    return;
+  }
+
+  // Get active choices
+  const tempBtn = els.customTemp?.querySelector("button.active");
+  const sugarBtn = els.customSugar?.querySelector("button.active");
+  const sizeBtn = els.customSize?.querySelector("button.active");
+  const customText = els.customTextNote?.value.trim();
+
+  // Combine into formatted string
+  const tags = [];
+  if (tempBtn && tempBtn.dataset.value) tags.push(tempBtn.dataset.value);
+  if (sugarBtn && sugarBtn.dataset.value) tags.push(sugarBtn.dataset.value);
+  if (sizeBtn && sizeBtn.dataset.value) tags.push(sizeBtn.dataset.value);
+  if (customText) tags.push(customText.toUpperCase());
+
+  item.notes = tags.join(" · ");
+  
+  // Re-render cart (which merges items with same notes if applicable)
+  renderCart();
+  closeItemCustomModal();
 }
 
 async function printThermalReceipt(transaction, kind = "paid") {
@@ -4482,6 +5094,14 @@ function orderCard(transaction, kind, displayCode = "") {
         ${isOwner() ? `<button class="secondary-button compact danger-text" data-delete-draft="${transaction.id}" type="button">Hapus</button>` : ""}
       </div>
     `
+    : kind === "kitchen"
+      ? `
+        <div class="history-actions">
+          <button class="secondary-button compact" data-complete-kitchen-order="${transaction.id}" type="button">Selesai Dibuat</button>
+          <button class="secondary-button compact" data-reprint-order="${transaction.id}" data-reprint-kind="paid" type="button">Cetak Ulang Struk</button>
+          ${isOwner() ? `<button class="secondary-button compact danger-text" data-delete-transaction="${transaction.id}" type="button">Hapus</button>` : ""}
+        </div>
+      `
     : `
       <div class="history-actions">
         ${isOwner() ? `<button class="secondary-button compact" data-edit-transaction="${transaction.id}" type="button">Edit Struk</button>` : ""}
@@ -4501,9 +5121,9 @@ function orderCard(transaction, kind, displayCode = "") {
     `;
 
   return `
-    <article class="history-card order-card-row">
+    <article class="history-card order-card-row${kind === "kitchen" ? " kitchen-order-card" : ""}">
       <div>
-        <strong>${orderCode} · ${money(transaction.grandTotal)}</strong>
+        <strong>${kind === "kitchen" ? "☕ " : ""}${orderCode} · ${money(transaction.grandTotal)}</strong>
         <p>${new Date(transaction.createdAt).toLocaleString("id-ID")} · ${transaction.channel || "Kasir"} · ${!isStaffDrinkTransaction(transaction) ? (transaction.serviceType === "take_away" ? "Take Away" : "Dine In") + " · " : ""}${transaction.customer} · ${paymentLabel}</p>
         <p>${items}</p>
       </div>
@@ -4582,6 +5202,11 @@ async function editPaidPayment(id, paymentValue) {
   };
   history[index] = next;
   writeJson(storageKeys.history, history.slice(0, 2000));
+  patchAnalyticsPeriodTransaction(id, {
+    kitchenStatus: next.kitchenStatus,
+    kitchenCompletedAt: next.kitchenCompletedAt,
+    updatedAt: next.updatedAt,
+  });
   await saveOfflineTransaction(
     { ...next, localId: next.id, idempotencyKey: next.id },
     { syncStatus: "PENDING_SYNC", printStatus: next.printStatus || "PRINT_PENDING" },
@@ -4589,6 +5214,30 @@ async function editPaidPayment(id, paymentValue) {
   if (navigator.onLine) await syncPendingTransactions({ pull: false }).catch(() => null);
   renderAll();
   toast("Metode pembayaran diperbarui.");
+}
+
+async function completeKitchenOrder(id) {
+  const history = getHistory();
+  const index = history.findIndex((entry) => entry.id === id);
+  if (index === -1) return toast("Order belum dibuat tidak ditemukan.");
+  const transaction = history[index];
+  if (!isKitchenPendingTransaction(transaction)) return toast("Order ini sudah selesai dibuat.");
+  const now = new Date().toISOString();
+  const next = {
+    ...transaction,
+    kitchenStatus: "done",
+    kitchenCompletedAt: now,
+    updatedAt: now,
+  };
+  history[index] = next;
+  writeJson(storageKeys.history, history.slice(0, 2000));
+  await saveOfflineTransaction(
+    { ...next, localId: next.id, idempotencyKey: next.id },
+    { syncStatus: "PENDING_SYNC", printStatus: next.printStatus || "PRINT_PENDING" },
+  ).catch(() => null);
+  if (navigator.onLine) await syncPendingTransactions({ pull: false }).catch(() => null);
+  renderAll();
+  toast("Order selesai dibuat dan masuk ke tab Selesai.");
 }
 
 function editedTransaction() {
@@ -4760,6 +5409,7 @@ function renderOrders() {
   const paidPeriodKey = `month:${paidDate.slice(0, 7)}`;
   if (state.orderStatus === "paid" && analyticsLoadFailedForPeriod(paidPeriodKey)) {
     if (els.unpaidOrderCount) els.unpaidOrderCount.textContent = unpaid.length;
+    if (els.kitchenOrderCount) els.kitchenOrderCount.textContent = "-";
     if (els.paidOrderCount) els.paidOrderCount.textContent = "-";
     if (els.paidOrderDate) els.paidOrderDate.hidden = false;
     if (els.paidOrderCategoryTabs) els.paidOrderCategoryTabs.hidden = true;
@@ -4770,13 +5420,22 @@ function renderOrders() {
     .filter(isPaidTransaction)
     .filter((entry) => transactionReportDate(entry) === paidDate)
     .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
-  const paidDisplayCodes = paidOrderDisplayCodes(paidAscending);
-  const paid = [...paidAscending].reverse();
-  const paidCategories = paidOrderCategories(paidAscending);
+  const kitchen = sortTransactionsNewestFirst(getHistory().filter(isKitchenPendingTransaction));
+  const doneAscending = paidAscending.filter(isKitchenDoneTransaction);
+  const paidDisplayCodes = paidOrderDisplayCodes(doneAscending);
+  const paid = [...doneAscending].reverse();
+  const paidCategories = paidOrderCategories(doneAscending);
   if (!paidCategories.includes(state.paidOrderCategory)) state.paidOrderCategory = "Semua";
   const paidByCategory = paid.filter((transaction) => orderMatchesPaidCategory(transaction, state.paidOrderCategory));
   if (els.unpaidOrderCount) els.unpaidOrderCount.textContent = unpaid.length;
-  if (els.paidOrderCount) els.paidOrderCount.textContent = paidAscending.length;
+  if (els.kitchenOrderCount) els.kitchenOrderCount.textContent = kitchen.length;
+  if (els.paidOrderCount) els.paidOrderCount.textContent = doneAscending.length;
+  // Update nav sidebar badge untuk Diproses
+  const navKitchenBadge = document.querySelector("#navKitchenBadge");
+  if (navKitchenBadge) {
+    navKitchenBadge.textContent = kitchen.length;
+    navKitchenBadge.hidden = kitchen.length === 0;
+  }
   if (els.paidOrderDate) els.paidOrderDate.hidden = state.orderStatus !== "paid";
   if (els.paidOrderCategoryTabs) {
     els.paidOrderCategoryTabs.hidden = state.orderStatus !== "paid";
@@ -4787,12 +5446,18 @@ function renderOrders() {
       : "";
   }
 
-  const list = state.orderStatus === "paid" ? paidByCategory : unpaid;
+  const list = state.orderStatus === "paid" ? paidByCategory : state.orderStatus === "kitchen" ? kitchen : unpaid;
   els.orderList.innerHTML = list.length
     ? state.orderStatus === "paid"
       ? list.slice(0, 80).map((transaction) => orderCard(transaction, state.orderStatus, paidDisplayCodes.get(transaction.id))).join("")
       : list.slice(0, 80).map((transaction) => orderCard(transaction, state.orderStatus)).join("")
-    : `<div class="empty-state">${state.orderStatus === "paid" ? `Belum ada order ${state.paidOrderCategory === "Semua" ? "yang sudah dibayar" : `kategori ${state.paidOrderCategory}`} pada tanggal ini.` : "Belum ada order menunggu pembayaran."}</div>`;
+    : `<div class="empty-state">${
+        state.orderStatus === "paid"
+          ? `Belum ada order ${state.paidOrderCategory === "Semua" ? "yang selesai" : `kategori ${state.paidOrderCategory}`} pada tanggal ini.`
+          : state.orderStatus === "kitchen"
+            ? "Belum ada order yang diproses."
+            : "Belum ada order menunggu pembayaran."
+      }</div>`;
 }
 
 async function renderPendingSync() {
@@ -4897,6 +5562,32 @@ async function postCloudJson(url, payload) {
 }
 
 async function postSupabaseAction(action, payload = {}) {
+  const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+  if (isLocal) {
+    console.log("[DEV MOCK] postSupabaseAction:", action, payload);
+    if (action === "login") {
+      const username = String(payload.username || "").toLowerCase();
+      if (username === "owner") {
+        return { role: "owner", token: "mock-owner-token" };
+      }
+      return { role: "cashier", token: "mock-cashier-token" };
+    }
+    if (action === "bootstrap-data") {
+      return {
+        employees: [
+          { id: "e1", name: "Fanni", status: "active" },
+          { id: "e2", name: "Robi", status: "active" },
+          { id: "e3", name: "Migi Admin", status: "active" }
+        ],
+        settingsFound: true,
+        settings: {}
+      };
+    }
+    if (action === "device-presence") {
+      return { activeDevice: null };
+    }
+    return { success: true };
+  }
   return postCloudJson("/api/supabase", { action, ...payload });
 }
 
@@ -6066,6 +6757,9 @@ function resetMenuForm() {
   els.menuPrice.value = "";
   els.menuImage.value = "";
   els.menuImageFile.value = "";
+  if (els.menuPrintLabel) {
+    els.menuPrintLabel.checked = true;
+  }
   els.menuImagePreview.innerHTML = "Belum ada gambar";
   renderMenuCategoryOptions("");
   renderRecipeRows("");
@@ -6132,6 +6826,7 @@ async function saveMenu(event) {
     category: els.menuCategory.value.trim(),
     price: parseRupiah(els.menuPrice.value),
     image: els.menuImage.value,
+    printLabel: els.menuPrintLabel ? els.menuPrintLabel.checked : false,
   };
 
   if (!data.name || !data.category || data.price < 0) {
@@ -6388,14 +7083,25 @@ function renderAll() {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator)) return;
-  window.addEventListener("load", () => {
+
+  const register = () => {
     navigator.serviceWorker
       .register("/sw.js")
-      .then((registration) => registration.update())
-      .catch(() => {
+      .then((registration) => {
+        // Lakukan update di background dan abaikan jika gagal/offline
+        registration.update().catch(() => null);
+      })
+      .catch((err) => {
+        console.warn("Service Worker registration failed:", err);
         toast("Service worker belum aktif. Coba refresh saat online.");
       });
-  });
+  };
+
+  if (document.readyState === "complete") {
+    register();
+  } else {
+    window.addEventListener("load", register);
+  }
 
   let refreshing = false;
   navigator.serviceWorker.addEventListener("controllerchange", () => {
@@ -6472,6 +7178,19 @@ els.customOrderPrice?.addEventListener("blur", () => {
 });
 els.customOrderForm?.addEventListener("submit", addCustomOrderToCart);
 
+els.itemCustomForm?.addEventListener("submit", saveItemCustomization);
+els.closeItemCustom?.addEventListener("click", closeItemCustomModal);
+
+const handleSegmentedClick = (event) => {
+  const btn = event.target.closest("button[data-value]");
+  if (!btn) return;
+  const parent = btn.parentElement;
+  parent.querySelectorAll("button").forEach((b) => b.classList.toggle("active", b === btn));
+};
+els.customTemp?.addEventListener("click", handleSegmentedClick);
+els.customSugar?.addEventListener("click", handleSegmentedClick);
+els.customSize?.addEventListener("click", handleSegmentedClick);
+
 els.ingredientCategorySelect?.addEventListener("change", syncIngredientCategoryField);
 els.ingredientCategoryCustom?.addEventListener("input", syncIngredientCategoryField);
 els.stockCategoryTabs?.addEventListener("click", (event) => {
@@ -6510,7 +7229,12 @@ els.menuGrid.addEventListener("keydown", (event) => {
 els.cartList.addEventListener("click", (event) => {
   const button = event.target.closest("button[data-action]");
   if (!button) return;
-  changeQty(button.dataset.id, button.dataset.action === "increase" ? 1 : -1);
+  const action = button.dataset.action;
+  if (action === "customize") {
+    openItemCustomModal(button.dataset.id);
+  } else {
+    changeQty(button.dataset.id, action === "increase" ? 1 : -1);
+  }
 });
 
 els.paymentMethods.addEventListener("click", (event) => {
@@ -6636,6 +7360,7 @@ els.orderList?.addEventListener("click", (event) => {
   const reprintButton = event.target.closest("button[data-reprint-order]");
   const deleteTransactionButton = event.target.closest("button[data-delete-transaction]");
   const editTransactionButton = event.target.closest("button[data-edit-transaction]");
+  const completeKitchenButton = event.target.closest("button[data-complete-kitchen-order]");
   if (payButton) {
     payDraftOrder(payButton.dataset.payDraft);
     return;
@@ -6650,6 +7375,10 @@ els.orderList?.addEventListener("click", (event) => {
   }
   if (editTransactionButton) {
     openTransactionEditModal(editTransactionButton.dataset.editTransaction);
+    return;
+  }
+  if (completeKitchenButton) {
+    completeKitchenOrder(completeKitchenButton.dataset.completeKitchenOrder);
     return;
   }
   if (reprintButton) {
@@ -6730,12 +7459,29 @@ els.wifiSettingsForm?.addEventListener("submit", async (event) => {
   }
   saveWifiReceiptSettings({ enabled, ssid, password });
   syncCheckoutWifiOption({ reset: true });
+  
+  // Set status edit selesai agar form menyembunyikan diri
+  state.wifiEditing = false;
+  renderWifiReceiptSettings();
+
   try {
     await syncSettingsToCloud({ force: true });
     toast(enabled ? "QR WiFi akan dicetak pada struk lunas." : "QR WiFi pada struk dinonaktifkan.");
   } catch {
     toast("Pengaturan WiFi tersimpan lokal dan akan disinkronkan saat online.");
   }
+});
+
+// Listener interaksi WiFi tamu tambahan
+els.wifiReceiptEnabled?.addEventListener("change", () => {
+  state.wifiEditing = true;
+  toggleWifiFields();
+});
+
+els.btnEditWifi?.addEventListener("click", () => {
+  state.wifiEditing = true;
+  toggleWifiFields();
+  els.wifiName.focus();
 });
 window.addEventListener("online", updateConnectionStatus);
 window.addEventListener("offline", updateConnectionStatus);
@@ -6851,6 +7597,10 @@ els.transactionEditItems?.addEventListener("click", (event) => {
 els.transactionEditPayment?.addEventListener("change", renderTransactionEditModal);
 els.logoutBtn.addEventListener("click", logout);
 els.testLogoPrint?.addEventListener("click", testLogoPrint);
+els.connectLabelPrinter?.addEventListener("click", connectLabelPrinter);
+els.testLabelPrint?.addEventListener("click", testLabelPrint);
+els.printerTabKasir?.addEventListener("click", () => switchPrinterTab("kasir"));
+els.printerTabLabel?.addEventListener("click", () => switchPrinterTab("label"));
 els.billOrderBtn.addEventListener("click", printBill);
 els.copyDailyReport?.addEventListener("click", copyDailyReport);
 els.shareDailyReport?.addEventListener("click", shareDailyReportToWhatsApp);
@@ -7031,6 +7781,9 @@ els.cashflowList?.addEventListener("click", (event) => {
   toast("Pengeluaran dihapus.");
 });
 
+// ── Cashflow search ──────────────────────────────────────────────────────────
+els.cashflowSearch?.addEventListener("input", () => renderCashflow());
+
 // ── Bahan Baku: edit & delete stock ────────────────────────────────────────
 els.stockTable?.addEventListener("click", (event) => {
   const editBtn = event.target.closest("button[data-edit-stock]");
@@ -7128,18 +7881,21 @@ els.menuTable.addEventListener("click", async (event) => {
   const deleteButton = event.target.closest("button[data-delete-menu]");
   const menu = getMenu();
 
-  if (editButton) {
-    const item = menu.find((entry) => entry.id === editButton.dataset.editMenu);
-    if (!item) return;
-    els.menuId.value = item.id;
-    els.menuName.value = item.name;
-    els.menuCategory.value = item.category;
-    renderMenuCategoryOptions(item.category);
-    els.menuPrice.value = money(item.price);
-    setMenuImagePreview(item.image || "");
-    renderRecipeRows(item.id);
-    els.menuForm.scrollIntoView({ behavior: "smooth", block: "start" });
-  }
+    if (editButton) {
+      const item = menu.find((entry) => entry.id === editButton.dataset.editMenu);
+      if (!item) return;
+      els.menuId.value = item.id;
+      els.menuName.value = item.name;
+      els.menuCategory.value = item.category;
+      renderMenuCategoryOptions(item.category);
+      els.menuPrice.value = money(item.price);
+      setMenuImagePreview(item.image || "");
+      if (els.menuPrintLabel) {
+        els.menuPrintLabel.checked = item.printLabel !== false;
+      }
+      renderRecipeRows(item.id);
+      els.menuForm.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
 
   if (deleteButton) {
     const item = menu.find((entry) => entry.id === deleteButton.dataset.deleteMenu);
@@ -7197,6 +7953,18 @@ els.downloadBooth?.addEventListener("click", downloadBooth);
 els.boothCustomer?.addEventListener("input", drawBoothCanvas);
 els.boothSessionPackage?.addEventListener("change", drawBoothCanvas);
 els.loginForm.addEventListener("submit", login);
+els.toggleLoginPassword?.addEventListener("click", () => {
+  const isHidden = els.loginPassword.type === "password";
+  els.loginPassword.type = isHidden ? "text" : "password";
+  els.toggleLoginPasswordIcon.className = isHidden ? "ph ph-eye-slash" : "ph ph-eye";
+  els.toggleLoginPassword.setAttribute("aria-label", isHidden ? "Sembunyikan password" : "Tampilkan password");
+});
+els.toggleWifiPassword?.addEventListener("click", () => {
+  const isHidden = els.wifiPassword.type === "password";
+  els.wifiPassword.type = isHidden ? "text" : "password";
+  els.toggleWifiPasswordIcon.className = isHidden ? "ph ph-eye-slash" : "ph ph-eye";
+  els.toggleWifiPassword.setAttribute("aria-label", isHidden ? "Sembunyikan password" : "Tampilkan password");
+});
 els.loginDutyRole?.addEventListener("change", renderEmployeeControls);
 els.orderForm.addEventListener("submit", startOrder);
 els.cancelOrderModal.addEventListener("click", closeOrderModal);
