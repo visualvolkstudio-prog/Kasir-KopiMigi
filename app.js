@@ -2867,6 +2867,28 @@ function updateLabelPreview() {
       text = labelSettings.customTextValue || defaultText;
     }
 
+    let actualLineHeight = 24;
+    let actualFontSize = 13;
+    if (fontSize < 11) {
+      actualLineHeight = 17;
+      actualFontSize = 10;
+    } else if (fontSize >= 11 && fontSize <= 16) {
+      actualLineHeight = 24;
+      actualFontSize = 13;
+    } else if (fontSize > 16 && fontSize <= 22) {
+      actualLineHeight = 48;
+      actualFontSize = 13;
+    } else if (fontSize > 22 && fontSize <= 27) {
+      actualLineHeight = 24;
+      actualFontSize = 26;
+    } else {
+      actualLineHeight = 48;
+      actualFontSize = 26;
+    }
+
+    const lineClamp = Math.max(1, Math.floor(height / actualLineHeight));
+    const clampedHeight = lineClamp * actualLineHeight;
+
     [previewEl, readOnlyEl].forEach((el) => {
       if (!el) return;
       if (!enabled) {
@@ -2877,7 +2899,7 @@ function updateLabelPreview() {
       if (isBarcode) {
         el.style.display = "flex";
         el.style.width = `${width}px`;
-        el.style.height = `${height}px`;
+        el.style.height = `${height + 24}px`; // Include HRI text space
         el.style.left = `${x}px`;
         el.style.top = `${y}px`;
         const spanEl = el.querySelector("span");
@@ -2886,21 +2908,21 @@ function updateLabelPreview() {
       }
 
       el.style.display = "block";
-      el.style.fontSize = `${fontSize}px`;
+      el.style.fontSize = `${actualFontSize}px`;
+      el.style.lineHeight = `${actualLineHeight}px`;
       el.style.fontWeight = bold ? "bold" : "normal";
       el.style.width = `${width}px`;
       el.style.maxWidth = `${width}px`;
       el.style.left = `${x}px`;
       el.style.top = `${y}px`;
 
-      // Enforce line clamping / height limit truncation dynamically
+      // Enforce line clamping / height limit truncation dynamically matching printer
       el.style.display = "-webkit-box";
       el.style.webkitBoxOrient = "vertical";
       el.style.overflow = "hidden";
-      const lineClamp = Math.max(1, Math.floor(height / (fontSize * 1.25)));
       el.style.webkitLineClamp = String(lineClamp);
-      el.style.height = `${height}px`;
-      el.style.maxHeight = `${height}px`;
+      el.style.height = `${clampedHeight}px`;
+      el.style.maxHeight = `${clampedHeight}px`;
 
       let textNode = Array.from(el.childNodes).find(n => n.nodeType === Node.TEXT_NODE);
       if (!textNode) {
@@ -3009,11 +3031,15 @@ function initDraggableRows() {
     el.addEventListener("touchstart", onDragStart, { passive: false });
 
     const onGlobalMove = (e) => {
+      const stickerEl = els.labelPreviewSticker;
+      const containerWidth = stickerEl ? parseInt(stickerEl.style.width || "320") : 320;
+      const containerHeight = stickerEl ? parseInt(stickerEl.style.height || "160") : 160;
+
       if (isWidthResizing) {
         const clientX = e.touches ? e.touches[0].clientX : e.clientX;
         const dx = clientX - startX;
         let newWidth = originalWidth + dx;
-        const maxAvailableWidth = 320 - parseInt(el.style.left || "0");
+        const maxAvailableWidth = containerWidth - parseInt(el.style.left || "0");
         newWidth = Math.max(30, Math.min(maxAvailableWidth, newWidth));
         
         el.style.width = `${newWidth}px`;
@@ -3027,7 +3053,7 @@ function initDraggableRows() {
         const clientY = e.touches ? e.touches[0].clientY : e.clientY;
         const dy = clientY - startY;
         let newHeight = originalHeight + dy;
-        const maxAvailableHeight = 160 - parseInt(el.style.top || "0");
+        const maxAvailableHeight = containerHeight - parseInt(el.style.top || "0");
         newHeight = Math.max(15, Math.min(maxAvailableHeight, newHeight));
         
         el.style.height = `${newHeight}px`;
@@ -3044,8 +3070,6 @@ function initDraggableRows() {
         let newLeft = originalLeft + dx;
         let newTop = originalTop + dy;
         
-        const containerWidth = 320;
-        const containerHeight = 160;
         const elWidth = el.offsetWidth;
         const elHeight = el.offsetHeight;
         
