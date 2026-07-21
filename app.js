@@ -5407,7 +5407,6 @@ async function getMascotLogoBytes() {
 }
 
 async function encodeCupLabel(transaction, item, itemIndex, totalItems) {
-  const encoder = new TextEncoder();
   const labelSettings = getLabelPrinterSettings();
   const feedMethod = labelSettings.feedMethod;
   const pitch = labelSettings.pitch;
@@ -5428,14 +5427,48 @@ async function encodeCupLabel(transaction, item, itemIndex, totalItems) {
   const tags = notesText.split(" · ").filter(Boolean).map(toTitleCase);
   const variantLine = tags.join(" * ");
 
-  const wrapText = (text, charLimit) => {
-    if (!text) return [];
+  const paperSize = labelSettings.paperSize || "40x20mm";
+  let stickerWidth = 320;
+  let stickerHeight = 160;
+  
+  if (paperSize === "40x30mm") {
+    stickerWidth = 320;
+    stickerHeight = 240;
+  } else if (paperSize === "40x40mm") {
+    stickerWidth = 320;
+    stickerHeight = 320;
+  } else if (paperSize === "50x30mm") {
+    stickerWidth = 400;
+    stickerHeight = 240;
+  } else if (paperSize === "58mm") {
+    stickerWidth = 384;
+    stickerHeight = 240;
+  }
+
+  // Create standard canvas for print
+  const canvas = document.createElement("canvas");
+  canvas.width = 384; // full printable width of 58mm printer
+  canvas.height = stickerHeight;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+
+  // Clear with white
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, 384, stickerHeight);
+
+  const stickerOffsetX = labelSettings.stickerOffsetX !== undefined ? Number(labelSettings.stickerOffsetX) : 8;
+
+  // Pixel-perfect word wrapper
+  const wrapTextPix = (text, maxWidth, font) => {
+    ctx.save();
+    ctx.font = font;
     const words = String(text).split(" ");
     const lines = [];
     let currentLine = "";
+    
     for (const word of words) {
       const testLine = currentLine ? (currentLine + " " + word) : word;
-      if (testLine.length <= charLimit) {
+      const metrics = ctx.measureText(testLine);
+      if (metrics.width <= maxWidth) {
         currentLine = testLine;
       } else {
         if (currentLine) lines.push(currentLine);
@@ -5443,70 +5476,83 @@ async function encodeCupLabel(transaction, item, itemIndex, totalItems) {
       }
     }
     if (currentLine) lines.push(currentLine);
+    ctx.restore();
     return lines;
   };
 
-  const segments = [];
-
-  const addElementSegments = (id, enabled, text, x, y, width, fontSize, bold, maxHeight = 24) => {
+  const drawTextElement = (enabled, text, x, y, width, fontSize, bold, maxHeight = 24) => {
     if (!enabled || !text) return;
     
-    // Determine font styles and sizes
-    let modeByte = 0x00;
-    let charWidth = 12; // default Font A
-    let charHeight = 24;
-
+    // Map font sizes to actual printer heights to match 100% same!
+    let actualLineHeight = 24;
+    let actualFontSize = 13;
     if (fontSize < 11) {
-      modeByte = 0x01; // Font B
-      charWidth = 9;
-      charHeight = 17;
+      actualLineHeight = 17;
+      actualFontSize = 10;
     } else if (fontSize >= 11 && fontSize <= 16) {
-      modeByte = 0x00; // Font A
-      charWidth = 12;
-      charHeight = 24;
+      actualLineHeight = 24;
+      actualFontSize = 13;
     } else if (fontSize > 16 && fontSize <= 22) {
-      modeByte = 0x10; // Double Height
-      charWidth = 12;
-      charHeight = 48;
+      actualLineHeight = 48;
+      actualFontSize = 13; // scaled double height
     } else if (fontSize > 22 && fontSize <= 27) {
-      modeByte = 0x20; // Double Width
-      charWidth = 24;
-      charHeight = 24;
+      actualLineHeight = 24;
+      actualFontSize = 26; // scaled double width
     } else {
-      modeByte = 0x30; // Double Size
-      charWidth = 24;
-      charHeight = 48;
+      actualLineHeight = 48;
+      actualFontSize = 26; // scaled double size
     }
 
-    const charLimit = Math.max(2, Math.floor(width / charWidth));
-    const lines = wrapText(text, charLimit);
+    const fontStyle = `${bold ? "bold " : ""}${actualFontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
     
-    const lineSpacing = charHeight + 4;
-    const maxLines = Math.max(1, Math.floor((maxHeight + 4) / lineSpacing));
-
+    const lines = wrapTextPix(text, width, fontStyle);
+    const maxLines = Math.max(1, Math.floor(maxHeight / actualLineHeight));
     const activeLines = lines.slice(0, maxLines);
+    
     if (lines.length > maxLines && activeLines.length > 0) {
-      activeLines[activeLines.length - 1] = activeLines[activeLines.length - 1].slice(0, Math.max(1, charLimit - 3)) + "...";
+      let lastLine = activeLines[activeLines.length - 1];
+      ctx.save();
+      ctx.font = fontStyle;
+      while (lastLine.length > 0 && ctx.measureText(lastLine + "...").width > width) {
+        lastLine = lastLine.slice(0, -1);
+      }
+      activeLines[activeLines.length - 1] = lastLine + "...";
+      ctx.restore();
     }
 
-    for (let i = 0; i < activeLines.length; i++) {
-      segments.push({
-        id: id,
-        x: x,
-        y: y + i * lineSpacing,
-        text: activeLines[i],
-        fontSize: fontSize,
-        bold: bold,
-        charWidth: charWidth,
-        charHeight: charHeight,
-        modeByte: modeByte
-      });
-    }
+    ctx.save();
+    ctx.font = fontStyle;
+    ctx.fillStyle = "#000000";
+    ctx.textBaseline = "top";
+    ctx.textAlign = "left";
+
+    activeLines.forEach((line, index) => {
+      const drawX = stickerOffsetX + x + 4; // compensate for editor padding-left: 4px
+      const drawY = y + index * actualLineHeight + 2; // compensate for editor padding-top: 2px
+      
+      ctx.save();
+      ctx.translate(drawX, drawY);
+      if (fontSize > 16 && fontSize <= 22) {
+        ctx.scale(1, 2);
+        ctx.fillText(line, 0, 0);
+      } else if (fontSize > 22 && fontSize <= 27) {
+        ctx.scale(2, 1);
+        ctx.fillText(line, 0, 0);
+      } else if (fontSize > 27) {
+        ctx.scale(2, 2);
+        ctx.fillText(line, 0, 0);
+      } else {
+        ctx.fillText(line, 0, 0);
+      }
+      ctx.restore();
+    });
+
+    ctx.restore();
   };
 
+  // Draw text elements
   // 1. Nama Produk
-  addElementSegments(
-    "drinkName",
+  drawTextElement(
     labelSettings.drinkNameEnabled !== false,
     drinkName,
     labelSettings.drinkNameX !== undefined ? labelSettings.drinkNameX : 12,
@@ -5518,8 +5564,7 @@ async function encodeCupLabel(transaction, item, itemIndex, totalItems) {
   );
 
   // 2. Catatan Varian
-  addElementSegments(
-    "notes",
+  drawTextElement(
     labelSettings.notesEnabled !== false,
     variantLine,
     labelSettings.notesX !== undefined ? labelSettings.notesX : 12,
@@ -5531,8 +5576,7 @@ async function encodeCupLabel(transaction, item, itemIndex, totalItems) {
   );
 
   // 3. Nomor Pesanan
-  addElementSegments(
-    "orderCode",
+  drawTextElement(
     labelSettings.orderCodeEnabled !== false,
     `#${orderNum}`,
     labelSettings.orderCodeX !== undefined ? labelSettings.orderCodeX : 12,
@@ -5544,8 +5588,7 @@ async function encodeCupLabel(transaction, item, itemIndex, totalItems) {
   );
 
   // 4. Nama Pengunjung
-  addElementSegments(
-    "customer",
+  drawTextElement(
     labelSettings.customerEnabled !== false,
     customer,
     labelSettings.customerX !== undefined ? labelSettings.customerX : 12,
@@ -5557,8 +5600,7 @@ async function encodeCupLabel(transaction, item, itemIndex, totalItems) {
   );
 
   // 5. Nomor Item (Counter)
-  addElementSegments(
-    "counter",
+  drawTextElement(
     labelSettings.counterEnabled !== false,
     counter,
     labelSettings.counterX !== undefined ? labelSettings.counterX : 240,
@@ -5570,8 +5612,7 @@ async function encodeCupLabel(transaction, item, itemIndex, totalItems) {
   );
 
   // 6. Teks Kustom Tambahan
-  addElementSegments(
-    "customText",
+  drawTextElement(
     labelSettings.customTextEnabled === true,
     labelSettings.customTextValue || "TEMAN",
     labelSettings.customTextX !== undefined ? labelSettings.customTextX : 150,
@@ -5588,122 +5629,107 @@ async function encodeCupLabel(transaction, item, itemIndex, totalItems) {
   const mm = String(txDate.getMonth() + 1).padStart(2, '0');
   const yyyy = String(txDate.getFullYear());
   const barcodeValue = `${dd}${mm}${yyyy}`;
+
   if (labelSettings.barcodeEnabled === true) {
-    segments.push({
-      id: "barcode",
-      isBarcode: true,
-      x: labelSettings.barcodeX !== undefined ? labelSettings.barcodeX : 60,
-      y: labelSettings.barcodeY !== undefined ? labelSettings.barcodeY : 130,
-      width: labelSettings.barcodeWidth !== undefined ? labelSettings.barcodeWidth : 200,
-      height: labelSettings.barcodeMaxHeight !== undefined ? labelSettings.barcodeMaxHeight : 30,
-      text: barcodeValue
-    });
+    const barX = stickerOffsetX + (labelSettings.barcodeX !== undefined ? labelSettings.barcodeX : 60);
+    const barY = labelSettings.barcodeY !== undefined ? labelSettings.barcodeY : 130;
+    const barW = labelSettings.barcodeWidth !== undefined ? labelSettings.barcodeWidth : 200;
+    const barH = labelSettings.barcodeMaxHeight !== undefined ? labelSettings.barcodeMaxHeight : 20;
+
+    const code39Specs = {
+      '0': 'NNNWWNWNN', '1': 'WNNWNNNNW', '2': 'NNWWNNNNW', '3': 'WNWWNNNNN',
+      '4': 'NNNWNNWNW', '5': 'WNNWNNWNN', '6': 'NNWWNNWNN', '7': 'NNNWNNNNW',
+      '8': 'WNNWNNNNN', '9': 'NNWWNNNNN', 'A': 'WNNNNWNNW', 'B': 'NNWNNWNNW',
+      'C': 'WNWNNWNNN', 'D': 'NNNNWWNNW', 'E': 'WNNNWWNNN', 'F': 'NNWNWWNNN',
+      'G': 'NNNNNWWNW', 'H': 'WNNNNWWNN', 'I': 'NNWNNWWNN', 'J': 'NNNNWWWNN',
+      'K': 'WNNNNNNWW', 'L': 'NNWNNNNWW', 'M': 'WNWNNNNWN', 'N': 'NNNNWNNWW',
+      'O': 'WNNNWNNWN', 'P': 'NNWNWNNWN', 'Q': 'NNNNNNWWW', 'R': 'WNNNNNWWN',
+      'S': 'NNWNNNWWN', 'T': 'NNNNWNWWN', 'U': 'WWNNNNNNW', 'V': 'NWWNNNNNW',
+      'W': 'WWWNNNNNN', 'X': 'NWNNWNNNW', 'Y': 'WWNNWNNNN', 'Z': 'NWWNWNNNN',
+      '-': 'NWNNNNWNW', '.': 'WWNNNNWNN', ' ': 'NWWNNNWNN', '*': 'NWNNWNNNN',
+      '$': 'NWNWNWNNN', '/': 'NWNWNNNWN', '+': 'NWNNNWNWN', '%': 'NNWNWNWNN'
+    };
+
+    const cleanText = "*" + String(barcodeValue).toUpperCase().replace(/[^A-Z0-9\-\.\ \$\/\+\%]/g, "") + "*";
+    let N = 1;
+    let W = 2;
+    const charDotWidth = 6 * N + 3 * W + 1;
+    if (cleanText.length * charDotWidth * 2 <= barW) {
+      N = 2;
+      W = 4;
+    }
+    const finalDots = cleanText.length * (6 * N + 3 * W + 1) - 1;
+    let startX = barX + Math.floor((barW - finalDots) / 2);
+
+    ctx.fillStyle = "#000000";
+    for (let i = 0; i < cleanText.length; i++) {
+      const char = cleanText[i];
+      const spec = code39Specs[char] || code39Specs['*'];
+      let curX = startX + i * (6 * N + 3 * W + 1 * N);
+      
+      for (let j = 0; j < 9; j++) {
+        const isBar = (j % 2 === 0);
+        const isWide = (spec[j] === 'W');
+        const elWidth = isWide ? W : N;
+        if (isBar) {
+          ctx.fillRect(curX, barY, elWidth, barH);
+        }
+        curX += elWidth;
+      }
+    }
+
+    // Draw text below barcode
+    ctx.fillStyle = "#000000";
+    ctx.font = "10px monospace";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "top";
+    ctx.fillText(barcodeValue, barX + Math.floor(barW / 2), barY + barH + 2);
   }
 
-  const ESC = 0x1b, GS = 0x1d, FS = 0x1c;
-  const init = [ESC, 0x40, FS, 0x2e]; // Initialize & turn off Kanji/Chinese mode
+  // Convert canvas to ESC/POS monochrome graphic raster bytes
+  const pixels = ctx.getImageData(0, 0, 384, stickerHeight).data;
+  const raster = [];
+  const widthBytes = 384 / 8; // 48 bytes
+  
+  for (let y = 0; y < stickerHeight; y++) {
+    for (let xByte = 0; xByte < widthBytes; xByte++) {
+      let byte = 0;
+      for (let bit = 0; bit < 8; bit++) {
+        const x = xByte * 8 + bit;
+        const index = (y * 384 + x) * 4;
+        const r = pixels[index];
+        const g = pixels[index + 1];
+        const b = pixels[index + 2];
+        const a = pixels[index + 3];
+        
+        const luminance = 0.299 * r + 0.587 * g + 0.114 * b;
+        if (a > 128 && luminance < 180) {
+          byte |= (0x80 >> bit);
+        }
+      }
+      raster.push(byte);
+    }
+  }
+
+  const ESC = 0x1b, GS = 0x1d;
+  const init = [ESC, 0x40];
   let payload = [];
   payload.push(...init);
 
-  const stickerOffsetX = labelSettings.stickerOffsetX !== undefined ? Number(labelSettings.stickerOffsetX) : 8;
+  // Print raster bit image
+  const xL = widthBytes & 0xff;
+  const xH = (widthBytes >> 8) & 0xff;
+  const yL = stickerHeight & 0xff;
+  const yH = (stickerHeight >> 8) & 0xff;
 
-  // Group segments by Y coordinate (clustering close vertical lines)
-  const printRows = [];
-  
-  // Sort segments by Y ascending
-  segments.sort((a, b) => a.y - b.y);
-
-  for (const segment of segments) {
-    let foundRow = printRows.find(r => Math.abs(r.y - segment.y) < 12);
-    if (!foundRow) {
-      foundRow = {
-        y: segment.y,
-        segments: [],
-        maxCharHeight: 0
-      };
-      printRows.push(foundRow);
-    }
-    foundRow.segments.push(segment);
-    const segHeight = segment.isBarcode ? (segment.height + 16) : segment.charHeight;
-    if (segHeight > foundRow.maxCharHeight) {
-      foundRow.maxCharHeight = segHeight;
-    }
-  }
-
-  // Sort print rows by Y ascending
-  printRows.sort((a, b) => a.y - b.y);
-
-  // Render bytes for each printRow
-  for (const printRow of printRows) {
-    printRow.segments.sort((a, b) => a.x - b.x);
-
-    const rowBytes = [];
-    let currentXChars = 0;
-
-    for (const segment of printRow.segments) {
-      const absoluteX = stickerOffsetX + segment.x;
-      const charWidth = segment.isBarcode ? 12 : segment.charWidth;
-      const targetCol = Math.max(currentXChars, Math.floor(absoluteX / charWidth));
-      const spacesNeeded = targetCol - currentXChars;
-      if (spacesNeeded > 0) {
-        rowBytes.push(...encoder.encode(" ".repeat(spacesNeeded)));
-      }
-
-      if (segment.isBarcode) {
-        // Set barcode width: GS w n (width parameter n: 2 to 6)
-        rowBytes.push(GS, 0x77, 2);
-        // Set barcode height: GS h n (height parameter n: 1 to 255 dots)
-        const barHeight = Math.max(10, Math.min(255, segment.height));
-        rowBytes.push(GS, 0x68, barHeight);
-        // Set HRI position: GS H n (0 = no text, 2 = text below barcode)
-        rowBytes.push(GS, 0x48, 2);
-        // Print barcode using CODE39 (m = 69): GS k m length data
-        let cleanText = String(segment.text).toUpperCase().replace(/[^A-Z0-9\-\.\ \$\/\+\%]/g, "");
-        if (!cleanText) cleanText = "12345678";
-        const dataBytes = encoder.encode(cleanText);
-        rowBytes.push(GS, 0x6b, 69, dataBytes.length, ...dataBytes);
-        
-        // Estimate barcode width columns to update currentXChars:
-        // A CODE39 barcode width is approximately: (number of characters + 2) * 13 * module_width
-        // With module width = 2: (dataBytes.length + 2) * 26 dots.
-        // In character columns (12 dots per column): Math.ceil(((dataBytes.length + 2) * 26) / 12)
-        const estimatedColWidth = Math.ceil(((dataBytes.length + 2) * 26) / 12);
-        currentXChars = targetCol + estimatedColWidth;
-      } else {
-        rowBytes.push(ESC, 0x21, segment.modeByte);
-        rowBytes.push(ESC, 0x45, segment.bold ? 0x01 : 0x00);
-        rowBytes.push(...encoder.encode(segment.text));
-        currentXChars = targetCol + segment.text.length;
-      }
-    }
-
-    rowBytes.push(ESC, 0x21, 0x00);
-    rowBytes.push(ESC, 0x45, 0x00);
-    rowBytes.push(...encoder.encode("\n"));
-
-    printRow.bytes = rowBytes;
-  }
-
-  let currentY = 0;
-  for (const printRow of printRows) {
-    const feedDots = printRow.y - currentY;
-    if (feedDots > 0) {
-      payload.push(ESC, 0x4a, feedDots);
-      currentY += feedDots;
-    }
-    payload.push(...printRow.bytes);
-    currentY += printRow.maxCharHeight;
-  }
-
-  // Restore defaults
-  payload.push(ESC, 0x21, 0x00);
-  payload.push(ESC, 0x45, 0x00);
+  payload.push(GS, 0x76, 0x30, 0x00, xL, xH, yL, yH, ...raster);
 
   // Feed mechanism
   if (feedMethod === "gap") {
     payload.push(GS, 0x0c); 
   } else {
-    const remainingFeed = Math.max(0, pitch - currentY);
+    // Pitch manual
+    const remainingFeed = Math.max(0, pitch - stickerHeight);
     if (remainingFeed > 0) {
       payload.push(ESC, 0x4a, remainingFeed);
     }
