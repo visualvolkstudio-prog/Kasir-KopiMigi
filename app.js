@@ -3153,13 +3153,12 @@ function initDraggableRows() {
         newLeft = Math.max(0, Math.min(containerWidth - elWidth, newLeft));
         newTop = Math.max(0, Math.min(containerHeight - elHeight, newTop));
         
-        el.setAttribute("data-drag-x", newLeft);
-        el.setAttribute("data-drag-y", newTop);
+        // Move smoothly during dragging
+        el.style.left = `${newLeft}px`;
+        el.style.top = `${newTop}px`;
 
         const posVal = document.getElementById(`label${key}PosVal`);
         if (posVal) posVal.textContent = `X:${newLeft}, Y:${newTop}`;
-
-        updateLabelPreview();
       }
     };
 
@@ -3176,6 +3175,13 @@ function initDraggableRows() {
         isDragging = false;
         el.style.borderColor = "rgba(59, 130, 246, 0.3)";
         el.style.backgroundColor = "transparent";
+        
+        // Persist final dragged positions and snap to printer lines
+        const finalLeft = parseInt(el.style.left || "0");
+        const finalTop = parseInt(el.style.top || "0");
+        el.setAttribute("data-drag-x", finalLeft);
+        el.setAttribute("data-drag-y", finalTop);
+        
         saveLabelPrinterSettingsFromUI();
       }
     };
