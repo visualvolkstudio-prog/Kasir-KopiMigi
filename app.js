@@ -3007,12 +3007,18 @@ function updateLabelPreview() {
 
   [els.labelPreviewPaper, document.getElementById("labelReadOnlyPreviewPaper")].forEach((paper) => {
     if (!paper) return;
-    const parentWidth = paper.parentElement?.getBoundingClientRect().width || 384;
+    let parentWidth = paper.parentElement?.getBoundingClientRect().width || 0;
+    if (parentWidth < 100) {
+      parentWidth = paper.parentElement?.offsetWidth || 384;
+    }
+    if (parentWidth < 100) {
+      parentWidth = 384; // Safe fallback to prevent scale(0) or scale(negative) on initial render
+    }
     const padding = 32;
     const availableWidth = parentWidth - padding;
     const currentPaperWidth = parseInt(paper.style.width || "384");
     const currentPaperHeight = parseInt(paper.style.height || "160");
-    if (availableWidth < currentPaperWidth) {
+    if (availableWidth < currentPaperWidth && availableWidth > 0) {
       const scale = availableWidth / currentPaperWidth;
       paper.style.transform = `scale(${scale})`;
       paper.style.transformOrigin = "center center";
@@ -8652,14 +8658,14 @@ els.printerPaperSize?.addEventListener("change", () => {
 function openLabelSettingsModal() {
   const modal = els.labelSettingsModal;
   if (!modal) return;
-  modal.style.display = "flex";
+  modal.classList.add("open");
   modal.setAttribute("aria-hidden", "false");
   updateLabelPreview();
 }
 function closeLabelSettingsModal() {
   const modal = els.labelSettingsModal;
   if (!modal) return;
-  modal.style.display = "none";
+  modal.classList.remove("open");
   modal.setAttribute("aria-hidden", "true");
 }
 
