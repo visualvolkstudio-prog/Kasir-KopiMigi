@@ -519,16 +519,9 @@
                     </div>
                     <span class="printer-status disconnected" id="labelPrinterStatus">Terputus</span>
                   </div>
-                  <label>
-                    Ukuran label
-                    <select id="labelPrinterPaperSize">
-                      <option value="40x20mm" selected>40 × 20 mm</option>
-                      <option value="58mm">58mm</option>
-                    </select>
-                  </label>
-                  <button class="primary-button full-button" id="connectLabelPrinter" type="button">Sambungkan Label Printer</button>
+                  <button class="primary-button full-button" id="connectLabelPrinter" type="button" style="margin-top: 8px;">Sambungkan Label Printer</button>
                   <button class="secondary-button full-button" id="testLabelPrint" type="button">Test Label</button>
-                  <p class="printer-hint" id="labelPrinterHint">Label 40 × 20 mm dicetak per minuman. Kalibrasikan sensor gap printer dengan ukuran yang sama.</p>
+                  <p class="printer-hint" id="labelPrinterHint">Gunakan tab <strong>Pengaturan</strong> (Owner) untuk mengubah ukuran stiker, metode feed, margin, dan tata letak tulisan.</p>
                 </div>
               </div>
             </div>
@@ -1100,6 +1093,78 @@
                 </div>
               </form>
             </section>
+            <section class="settings-panel owner-analytics-only">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">Printer Label</p>
+                  <h3>Tata Letak Stiker Cup</h3>
+                </div>
+              </div>
+              
+              <div style="padding: 12px 0;">
+                <p style="font-size: 13px; color: var(--muted); margin-bottom: 12px;">
+                  Sesuaikan tata letak teks, ukuran font, lebar area, dan posisi stiker secara bebas dengan pratinjau interaktif.
+                </p>
+                <!-- Read-only Preview Canvas -->
+                <div style="background: rgba(0,0,0,0.02); border: 1px solid var(--border); padding: 16px; border-radius: 8px; display: flex; flex-direction: column; align-items: center; overflow: hidden; position: relative; margin-bottom: 16px;">
+                  <div style="width: 100%; display: flex; justify-content: center; align-items: center; overflow: visible; height: 160px; margin: 8px 0;">
+                    <div id="labelReadOnlyPreviewPaper" style="background: #e2e8f0; width: 384px; height: 160px; position: relative; border: 1px dashed #cbd5e1; border-radius: 6px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05); overflow: hidden; transform-origin: center center;">
+                      <div id="labelReadOnlyPreviewSticker" style="background: #ffffff; width: 320px; height: 160px; position: absolute; left: 8px; top: 0; border-radius: 4px; box-shadow: 0 4px 10px rgba(0,0,0,0.08); box-sizing: border-box; color: #000000; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.25; overflow: hidden; user-select: none;">
+                        
+                        <div id="labelReadOnlyPreviewDrinkName" style="position: absolute; left: 12px; top: 12px; padding: 2px 4px; border-radius: 3px; overflow: hidden; max-height: 48px; word-break: break-word; box-sizing: border-box;">
+                          Kopi Susu Migi
+                        </div>
+                        
+                        <div id="labelReadOnlyPreviewNotes" style="position: absolute; left: 12px; top: 48px; padding: 2px 4px; border-radius: 3px; overflow: hidden; max-height: 48px; word-break: break-word; box-sizing: border-box;">
+                          Ice * Less Sugar
+                        </div>
+                        
+                        <div id="labelReadOnlyPreviewOrderCode" style="position: absolute; left: 12px; top: 84px; padding: 2px 4px; border-radius: 3px; overflow: hidden; max-height: 48px; word-break: break-word; box-sizing: border-box;">
+                          #SB-001
+                        </div>
+                        
+                        <div id="labelReadOnlyPreviewCustomer" style="position: absolute; left: 12px; top: 110px; padding: 2px 4px; border-radius: 3px; overflow: hidden; max-height: 48px; word-break: break-word; box-sizing: border-box;">
+                          Teman Migi
+                        </div>
+
+                        <div id="labelReadOnlyPreviewCounter" style="position: absolute; left: 240px; top: 84px; padding: 2px 4px; border-radius: 3px; overflow: hidden; max-height: 48px; word-break: break-word; box-sizing: border-box;">
+                          [1/1]
+                        </div>
+                        
+                        <div id="labelReadOnlyPreviewCustomText" style="position: absolute; left: 150px; top: 12px; padding: 2px 4px; border-radius: 3px; overflow: hidden; max-height: 48px; word-break: break-word; box-sizing: border-box;">
+                          TEKS KUSTOM
+                        </div>
+                        
+                        <div id="labelReadOnlyPreviewBarcode" style="position: absolute; left: 60px; top: 130px; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; justify-content: center; overflow: hidden; background: white;">
+                          <div class="mock-barcode-lines" style="width: 100%; height: calc(100% - 10px); display: flex; align-items: stretch; gap: 1px; padding: 2px; box-sizing: border-box;">
+                            <div style="flex: 1; background: #000; height: 100%;"></div>
+                            <div style="flex: 2; background: #000; height: 100%;"></div>
+                            <div style="flex: 1; background: #000; height: 100%;"></div>
+                            <div style="flex: 3; background: #000; height: 100%;"></div>
+                            <div style="flex: 1; background: #000; height: 100%;"></div>
+                            <div style="flex: 2; background: #000; height: 100%;"></div>
+                            <div style="flex: 1; background: #000; height: 100%;"></div>
+                            <div style="flex: 1; background: #000; height: 100%;"></div>
+                            <div style="flex: 3; background: #000; height: 100%;"></div>
+                            <div style="flex: 2; background: #000; height: 100%;"></div>
+                            <div style="flex: 1; background: #000; height: 100%;"></div>
+                            <div style="flex: 2; background: #000; height: 100%;"></div>
+                            <div style="flex: 1; background: #000; height: 100%;"></div>
+                            <div style="flex: 3; background: #000; height: 100%;"></div>
+                          </div>
+                          <span style="font-size: 8px; font-family: monospace; line-height: 8px; margin: 0; color: #000; user-select: none;">12345678</span>
+                        </div>
+                        
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <button class="secondary-button" id="openLabelSettingsBtn" type="button" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                  <i class="ph ph-sliders" style="font-size: 16px;"></i>
+                  Edit Tata Letak Stiker
+                </button>
+              </div>
+            </section>
             <section class="settings-panel">
               <div class="section-heading">
                 <div>
@@ -1175,7 +1240,308 @@
         <button class="primary-button full-button" type="submit">Simpan Kustomisasi</button>
       </form>
     </section>
+    </section>
 
+    <!-- Modal Pengaturan Tata Letak Stiker -->
+    <section class="order-modal" id="labelSettingsModal" aria-label="Pengaturan Tata Letak Stiker Cup" aria-hidden="true" style="display: none;">
+      <div class="order-card" style="max-width: 600px; width: 95%; max-height: 90vh;">
+        <div class="modal-head" style="padding-bottom: 12px; border-bottom: 1px solid var(--border);">
+          <div>
+            <p class="eyebrow">Printer Label</p>
+            <h2>Tata Letak Stiker Cup</h2>
+          </div>
+          <button class="icon-button modal-close" id="closeLabelSettingsBtn" type="button">
+            <i class="ph ph-x"></i>
+          </button>
+        </div>
+        
+        <div style="max-height: 70vh; overflow-y: auto; padding: 12px 16px 16px 16px; display: flex; flex-direction: column; gap: 16px;">
+          <!-- Live Preview Stiker -->
+          <div style="background: rgba(0,0,0,0.02); border: 1px solid var(--border); padding: 16px; border-radius: 8px; display: flex; flex-direction: column; align-items: center; overflow: hidden; position: relative;">
+            <span style="font-size: 11px; font-weight: 600; color: var(--muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; text-align: center;">Geser teks (Drag) / Tarik Kanan untuk Lebar (Resize)</span>
+            <div style="width: 100%; display: flex; justify-content: center; align-items: center; overflow: visible; height: 160px; margin: 8px 0;">
+              <div id="labelPreviewPaper" style="background: #e2e8f0; width: 384px; height: 160px; position: relative; border: 1px dashed #cbd5e1; border-radius: 6px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05); overflow: hidden; transform-origin: center center;">
+                <div id="labelPreviewSticker" style="background: #ffffff; width: 320px; height: 160px; position: absolute; left: 8px; top: 0; border-radius: 4px; box-shadow: 0 4px 10px rgba(0,0,0,0.08); box-sizing: border-box; color: #000000; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.25; overflow: hidden; user-select: none;">
+                  
+                  <div id="labelPreviewDrinkName" style="position: absolute; left: 12px; top: 12px; cursor: move; border: 1px dashed rgba(59, 130, 246, 0.3); padding: 2px 12px 6px 4px; border-radius: 3px; overflow: hidden; word-break: break-word; box-sizing: border-box;">
+                    Kopi Susu Migi
+                    <div class="label-width-handle" data-target="DrinkName" style="position: absolute; right: 0; top: 0; width: 8px; height: 100%; cursor: ew-resize; background: rgba(59, 130, 246, 0.15); border-left: 1px solid rgba(59, 130, 246, 0.35); z-index: 10;"></div>
+                    <div class="label-height-handle" data-target="DrinkName" style="position: absolute; left: 0; bottom: 0; width: 100%; height: 6px; cursor: ns-resize; background: rgba(59, 130, 246, 0.15); border-top: 1px solid rgba(59, 130, 246, 0.35); z-index: 10;"></div>
+                  </div>
+                  
+                  <div id="labelPreviewNotes" style="position: absolute; left: 12px; top: 48px; cursor: move; border: 1px dashed rgba(59, 130, 246, 0.3); padding: 2px 12px 6px 4px; border-radius: 3px; overflow: hidden; word-break: break-word; box-sizing: border-box;">
+                    Ice * Less Sugar
+                    <div class="label-width-handle" data-target="Notes" style="position: absolute; right: 0; top: 0; width: 8px; height: 100%; cursor: ew-resize; background: rgba(59, 130, 246, 0.15); border-left: 1px solid rgba(59, 130, 246, 0.35); z-index: 10;"></div>
+                    <div class="label-height-handle" data-target="Notes" style="position: absolute; left: 0; bottom: 0; width: 100%; height: 6px; cursor: ns-resize; background: rgba(59, 130, 246, 0.15); border-top: 1px solid rgba(59, 130, 246, 0.35); z-index: 10;"></div>
+                  </div>
+                  
+                  <div id="labelPreviewOrderCode" style="position: absolute; left: 12px; top: 84px; cursor: move; border: 1px dashed rgba(59, 130, 246, 0.3); padding: 2px 12px 6px 4px; border-radius: 3px; overflow: hidden; word-break: break-word; box-sizing: border-box;">
+                    #SB-001
+                    <div class="label-width-handle" data-target="OrderCode" style="position: absolute; right: 0; top: 0; width: 8px; height: 100%; cursor: ew-resize; background: rgba(59, 130, 246, 0.15); border-left: 1px solid rgba(59, 130, 246, 0.35); z-index: 10;"></div>
+                    <div class="label-height-handle" data-target="OrderCode" style="position: absolute; left: 0; bottom: 0; width: 100%; height: 6px; cursor: ns-resize; background: rgba(59, 130, 246, 0.15); border-top: 1px solid rgba(59, 130, 246, 0.35); z-index: 10;"></div>
+                  </div>
+                  
+                  <div id="labelPreviewCustomer" style="position: absolute; left: 12px; top: 110px; cursor: move; border: 1px dashed rgba(59, 130, 246, 0.3); padding: 2px 12px 6px 4px; border-radius: 3px; overflow: hidden; word-break: break-word; box-sizing: border-box;">
+                    Teman Migi
+                    <div class="label-width-handle" data-target="Customer" style="position: absolute; right: 0; top: 0; width: 8px; height: 100%; cursor: ew-resize; background: rgba(59, 130, 246, 0.15); border-left: 1px solid rgba(59, 130, 246, 0.35); z-index: 10;"></div>
+                    <div class="label-height-handle" data-target="Customer" style="position: absolute; left: 0; bottom: 0; width: 100%; height: 6px; cursor: ns-resize; background: rgba(59, 130, 246, 0.15); border-top: 1px solid rgba(59, 130, 246, 0.35); z-index: 10;"></div>
+                  </div>
+
+                  <div id="labelPreviewCounter" style="position: absolute; left: 240px; top: 84px; cursor: move; border: 1px dashed rgba(59, 130, 246, 0.3); padding: 2px 12px 6px 4px; border-radius: 3px; overflow: hidden; word-break: break-word; box-sizing: border-box;">
+                    [1/1]
+                    <div class="label-width-handle" data-target="Counter" style="position: absolute; right: 0; top: 0; width: 8px; height: 100%; cursor: ew-resize; background: rgba(59, 130, 246, 0.15); border-left: 1px solid rgba(59, 130, 246, 0.35); z-index: 10;"></div>
+                    <div class="label-height-handle" data-target="Counter" style="position: absolute; left: 0; bottom: 0; width: 100%; height: 6px; cursor: ns-resize; background: rgba(59, 130, 246, 0.15); border-top: 1px solid rgba(59, 130, 246, 0.35); z-index: 10;"></div>
+                  </div>
+                  
+                  <div id="labelPreviewCustomText" style="position: absolute; left: 150px; top: 12px; cursor: move; border: 1px dashed rgba(59, 130, 246, 0.3); padding: 2px 12px 6px 4px; border-radius: 3px; overflow: hidden; word-break: break-word; box-sizing: border-box;">
+                    TEKS KUSTOM
+                    <div class="label-width-handle" data-target="CustomText" style="position: absolute; right: 0; top: 0; width: 8px; height: 100%; cursor: ew-resize; background: rgba(59, 130, 246, 0.15); border-left: 1px solid rgba(59, 130, 246, 0.35); z-index: 10;"></div>
+                    <div class="label-height-handle" data-target="CustomText" style="position: absolute; left: 0; bottom: 0; width: 100%; height: 6px; cursor: ns-resize; background: rgba(59, 130, 246, 0.15); border-top: 1px solid rgba(59, 130, 246, 0.35); z-index: 10;"></div>
+                  </div>
+                  
+                  <div id="labelPreviewBarcode" style="position: absolute; left: 60px; top: 130px; cursor: move; border: 1px dashed rgba(59, 130, 246, 0.3); box-sizing: border-box; display: flex; flex-direction: column; align-items: center; justify-content: center; overflow: hidden; background: white;">
+                    <div class="mock-barcode-lines" style="width: 100%; height: calc(100% - 10px); display: flex; align-items: stretch; gap: 1px; padding: 2px; box-sizing: border-box;">
+                      <div style="flex: 1; background: #000; height: 100%;"></div>
+                      <div style="flex: 2; background: #000; height: 100%;"></div>
+                      <div style="flex: 1; background: #000; height: 100%;"></div>
+                      <div style="flex: 3; background: #000; height: 100%;"></div>
+                      <div style="flex: 1; background: #000; height: 100%;"></div>
+                      <div style="flex: 2; background: #000; height: 100%;"></div>
+                      <div style="flex: 1; background: #000; height: 100%;"></div>
+                      <div style="flex: 1; background: #000; height: 100%;"></div>
+                      <div style="flex: 3; background: #000; height: 100%;"></div>
+                      <div style="flex: 2; background: #000; height: 100%;"></div>
+                      <div style="flex: 1; background: #000; height: 100%;"></div>
+                      <div style="flex: 2; background: #000; height: 100%;"></div>
+                      <div style="flex: 1; background: #000; height: 100%;"></div>
+                      <div style="flex: 3; background: #000; height: 100%;"></div>
+                    </div>
+                    <span style="font-size: 8px; font-family: monospace; line-height: 8px; margin: 0; color: #000; user-select: none;">12345678</span>
+                    <div class="label-width-handle" data-target="Barcode" style="position: absolute; right: 0; top: 0; width: 8px; height: 100%; cursor: ew-resize; background: rgba(59, 130, 246, 0.15); border-left: 1px solid rgba(59, 130, 246, 0.35); z-index: 10;"></div>
+                    <div class="label-height-handle" data-target="Barcode" style="position: absolute; left: 0; bottom: 0; width: 100%; height: 6px; cursor: ns-resize; background: rgba(59, 130, 246, 0.15); border-top: 1px solid rgba(59, 130, 246, 0.35); z-index: 10;"></div>
+                  </div>
+                  
+                </div>
+              </div>
+            </div>
+            <span style="font-size: 11px; color: var(--muted); margin-top: 6px; text-align: center;">Abu-abu = area cetak (58mm), Putih = kertas stiker (40x20mm).</span>
+          </div>
+
+          <!-- Konfigurasi Global -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; background: rgba(0,0,0,0.01); padding: 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px;">
+            <label style="display: flex; flex-direction: column; gap: 4px;">
+              Ukuran stiker
+              <select id="labelPrinterPaperSize">
+                <option value="40x20mm" selected>40 × 20 mm</option>
+                <option value="58mm">58mm</option>
+              </select>
+            </label>
+            <label style="display: flex; flex-direction: column; gap: 4px;">
+              Metode Feed Kertas
+              <select id="labelPrinterFeedMethod">
+                <option value="gap" selected>Sensor Gap (Auto - GS FF)</option>
+                <option value="manual">Pitch Manual (ESC J)</option>
+              </select>
+            </label>
+            <label style="display: flex; flex-direction: column; gap: 4px;">
+              Jeda Antar Label (ms)
+              <input type="number" id="labelPrinterDelay" value="1200" min="200" max="3000" step="100">
+            </label>
+            <div style="display: flex; flex-direction: column; justify-content: center; gap: 4px;">
+              <div style="display: flex; justify-content: space-between; font-weight: 500;">
+                <span>Stiker Offset X (dots)</span>
+                <span id="labelStickerOffsetXVal" style="font-family: monospace;">8</span>
+              </div>
+              <input type="range" id="labelStickerOffsetX" min="0" max="100" value="8" style="width: 100%;">
+            </div>
+          </div>
+
+          <!-- Konfigurasi Elemen-Elemen -->
+          <div style="display: flex; flex-direction: column; gap: 12px;">
+            
+            <!-- Nama Produk -->
+            <div style="display: flex; flex-direction: column; gap: 6px; padding: 8px; border: 1px solid var(--border); border-radius: 6px; background: rgba(0,0,0,0.01);">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; cursor: pointer; user-select: none; margin: 0;">
+                  <input type="checkbox" id="labelDrinkNameEnabled" checked style="width: 15px; height: 15px; min-height: 15px; min-width: 15px; max-width: 15px; max-height: 15px; margin: 0; cursor: pointer; accent-color: var(--accent);"> Nama Produk
+                </label>
+                <div style="display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--muted);">
+                  <span>Posisi:</span>
+                  <span id="labelDrinkNamePosVal" style="font-family: monospace;">X:12, Y:12</span>
+                </div>
+              </div>
+              <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; margin-top: 2px;">
+                <span>Format Teks</span>
+                <label style="display: flex; align-items: center; gap: 4px; font-size: 11px; margin: 0; cursor: pointer; user-select: none;">
+                  <input type="checkbox" id="labelDrinkNameBold" checked style="width: 15px; height: 15px; min-height: 15px; min-width: 15px; max-width: 15px; max-height: 15px; margin: 0; cursor: pointer; accent-color: var(--accent);"> Bold
+                </label>
+              </div>
+              <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px;">
+                <span>Ukuran Teks (Slider)</span>
+                <div style="display: flex; align-items: center; gap: 6px;">
+                  <input type="range" id="labelDrinkNameFontSize" min="8" max="32" value="18" style="width: 100px;">
+                  <span id="labelDrinkNameFontSizeVal" style="font-family: monospace;">18</span>
+                </div>
+              </div>
+              <input type="hidden" id="labelDrinkNameWidth" value="200">
+            </div>
+
+            <!-- Catatan Varian -->
+            <div style="display: flex; flex-direction: column; gap: 6px; padding: 8px; border: 1px solid var(--border); border-radius: 6px; background: rgba(0,0,0,0.01);">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; cursor: pointer; user-select: none; margin: 0;">
+                  <input type="checkbox" id="labelNotesEnabled" checked style="width: 15px; height: 15px; min-height: 15px; min-width: 15px; max-width: 15px; max-height: 15px; margin: 0; cursor: pointer; accent-color: var(--accent);"> Catatan Varian
+                </label>
+                <div style="display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--muted);">
+                  <span>Posisi:</span>
+                  <span id="labelNotesPosVal" style="font-family: monospace;">X:12, Y:48</span>
+                </div>
+              </div>
+              <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; margin-top: 2px;">
+                <span>Format Teks</span>
+                <label style="display: flex; align-items: center; gap: 4px; font-size: 11px; margin: 0; cursor: pointer; user-select: none;">
+                  <input type="checkbox" id="labelNotesBold" style="width: 15px; height: 15px; min-height: 15px; min-width: 15px; max-width: 15px; max-height: 15px; margin: 0; cursor: pointer; accent-color: var(--accent);"> Bold
+                </label>
+              </div>
+              <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px;">
+                <span>Ukuran Teks (Slider)</span>
+                <div style="display: flex; align-items: center; gap: 6px;">
+                  <input type="range" id="labelNotesFontSize" min="8" max="32" value="13" style="width: 100px;">
+                  <span id="labelNotesFontSizeVal" style="font-family: monospace;">13</span>
+                </div>
+              </div>
+              <input type="hidden" id="labelNotesWidth" value="280">
+            </div>
+
+            <!-- Nomor Pesanan -->
+            <div style="display: flex; flex-direction: column; gap: 6px; padding: 8px; border: 1px solid var(--border); border-radius: 6px; background: rgba(0,0,0,0.01);">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; cursor: pointer; user-select: none; margin: 0;">
+                  <input type="checkbox" id="labelOrderCodeEnabled" checked style="width: 15px; height: 15px; min-height: 15px; min-width: 15px; max-width: 15px; max-height: 15px; margin: 0; cursor: pointer; accent-color: var(--accent);"> Nomor Pesanan
+                </label>
+                <div style="display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--muted);">
+                  <span>Posisi:</span>
+                  <span id="labelOrderCodePosVal" style="font-family: monospace;">X:12, Y:84</span>
+                </div>
+              </div>
+              <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; margin-top: 2px;">
+                <span>Format Teks</span>
+                <label style="display: flex; align-items: center; gap: 4px; font-size: 11px; margin: 0; cursor: pointer; user-select: none;">
+                  <input type="checkbox" id="labelOrderCodeBold" style="width: 15px; height: 15px; min-height: 15px; min-width: 15px; max-width: 15px; max-height: 15px; margin: 0; cursor: pointer; accent-color: var(--accent);"> Bold
+                </label>
+              </div>
+              <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px;">
+                <span>Ukuran Teks (Slider)</span>
+                <div style="display: flex; align-items: center; gap: 6px;">
+                  <input type="range" id="labelOrderCodeFontSize" min="8" max="32" value="13" style="width: 100px;">
+                  <span id="labelOrderCodeFontSizeVal" style="font-family: monospace;">13</span>
+                </div>
+              </div>
+              <input type="hidden" id="labelOrderCodeWidth" value="120">
+            </div>
+
+            <!-- Nama Pengunjung -->
+            <div style="display: flex; flex-direction: column; gap: 6px; padding: 8px; border: 1px solid var(--border); border-radius: 6px; background: rgba(0,0,0,0.01);">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; cursor: pointer; user-select: none; margin: 0;">
+                  <input type="checkbox" id="labelCustomerEnabled" checked style="width: 15px; height: 15px; min-height: 15px; min-width: 15px; max-width: 15px; max-height: 15px; margin: 0; cursor: pointer; accent-color: var(--accent);"> Nama Pengunjung
+                </label>
+                <div style="display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--muted);">
+                  <span>Posisi:</span>
+                  <span id="labelCustomerPosVal" style="font-family: monospace;">X:12, Y:110</span>
+                </div>
+              </div>
+              <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; margin-top: 2px;">
+                <span>Format Teks</span>
+                <label style="display: flex; align-items: center; gap: 4px; font-size: 11px; margin: 0; cursor: pointer; user-select: none;">
+                  <input type="checkbox" id="labelCustomerBold" style="width: 15px; height: 15px; min-height: 15px; min-width: 15px; max-width: 15px; max-height: 15px; margin: 0; cursor: pointer; accent-color: var(--accent);"> Bold
+                </label>
+              </div>
+              <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px;">
+                <span>Ukuran Teks (Slider)</span>
+                <div style="display: flex; align-items: center; gap: 6px;">
+                  <input type="range" id="labelCustomerFontSize" min="8" max="32" value="13" style="width: 100px;">
+                  <span id="labelCustomerFontSizeVal" style="font-family: monospace;">13</span>
+                </div>
+              </div>
+              <input type="hidden" id="labelCustomerWidth" value="150">
+            </div>
+
+            <!-- Nomor Item (Counter) -->
+            <div style="display: flex; flex-direction: column; gap: 6px; padding: 8px; border: 1px solid var(--border); border-radius: 6px; background: rgba(0,0,0,0.01);">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; cursor: pointer; user-select: none; margin: 0;">
+                  <input type="checkbox" id="labelCounterEnabled" checked style="width: 15px; height: 15px; min-height: 15px; min-width: 15px; max-width: 15px; max-height: 15px; margin: 0; cursor: pointer; accent-color: var(--accent);"> Nomor Item (Counter)
+                </label>
+                <div style="display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--muted);">
+                  <span>Posisi:</span>
+                  <span id="labelCounterPosVal" style="font-family: monospace;">X:240, Y:84</span>
+                </div>
+              </div>
+              <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; margin-top: 2px;">
+                <span>Format Teks</span>
+                <label style="display: flex; align-items: center; gap: 4px; font-size: 11px; margin: 0; cursor: pointer; user-select: none;">
+                  <input type="checkbox" id="labelCounterBold" style="width: 15px; height: 15px; min-height: 15px; min-width: 15px; max-width: 15px; max-height: 15px; margin: 0; cursor: pointer; accent-color: var(--accent);"> Bold
+                </label>
+              </div>
+              <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px;">
+                <span>Ukuran Teks (Slider)</span>
+                <div style="display: flex; align-items: center; gap: 6px;">
+                  <input type="range" id="labelCounterFontSize" min="8" max="32" value="13" style="width: 100px;">
+                  <span id="labelCounterFontSizeVal" style="font-family: monospace;">13</span>
+                </div>
+              </div>
+              <input type="hidden" id="labelCounterWidth" value="80">
+            </div>
+
+            <!-- Teks Kustom Tambahan -->
+            <div style="display: flex; flex-direction: column; gap: 6px; padding: 8px; border: 1px solid var(--border); border-radius: 6px; background: rgba(0,0,0,0.01);">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; cursor: pointer; user-select: none; margin: 0;">
+                  <input type="checkbox" id="labelCustomTextEnabled" style="width: 15px; height: 15px; min-height: 15px; min-width: 15px; max-width: 15px; max-height: 15px; margin: 0; cursor: pointer; accent-color: var(--accent);"> Teks Kustom Tambahan
+                </label>
+                <div style="display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--muted);">
+                  <span>Posisi:</span>
+                  <span id="labelCustomTextPosVal" style="font-family: monospace;">X:150, Y:12</span>
+                </div>
+              </div>
+              <div style="display: flex; gap: 8px; align-items: center; margin-top: 2px;">
+                <input type="text" id="labelCustomTextValue" placeholder="Masukkan teks kustom..." value="TEMAN" style="flex: 1; padding: 4px 6px; font-size: 12px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-surface); color: var(--ink);">
+                <label style="display: flex; align-items: center; gap: 4px; font-size: 11px; margin: 0; cursor: pointer; user-select: none;">
+                  <input type="checkbox" id="labelCustomTextBold" checked style="width: 15px; height: 15px; min-height: 15px; min-width: 15px; max-width: 15px; max-height: 15px; margin: 0; cursor: pointer; accent-color: var(--accent);"> Bold
+                </label>
+              </div>
+              <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; margin-top: 2px;">
+                <span>Ukuran Teks (Slider)</span>
+                <div style="display: flex; align-items: center; gap: 6px;">
+                  <input type="range" id="labelCustomTextFontSize" min="8" max="32" value="11" style="width: 100px;">
+                  <span id="labelCustomTextFontSizeVal" style="font-family: monospace;">11</span>
+                </div>
+              </div>
+              <input type="hidden" id="labelCustomTextWidth" value="100">
+            </div>
+            <!-- Barcode Random/Transaksi -->
+            <div style="display: flex; flex-direction: column; gap: 6px; padding: 8px; border: 1px solid var(--border); border-radius: 6px; background: rgba(0,0,0,0.01);">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; cursor: pointer; user-select: none; margin: 0;">
+                  <input type="checkbox" id="labelBarcodeEnabled" style="width: 15px; height: 15px; min-height: 15px; min-width: 15px; max-width: 15px; max-height: 15px; margin: 0; cursor: pointer; accent-color: var(--accent);"> Barcode (CODE39)
+                </label>
+                <div style="display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--muted);">
+                  <span>Posisi:</span>
+                  <span id="labelBarcodePosVal" style="font-family: monospace;">X:60, Y:130</span>
+                </div>
+              </div>
+              <input type="hidden" id="labelBarcodeWidth" value="200">
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer" style="padding: 12px 16px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; background: var(--bg-surface-dim);">
+          <button class="primary-button" id="saveLabelSettingsBtn" type="button" style="flex: 1; justify-content: center; height: 38px;">
+            Simpan Perubahan
+          </button>
+        </div>
+      </div>
+    </section>
     <section class="receipt-paper" id="receiptPaper" aria-label="Struk cetak"></section>
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>

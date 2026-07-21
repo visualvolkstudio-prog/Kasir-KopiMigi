@@ -241,6 +241,76 @@ const els = {
   printerPanelLabel: document.querySelector("#printerPanelLabel"),
   labelPrinterStatus: document.querySelector("#labelPrinterStatus"),
   labelPrinterPaperSize: document.querySelector("#labelPrinterPaperSize"),
+  labelPrinterFeedMethod: document.querySelector("#labelPrinterFeedMethod"),
+  labelPrinterManualSettings: document.querySelector("#labelPrinterManualSettings"),
+  labelPrinterPitch: document.querySelector("#labelPrinterPitch"),
+  labelPrinterLineSpacing: document.querySelector("#labelPrinterLineSpacing"),
+  labelPrinterDelay: document.querySelector("#labelPrinterDelay"),
+  labelPrinterMargin: document.querySelector("#labelPrinterMargin"),
+  labelPrinterSpaces: document.querySelector("#labelPrinterSpaces"),
+  labelPreviewPaper: document.querySelector("#labelPreviewPaper"),
+  labelPreviewSticker: document.querySelector("#labelPreviewSticker"),
+  labelStickerOffsetX: document.querySelector("#labelStickerOffsetX"),
+  labelStickerOffsetXVal: document.querySelector("#labelStickerOffsetXVal"),
+
+  openLabelSettingsBtn: document.querySelector("#openLabelSettingsBtn"),
+  closeLabelSettingsBtn: document.querySelector("#closeLabelSettingsBtn"),
+  saveLabelSettingsBtn: document.querySelector("#saveLabelSettingsBtn"),
+  labelSettingsModal: document.querySelector("#labelSettingsModal"),
+
+  labelPreviewDrinkName: document.querySelector("#labelPreviewDrinkName"),
+  labelDrinkNameEnabled: document.querySelector("#labelDrinkNameEnabled"),
+  labelDrinkNameBold: document.querySelector("#labelDrinkNameBold"),
+  labelDrinkNameFontSize: document.querySelector("#labelDrinkNameFontSize"),
+  labelDrinkNameFontSizeVal: document.querySelector("#labelDrinkNameFontSizeVal"),
+  labelDrinkNameWidth: document.querySelector("#labelDrinkNameWidth"),
+  labelDrinkNamePosVal: document.querySelector("#labelDrinkNamePosVal"),
+
+  labelPreviewNotes: document.querySelector("#labelPreviewNotes"),
+  labelNotesEnabled: document.querySelector("#labelNotesEnabled"),
+  labelNotesBold: document.querySelector("#labelNotesBold"),
+  labelNotesFontSize: document.querySelector("#labelNotesFontSize"),
+  labelNotesFontSizeVal: document.querySelector("#labelNotesFontSizeVal"),
+  labelNotesWidth: document.querySelector("#labelNotesWidth"),
+  labelNotesPosVal: document.querySelector("#labelNotesPosVal"),
+
+  labelPreviewOrderCode: document.querySelector("#labelPreviewOrderCode"),
+  labelOrderCodeEnabled: document.querySelector("#labelOrderCodeEnabled"),
+  labelOrderCodeBold: document.querySelector("#labelOrderCodeBold"),
+  labelOrderCodeFontSize: document.querySelector("#labelOrderCodeFontSize"),
+  labelOrderCodeFontSizeVal: document.querySelector("#labelOrderCodeFontSizeVal"),
+  labelOrderCodeWidth: document.querySelector("#labelOrderCodeWidth"),
+  labelOrderCodePosVal: document.querySelector("#labelOrderCodePosVal"),
+
+  labelPreviewCustomer: document.querySelector("#labelPreviewCustomer"),
+  labelCustomerEnabled: document.querySelector("#labelCustomerEnabled"),
+  labelCustomerBold: document.querySelector("#labelCustomerBold"),
+  labelCustomerFontSize: document.querySelector("#labelCustomerFontSize"),
+  labelCustomerFontSizeVal: document.querySelector("#labelCustomerFontSizeVal"),
+  labelCustomerWidth: document.querySelector("#labelCustomerWidth"),
+  labelCustomerPosVal: document.querySelector("#labelCustomerPosVal"),
+
+  labelPreviewCounter: document.querySelector("#labelPreviewCounter"),
+  labelCounterEnabled: document.querySelector("#labelCounterEnabled"),
+  labelCounterBold: document.querySelector("#labelCounterBold"),
+  labelCounterFontSize: document.querySelector("#labelCounterFontSize"),
+  labelCounterFontSizeVal: document.querySelector("#labelCounterFontSizeVal"),
+  labelCounterWidth: document.querySelector("#labelCounterWidth"),
+  labelCounterPosVal: document.querySelector("#labelCounterPosVal"),
+
+  labelPreviewCustomText: document.querySelector("#labelPreviewCustomText"),
+  labelCustomTextEnabled: document.querySelector("#labelCustomTextEnabled"),
+  labelCustomTextValue: document.querySelector("#labelCustomTextValue"),
+  labelCustomTextBold: document.querySelector("#labelCustomTextBold"),
+  labelCustomTextFontSize: document.querySelector("#labelCustomTextFontSize"),
+  labelCustomTextFontSizeVal: document.querySelector("#labelCustomTextFontSizeVal"),
+  labelCustomTextWidth: document.querySelector("#labelCustomTextWidth"),
+  labelCustomTextPosVal: document.querySelector("#labelCustomTextPosVal"),
+  
+  labelPreviewBarcode: document.querySelector("#labelPreviewBarcode"),
+  labelBarcodeEnabled: document.querySelector("#labelBarcodeEnabled"),
+  labelBarcodeWidth: document.querySelector("#labelBarcodeWidth"),
+  labelBarcodePosVal: document.querySelector("#labelBarcodePosVal"),
   connectLabelPrinter: document.querySelector("#connectLabelPrinter"),
   testLabelPrint: document.querySelector("#testLabelPrint"),
   labelPrinterHint: document.querySelector("#labelPrinterHint"),
@@ -2501,6 +2571,524 @@ function syncFullscreenButton() {
   els.fullscreenToggle?.classList.toggle("active", !!document.fullscreenElement);
 }
 
+function getLabelPrinterSettings() {
+  const fallback = {
+    paperSize: "40x20mm",
+    feedMethod: "gap",
+    pitch: 160,
+    lineSpacing: 20,
+    labelDelay: 1200,
+    labelMargin: 8,
+    labelSpaces: 0,
+    stickerOffsetX: 8,
+    
+    drinkNameEnabled: true,
+    drinkNameBold: true,
+    drinkNameFontSize: 18,
+    drinkNameX: 12,
+    drinkNameY: 12,
+    drinkNameWidth: 200,
+    drinkNameMaxHeight: 48,
+
+    notesEnabled: true,
+    notesBold: false,
+    notesFontSize: 13,
+    notesX: 12,
+    notesY: 48,
+    notesWidth: 280,
+    notesMaxHeight: 24,
+
+    orderCodeEnabled: true,
+    orderCodeBold: false,
+    orderCodeFontSize: 13,
+    orderCodeX: 12,
+    orderCodeY: 84,
+    orderCodeWidth: 120,
+    orderCodeMaxHeight: 24,
+
+    customerEnabled: true,
+    customerBold: false,
+    customerFontSize: 13,
+    customerX: 12,
+    customerY: 110,
+    customerWidth: 150,
+    customerMaxHeight: 24,
+
+    counterEnabled: true,
+    counterBold: false,
+    counterFontSize: 13,
+    counterX: 240,
+    counterY: 84,
+    counterWidth: 80,
+    counterMaxHeight: 24,
+
+    customTextEnabled: false,
+    customTextBold: true,
+    customTextFontSize: 11,
+    customTextX: 150,
+    customTextY: 12,
+    customTextWidth: 100,
+    customTextMaxHeight: 24,
+    customTextValue: "TEMAN",
+
+    barcodeEnabled: false,
+    barcodeX: 60,
+    barcodeY: 130,
+    barcodeWidth: 200,
+    barcodeMaxHeight: 30
+  };
+  return readJson("kasir-migi-label-printer-settings", fallback);
+}
+
+function saveLabelPrinterSettingsFromUI() {
+  const settings = {
+    paperSize: els.labelPrinterPaperSize?.value || "40x20mm",
+    feedMethod: els.labelPrinterFeedMethod?.value || "gap",
+    pitch: Number(els.labelPrinterPitch?.value || 160),
+    lineSpacing: Number(els.labelPrinterLineSpacing?.value || 20),
+    labelDelay: Number(els.labelPrinterDelay?.value || 1200),
+    labelMargin: Number(els.labelPrinterMargin?.value || 8),
+    labelSpaces: Number(els.labelPrinterSpaces?.value || 0),
+    stickerOffsetX: Number(els.labelStickerOffsetX?.value || 8),
+
+    drinkNameEnabled: els.labelDrinkNameEnabled?.checked !== false,
+    drinkNameBold: els.labelDrinkNameBold?.checked !== false,
+    drinkNameFontSize: Number(els.labelDrinkNameFontSize?.value || 18),
+    drinkNameX: parseInt(els.labelPreviewDrinkName?.style.left || "12"),
+    drinkNameY: parseInt(els.labelPreviewDrinkName?.style.top || "12"),
+    drinkNameWidth: parseInt(els.labelPreviewDrinkName?.style.width || "200"),
+    drinkNameMaxHeight: parseInt(els.labelPreviewDrinkName?.style.height || "48"),
+
+    notesEnabled: els.labelNotesEnabled?.checked !== false,
+    notesBold: els.labelNotesBold?.checked === true,
+    notesFontSize: Number(els.labelNotesFontSize?.value || 13),
+    notesX: parseInt(els.labelPreviewNotes?.style.left || "12"),
+    notesY: parseInt(els.labelPreviewNotes?.style.top || "48"),
+    notesWidth: parseInt(els.labelPreviewNotes?.style.width || "280"),
+    notesMaxHeight: parseInt(els.labelPreviewNotes?.style.height || "24"),
+
+    orderCodeEnabled: els.labelOrderCodeEnabled?.checked !== false,
+    orderCodeBold: els.labelOrderCodeBold?.checked === true,
+    orderCodeFontSize: Number(els.labelOrderCodeFontSize?.value || 13),
+    orderCodeX: parseInt(els.labelPreviewOrderCode?.style.left || "12"),
+    orderCodeY: parseInt(els.labelPreviewOrderCode?.style.top || "84"),
+    orderCodeWidth: parseInt(els.labelPreviewOrderCode?.style.width || "120"),
+    orderCodeMaxHeight: parseInt(els.labelPreviewOrderCode?.style.height || "24"),
+
+    customerEnabled: els.labelCustomerEnabled?.checked !== false,
+    customerBold: els.labelCustomerBold?.checked === true,
+    customerFontSize: Number(els.labelCustomerFontSize?.value || 13),
+    customerX: parseInt(els.labelPreviewCustomer?.style.left || "12"),
+    customerY: parseInt(els.labelPreviewCustomer?.style.top || "110"),
+    customerWidth: parseInt(els.labelPreviewCustomer?.style.width || "150"),
+    customerMaxHeight: parseInt(els.labelPreviewCustomer?.style.height || "24"),
+
+    counterEnabled: els.labelCounterEnabled?.checked !== false,
+    counterBold: els.labelCounterBold?.checked === true,
+    counterFontSize: Number(els.labelCounterFontSize?.value || 13),
+    counterX: parseInt(els.labelPreviewCounter?.style.left || "240"),
+    counterY: parseInt(els.labelPreviewCounter?.style.top || "84"),
+    counterWidth: parseInt(els.labelPreviewCounter?.style.width || "80"),
+    counterMaxHeight: parseInt(els.labelPreviewCounter?.style.height || "24"),
+
+    customTextEnabled: els.labelCustomTextEnabled?.checked === true,
+    customTextBold: els.labelCustomTextBold?.checked !== false,
+    customTextFontSize: Number(els.labelCustomTextFontSize?.value || 11),
+    customTextX: parseInt(els.labelPreviewCustomText?.style.left || "150"),
+    customTextY: parseInt(els.labelPreviewCustomText?.style.top || "12"),
+    customTextWidth: parseInt(els.labelPreviewCustomText?.style.width || "100"),
+    customTextMaxHeight: parseInt(els.labelPreviewCustomText?.style.height || "24"),
+    customTextValue: els.labelCustomTextValue?.value || "TEMAN",
+
+    barcodeEnabled: els.labelBarcodeEnabled?.checked === true,
+    barcodeX: parseInt(els.labelPreviewBarcode?.style.left || "60"),
+    barcodeY: parseInt(els.labelPreviewBarcode?.style.top || "130"),
+    barcodeWidth: parseInt(els.labelPreviewBarcode?.style.width || "200"),
+    barcodeMaxHeight: parseInt(els.labelPreviewBarcode?.style.height || "30")
+  };
+  writeJson("kasir-migi-label-printer-settings", settings);
+  toggleLabelPrinterManualSettingsVisibility();
+  updateLabelPreview();
+  renderLabelSettingsSummary();
+}
+
+function toggleLabelPrinterManualSettingsVisibility() {
+  if (!els.labelPrinterFeedMethod || !els.labelPrinterManualSettings) return;
+  const isManual = els.labelPrinterFeedMethod.value === "manual";
+  els.labelPrinterManualSettings.style.display = isManual ? "block" : "none";
+}
+
+function renderLabelSettingsSummary() {
+  const container = document.getElementById("labelSettingsSummaryContainer");
+  if (!container) return;
+  const settings = getLabelPrinterSettings();
+  const elements = [
+    { key: "DrinkName", label: "Nama Produk" },
+    { key: "Notes", label: "Catatan Varian" },
+    { key: "OrderCode", label: "Nomor Pesanan" },
+    { key: "Customer", label: "Nama Pengunjung" },
+    { key: "Counter", label: "Nomor Item" },
+    { key: "CustomText", label: "Teks Kustom", textVal: settings.customTextValue }
+  ];
+  
+  let html = '<div style="font-weight: 600; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">Konfigurasi Aktif saat ini:</div>';
+  let activeCount = 0;
+  
+  elements.forEach(({ key, label, textVal }) => {
+    const keyLower = key.charAt(0).toLowerCase() + key.slice(1);
+    const enabled = settings[`${keyLower}Enabled`] !== false;
+    if (enabled) {
+      activeCount++;
+      const x = settings[`${keyLower}X`] !== undefined ? settings[`${keyLower}X`] : 12;
+      const y = settings[`${keyLower}Y`] !== undefined ? settings[`${keyLower}Y`] : 12;
+      const width = settings[`${keyLower}Width`] !== undefined ? settings[`${keyLower}Width`] : 150;
+      const size = settings[`${keyLower}FontSize`] !== undefined ? settings[`${keyLower}FontSize`] : 13;
+      const bold = settings[`${keyLower}Bold`] === true ? "Bold" : "Normal";
+      const extra = (key === "CustomText" && textVal) ? ` ("${textVal}")` : "";
+      html += `
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed var(--border); padding: 4px 0;">
+          <span style="font-weight: 500;">${label}${extra}</span>
+          <span style="color: var(--muted); font-family: monospace; font-size: 11.5px;">Pos: (${x},${y}), L:${width}px, S:${size}px (${bold})</span>
+        </div>
+      `;
+    }
+  });
+  
+  if (activeCount === 0) {
+    html += '<div style="color: var(--muted); font-style: italic;">Tidak ada elemen aktif</div>';
+  }
+  
+  container.innerHTML = html;
+}
+
+function updateLabelPreview() {
+  if (!els.labelPreviewSticker) return;
+
+  const labelSettings = getLabelPrinterSettings();
+  const stickerOffsetX = Number(els.labelStickerOffsetX?.value || 8);
+
+  if (els.labelStickerOffsetXVal) els.labelStickerOffsetXVal.textContent = stickerOffsetX;
+
+  els.labelPreviewSticker.style.left = `${stickerOffsetX}px`;
+  const readOnlySticker = document.getElementById("labelReadOnlyPreviewSticker");
+  if (readOnlySticker) readOnlySticker.style.left = `${stickerOffsetX}px`;
+
+  const elements = [
+    { key: "DrinkName", label: "Nama Produk", defaultText: "Kopi Susu Migi" },
+    { key: "Notes", label: "Catatan Varian", defaultText: "Ice * Less Sugar" },
+    { key: "OrderCode", label: "Nomor Pesanan", defaultText: "#SB-001" },
+    { key: "Customer", label: "Nama Pengunjung", defaultText: "Teman Migi" },
+    { key: "Counter", label: "Nomor Item", defaultText: "[1/1]" },
+    { key: "CustomText", label: "Teks Kustom", defaultText: "TEMAN", isFreeText: true },
+    { key: "Barcode", label: "Barcode", defaultText: "12345678", isBarcode: true }
+  ];
+
+  elements.forEach(({ key, label, defaultText, isFreeText, isBarcode }) => {
+    const previewEl = els[`labelPreview${key}`];
+    const readOnlyEl = document.getElementById(`labelReadOnlyPreview${key}`);
+    const enabledInput = els[`label${key}Enabled`];
+    const boldInput = els[`label${key}Bold`];
+    const fontSizeInput = els[`label${key}FontSize`];
+    const fontSizeVal = document.getElementById(`label${key}FontSizeVal`);
+    const posVal = document.getElementById(`label${key}PosVal`);
+    const widthHidden = document.getElementById(`label${key}Width`);
+    const customTextVal = els.labelCustomTextValue;
+
+    if (!previewEl) return;
+
+    const enabled = enabledInput ? enabledInput.checked : (labelSettings[`${key.charAt(0).toLowerCase() + key.slice(1)}Enabled`] !== false);
+    
+    // Crucial bug fix: ensure fontSize never returns 0/NaN on initialization
+    const fontSizeInputVal = fontSizeInput ? Number(fontSizeInput.value) : 0;
+    const fontSize = fontSizeInputVal || Number(labelSettings[`${key.charAt(0).toLowerCase() + key.slice(1)}FontSize`] || 13);
+    
+    const bold = boldInput ? boldInput.checked : (labelSettings[`${key.charAt(0).toLowerCase() + key.slice(1)}Bold`] === true);
+
+    if (fontSizeVal && fontSizeInput) fontSizeVal.textContent = fontSize;
+
+    let width = parseInt(previewEl.style.width || String(labelSettings[`${key.charAt(0).toLowerCase() + key.slice(1)}Width`] || (key === "Barcode" ? 200 : 150)));
+    if (widthHidden) widthHidden.value = width;
+
+    let height = parseInt(previewEl.style.height || String(labelSettings[`${key.charAt(0).toLowerCase() + key.slice(1)}MaxHeight`] || (key === "DrinkName" ? 48 : (key === "Barcode" ? 30 : 24))));
+
+    let x = parseInt(previewEl.style.left || String(labelSettings[`${key.charAt(0).toLowerCase() + key.slice(1)}X`] || (key === "Barcode" ? 60 : 12)));
+    let y = parseInt(previewEl.style.top || String(labelSettings[`${key.charAt(0).toLowerCase() + key.slice(1)}Y`] || (key === "Barcode" ? 130 : 12)));
+    if (posVal) posVal.textContent = `X:${x}, Y:${y}`;
+
+    let text = defaultText;
+    if (isBarcode) {
+      const now = new Date();
+      const dd = String(now.getDate()).padStart(2, '0');
+      const mm = String(now.getMonth() + 1).padStart(2, '0');
+      const yyyy = String(now.getFullYear());
+      text = `${dd}${mm}${yyyy}`;
+    } else if (isFreeText && customTextVal) {
+      text = customTextVal.value || defaultText;
+    } else if (isFreeText) {
+      text = labelSettings.customTextValue || defaultText;
+    }
+
+    [previewEl, readOnlyEl].forEach((el) => {
+      if (!el) return;
+      if (!enabled) {
+        el.style.display = "none";
+        return;
+      }
+      
+      if (isBarcode) {
+        el.style.display = "flex";
+        el.style.width = `${width}px`;
+        el.style.height = `${height}px`;
+        el.style.left = `${x}px`;
+        el.style.top = `${y}px`;
+        const spanEl = el.querySelector("span");
+        if (spanEl) spanEl.textContent = text;
+        return;
+      }
+
+      el.style.display = "block";
+      el.style.fontSize = `${fontSize}px`;
+      el.style.fontWeight = bold ? "bold" : "normal";
+      el.style.width = `${width}px`;
+      el.style.maxWidth = `${width}px`;
+      el.style.left = `${x}px`;
+      el.style.top = `${y}px`;
+
+      // Enforce line clamping / height limit truncation dynamically
+      el.style.display = "-webkit-box";
+      el.style.webkitBoxOrient = "vertical";
+      el.style.overflow = "hidden";
+      const lineClamp = Math.max(1, Math.floor(height / (fontSize * 1.25)));
+      el.style.webkitLineClamp = String(lineClamp);
+      el.style.height = `${height}px`;
+      el.style.maxHeight = `${height}px`;
+
+      let textNode = Array.from(el.childNodes).find(n => n.nodeType === Node.TEXT_NODE);
+      if (!textNode) {
+        textNode = document.createTextNode(text);
+        el.insertBefore(textNode, el.firstChild);
+      } else {
+        textNode.textContent = text;
+      }
+    });
+  });
+
+  [els.labelPreviewPaper, document.getElementById("labelReadOnlyPreviewPaper")].forEach((paper) => {
+    if (!paper) return;
+    const parentWidth = paper.parentElement?.getBoundingClientRect().width || 384;
+    const padding = 32;
+    const availableWidth = parentWidth - padding;
+    if (availableWidth < 384) {
+      const scale = availableWidth / 384;
+      paper.style.transform = `scale(${scale})`;
+      paper.style.transformOrigin = "center center";
+      paper.style.margin = `-${(160 - 160 * scale) / 2}px -${(384 - availableWidth) / 2}px`;
+    } else {
+      paper.style.transform = "none";
+      paper.style.margin = "0";
+    }
+  });
+}
+
+function initDraggableRows() {
+  const items = [
+    { el: els.labelPreviewDrinkName, key: "DrinkName" },
+    { el: els.labelPreviewNotes, key: "Notes" },
+    { el: els.labelPreviewOrderCode, key: "OrderCode" },
+    { el: els.labelPreviewCustomer, key: "Customer" },
+    { el: els.labelPreviewCounter, key: "Counter" },
+    { el: els.labelPreviewCustomText, key: "CustomText" },
+    { el: els.labelPreviewBarcode, key: "Barcode" }
+  ];
+
+  items.forEach(({ el, key }) => {
+    if (!el) return;
+
+    let isDragging = false;
+    let isWidthResizing = false;
+    let isHeightResizing = false;
+    let startX = 0;
+    let startY = 0;
+    let originalLeft = 0;
+    let originalTop = 0;
+    let originalWidth = 0;
+    let originalHeight = 0;
+
+    const widthHandle = el.querySelector(".label-width-handle");
+    const heightHandle = el.querySelector(".label-height-handle");
+
+    if (widthHandle) {
+      const onWidthResizeStart = (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        isWidthResizing = true;
+
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        startX = clientX;
+        originalWidth = el.offsetWidth;
+        el.style.borderColor = "#3b82f6";
+      };
+      widthHandle.addEventListener("mousedown", onWidthResizeStart);
+      widthHandle.addEventListener("touchstart", onWidthResizeStart, { passive: false });
+    }
+
+    if (heightHandle) {
+      const onHeightResizeStart = (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        isHeightResizing = true;
+
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        startY = clientY;
+        originalHeight = el.offsetHeight;
+        el.style.borderColor = "#3b82f6";
+      };
+      heightHandle.addEventListener("mousedown", onHeightResizeStart);
+      heightHandle.addEventListener("touchstart", onHeightResizeStart, { passive: false });
+    }
+
+    const onDragStart = (e) => {
+      if (isWidthResizing || isHeightResizing) return;
+      isDragging = true;
+      el.style.borderColor = "#3b82f6";
+      el.style.backgroundColor = "rgba(59, 130, 246, 0.05)";
+      
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      
+      startX = clientX;
+      startY = clientY;
+      originalLeft = parseInt(el.style.left || "12");
+      originalTop = parseInt(el.style.top || "12");
+      
+      e.preventDefault();
+    };
+
+    el.addEventListener("mousedown", onDragStart);
+    el.addEventListener("touchstart", onDragStart, { passive: false });
+
+    const onGlobalMove = (e) => {
+      if (isWidthResizing) {
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const dx = clientX - startX;
+        let newWidth = originalWidth + dx;
+        const maxAvailableWidth = 320 - parseInt(el.style.left || "0");
+        newWidth = Math.max(30, Math.min(maxAvailableWidth, newWidth));
+        
+        el.style.width = `${newWidth}px`;
+        el.style.maxWidth = `${newWidth}px`;
+
+        const widthVal = document.getElementById(`label${key}Width`);
+        if (widthVal) widthVal.value = newWidth;
+        
+        updateLabelPreview();
+      } else if (isHeightResizing) {
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        const dy = clientY - startY;
+        let newHeight = originalHeight + dy;
+        const maxAvailableHeight = 160 - parseInt(el.style.top || "0");
+        newHeight = Math.max(15, Math.min(maxAvailableHeight, newHeight));
+        
+        el.style.height = `${newHeight}px`;
+        el.style.maxHeight = `${newHeight}px`;
+
+        updateLabelPreview();
+      } else if (isDragging) {
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        
+        const dx = clientX - startX;
+        const dy = clientY - startY;
+        
+        let newLeft = originalLeft + dx;
+        let newTop = originalTop + dy;
+        
+        const containerWidth = 320;
+        const containerHeight = 160;
+        const elWidth = el.offsetWidth;
+        const elHeight = el.offsetHeight;
+        
+        newLeft = Math.max(0, Math.min(containerWidth - elWidth, newLeft));
+        newTop = Math.max(0, Math.min(containerHeight - elHeight, newTop));
+        
+        el.style.left = `${newLeft}px`;
+        el.style.top = `${newTop}px`;
+
+        const posVal = document.getElementById(`label${key}PosVal`);
+        if (posVal) posVal.textContent = `X:${newLeft}, Y:${newTop}`;
+      }
+    };
+
+    const onGlobalEnd = () => {
+      if (isWidthResizing) {
+        isWidthResizing = false;
+        el.style.borderColor = "rgba(59, 130, 246, 0.3)";
+        saveLabelPrinterSettingsFromUI();
+      } else if (isHeightResizing) {
+        isHeightResizing = false;
+        el.style.borderColor = "rgba(59, 130, 246, 0.3)";
+        saveLabelPrinterSettingsFromUI();
+      } else if (isDragging) {
+        isDragging = false;
+        el.style.borderColor = "rgba(59, 130, 246, 0.3)";
+        el.style.backgroundColor = "transparent";
+        saveLabelPrinterSettingsFromUI();
+      }
+    };
+
+    window.addEventListener("mousemove", onGlobalMove);
+    window.addEventListener("touchmove", onGlobalMove, { passive: false });
+    window.addEventListener("mouseup", onGlobalEnd);
+    window.addEventListener("touchend", onGlobalEnd);
+  });
+}
+
+function initPrinterSettings() {
+  const printerSize = localStorage.getItem("kasir-migi-printer-paper-size") || "58mm";
+  if (els.printerPaperSize) els.printerPaperSize.value = printerSize;
+
+  const labelSettings = getLabelPrinterSettings();
+  if (els.labelPrinterPaperSize) els.labelPrinterPaperSize.value = labelSettings.paperSize;
+  if (els.labelPrinterFeedMethod) els.labelPrinterFeedMethod.value = labelSettings.feedMethod;
+  if (els.labelPrinterPitch) els.labelPrinterPitch.value = labelSettings.pitch;
+  if (els.labelPrinterLineSpacing) els.labelPrinterLineSpacing.value = labelSettings.lineSpacing;
+  if (els.labelPrinterDelay) els.labelPrinterDelay.value = labelSettings.labelDelay;
+  if (els.labelPrinterMargin) els.labelPrinterMargin.value = labelSettings.labelMargin !== undefined ? labelSettings.labelMargin : 8;
+  if (els.labelPrinterSpaces) els.labelPrinterSpaces.value = labelSettings.labelSpaces !== undefined ? labelSettings.labelSpaces : 0;
+
+  if (els.labelStickerOffsetX) els.labelStickerOffsetX.value = labelSettings.stickerOffsetX !== undefined ? labelSettings.stickerOffsetX : 8;
+
+  const elements = ["DrinkName", "Notes", "OrderCode", "Customer", "Counter", "CustomText", "Barcode"];
+  elements.forEach((key) => {
+    const keyLower = key.charAt(0).toLowerCase() + key.slice(1);
+    const enabledInput = els[`label${key}Enabled`];
+    const boldInput = els[`label${key}Bold`];
+    const fontSizeInput = els[`label${key}FontSize`];
+    const widthInput = document.getElementById(`label${key}Width`);
+    const previewEl = els[`labelPreview${key}`];
+
+    if (enabledInput) enabledInput.checked = labelSettings[`${keyLower}Enabled`] !== false;
+    if (boldInput) boldInput.checked = labelSettings[`${keyLower}Bold`] === true;
+    if (fontSizeInput) fontSizeInput.value = labelSettings[`${keyLower}FontSize`] !== undefined ? labelSettings[`${keyLower}FontSize`] : 13;
+    if (widthInput) widthInput.value = labelSettings[`${keyLower}Width`] !== undefined ? labelSettings[`${keyLower}Width`] : (key === "Barcode" ? 200 : 150);
+
+    if (previewEl) {
+      previewEl.style.left = `${labelSettings[`${keyLower}X`] !== undefined ? labelSettings[`${keyLower}X`] : (key === "Barcode" ? 60 : 12)}px`;
+      previewEl.style.top = `${labelSettings[`${keyLower}Y`] !== undefined ? labelSettings[`${keyLower}Y`] : (key === "Barcode" ? 130 : 12)}px`;
+      previewEl.style.width = `${labelSettings[`${keyLower}Width`] !== undefined ? labelSettings[`${keyLower}Width`] : (key === "Barcode" ? 200 : 150)}px`;
+      previewEl.style.height = `${labelSettings[`${keyLower}MaxHeight`] !== undefined ? labelSettings[`${keyLower}MaxHeight`] : (key === "DrinkName" ? 48 : (key === "Barcode" ? 30 : 24))}px`;
+      previewEl.style.maxHeight = `${labelSettings[`${keyLower}MaxHeight`] !== undefined ? labelSettings[`${keyLower}MaxHeight`] : (key === "DrinkName" ? 48 : (key === "Barcode" ? 30 : 24))}px`;
+    }
+  });
+
+  if (els.labelCustomTextValue) els.labelCustomTextValue.value = labelSettings.customTextValue || "TEMAN";
+
+  toggleLabelPrinterManualSettingsVisibility();
+  updateLabelPreview();
+  renderLabelSettingsSummary();
+  initDraggableRows();
+}
+
 async function connectPrinter() {
   if (!navigator.bluetooth) {
     toast("Web Bluetooth belum didukung. Coba Chrome atau Brave desktop.");
@@ -4755,7 +5343,9 @@ async function getMascotLogoBytes() {
 
 async function encodeCupLabel(transaction, item, itemIndex, totalItems) {
   const encoder = new TextEncoder();
-  const compact40x20 = els.labelPrinterPaperSize?.value !== "58mm";
+  const labelSettings = getLabelPrinterSettings();
+  const feedMethod = labelSettings.feedMethod;
+  const pitch = labelSettings.pitch;
 
   const toTitleCase = (str) => {
     return String(str || "")
@@ -4765,92 +5355,298 @@ async function encodeCupLabel(transaction, item, itemIndex, totalItems) {
       .join(" ");
   };
 
-  const wrapText = (text, maxLength, maxLines = 2) => {
-    const words = text.split(" ");
+  const drinkName = toTitleCase(item.name || "Minuman");
+  const counter = `[${itemIndex + 1}/${totalItems}]`;
+  const orderNum = transaction.orderCode || "-";
+  const customer = transaction.customer || "Teman Migi";
+  const notesText = item.notes || "ICE · NORMAL · REGULAR";
+  const tags = notesText.split(" · ").filter(Boolean).map(toTitleCase);
+  const variantLine = tags.join(" * ");
+
+  const wrapText = (text, charLimit) => {
+    if (!text) return [];
+    const words = String(text).split(" ");
     const lines = [];
     let currentLine = "";
-    
     for (const word of words) {
       const testLine = currentLine ? (currentLine + " " + word) : word;
-      if (testLine.length <= maxLength) {
+      if (testLine.length <= charLimit) {
         currentLine = testLine;
       } else {
         if (currentLine) lines.push(currentLine);
-        if (word.length > maxLength) {
-          lines.push(word);
-          currentLine = "";
-        } else {
-          currentLine = word;
-        }
+        currentLine = word;
       }
     }
     if (currentLine) lines.push(currentLine);
-    if (lines.length <= maxLines) return lines;
-    const clipped = lines.slice(0, maxLines);
-    clipped[maxLines - 1] = `${clipped[maxLines - 1].slice(0, Math.max(1, maxLength - 1)).trim()}.`;
-    return clipped;
+    return lines;
   };
 
-  const drinkName = toTitleCase(item.name || "Minuman");
-  const counter = `[${itemIndex + 1}/${totalItems}]`;
-  const customer = transaction.customer || "Teman Migi";
-  const customerLine = `${customer} ${counter}`;
-  
-  const notesText = item.notes || "ICE · NORMAL · REGULAR";
-  const tags = notesText.split(" · ").filter(Boolean).map(toTitleCase);
-  // Karakter ASCII dipakai agar konsisten pada semua code page ESC/POS.
-  const variantLine = tags.join("  *  ");
+  const segments = [];
 
-  const ESC = 0x1b, GS = 0x1d;
-  const init = [ESC, 0x40];
-  // Lebar label 40 mm pada printer 203 dpi ≈ 320 dot. Seluruh layout ini
-  // memakai font internal ESC/POS, jadi tidak ada bitmap/raster yang dikirim.
-  const margin = [GS, 0x4c, 0x08, 0x00]; // Margin kiri ±1 mm
-  const alignLeft = [ESC, 0x61, 0x00]; // Rata kiri
-  
-  let payload = [];
-  payload.push(...init);
-  payload.push(...margin);
-  payload.push(...alignLeft);
+  const addElementSegments = (id, enabled, text, x, y, width, fontSize, bold, maxHeight = 24) => {
+    if (!enabled || !text) return;
+    
+    // Determine font styles and sizes
+    let modeByte = 0x00;
+    let charWidth = 12; // default Font A
+    let charHeight = 24;
 
-  // Kunci jarak antarbaris ke 20 dot (±2,5 mm pada 203 dpi). Jarak bawaan
-  // printer ini terlalu tinggi sehingga satu label meluber ke label berikutnya.
-  payload.push(ESC, 0x33, 20);
+    if (fontSize < 11) {
+      modeByte = 0x01; // Font B
+      charWidth = 9;
+      charHeight = 17;
+    } else if (fontSize >= 11 && fontSize <= 16) {
+      modeByte = 0x00; // Font A
+      charWidth = 12;
+      charHeight = 24;
+    } else if (fontSize > 16 && fontSize <= 22) {
+      modeByte = 0x10; // Double Height
+      charWidth = 12;
+      charHeight = 48;
+    } else if (fontSize > 22 && fontSize <= 27) {
+      modeByte = 0x20; // Double Width
+      charWidth = 24;
+      charHeight = 24;
+    } else {
+      modeByte = 0x30; // Double Size
+      charWidth = 24;
+      charHeight = 48;
+    }
 
-  // 1. Nama minuman: Font B lebar 2x, tinggi normal. Nilai sebelumnya (0x11)
-  // ternyata membuat tinggi 2x; yang benar untuk lebar 2x adalah bit 0x20.
-  payload.push(ESC, 0x21, 0x21); // Font B, lebar 2x, tinggi normal
-  payload.push(ESC, 0x45, 0x01); // Bold on — khusus nama produk
-  payload.push(ESC, 0x47, 0x01); // Double-strike untuk hasil hitam/heavy
-  const nameLines = wrapText(drinkName, compact40x20 ? 16 : 20, 2);
-  for (const line of nameLines) {
-    payload.push(...encoder.encode(line + "\n"));
+    const charLimit = Math.max(2, Math.floor(width / charWidth));
+    const lines = wrapText(text, charLimit);
+    
+    const lineSpacing = charHeight + 4;
+    const maxLines = Math.max(1, Math.floor((maxHeight + 4) / lineSpacing));
+
+    const activeLines = lines.slice(0, maxLines);
+    if (lines.length > maxLines && activeLines.length > 0) {
+      activeLines[activeLines.length - 1] = activeLines[activeLines.length - 1].slice(0, Math.max(1, charLimit - 3)) + "...";
+    }
+
+    for (let i = 0; i < activeLines.length; i++) {
+      segments.push({
+        id: id,
+        x: x,
+        y: y + i * lineSpacing,
+        text: activeLines[i],
+        fontSize: fontSize,
+        bold: bold,
+        charWidth: charWidth,
+        charHeight: charHeight,
+        modeByte: modeByte
+      });
+    }
+  };
+
+  // 1. Nama Produk
+  addElementSegments(
+    "drinkName",
+    labelSettings.drinkNameEnabled !== false,
+    drinkName,
+    labelSettings.drinkNameX !== undefined ? labelSettings.drinkNameX : 12,
+    labelSettings.drinkNameY !== undefined ? labelSettings.drinkNameY : 12,
+    labelSettings.drinkNameWidth !== undefined ? labelSettings.drinkNameWidth : 200,
+    Number(labelSettings.drinkNameFontSize || 18),
+    labelSettings.drinkNameBold !== false,
+    labelSettings.drinkNameMaxHeight !== undefined ? labelSettings.drinkNameMaxHeight : 48
+  );
+
+  // 2. Catatan Varian
+  addElementSegments(
+    "notes",
+    labelSettings.notesEnabled !== false,
+    variantLine,
+    labelSettings.notesX !== undefined ? labelSettings.notesX : 12,
+    labelSettings.notesY !== undefined ? labelSettings.notesY : 48,
+    labelSettings.notesWidth !== undefined ? labelSettings.notesWidth : 280,
+    Number(labelSettings.notesFontSize || 13),
+    labelSettings.notesBold === true,
+    labelSettings.notesMaxHeight !== undefined ? labelSettings.notesMaxHeight : 24
+  );
+
+  // 3. Nomor Pesanan
+  addElementSegments(
+    "orderCode",
+    labelSettings.orderCodeEnabled !== false,
+    `#${orderNum}`,
+    labelSettings.orderCodeX !== undefined ? labelSettings.orderCodeX : 12,
+    labelSettings.orderCodeY !== undefined ? labelSettings.orderCodeY : 84,
+    labelSettings.orderCodeWidth !== undefined ? labelSettings.orderCodeWidth : 120,
+    Number(labelSettings.orderCodeFontSize || 13),
+    labelSettings.orderCodeBold === true,
+    labelSettings.orderCodeMaxHeight !== undefined ? labelSettings.orderCodeMaxHeight : 24
+  );
+
+  // 4. Nama Pengunjung
+  addElementSegments(
+    "customer",
+    labelSettings.customerEnabled !== false,
+    customer,
+    labelSettings.customerX !== undefined ? labelSettings.customerX : 12,
+    labelSettings.customerY !== undefined ? labelSettings.customerY : 110,
+    labelSettings.customerWidth !== undefined ? labelSettings.customerWidth : 150,
+    Number(labelSettings.customerFontSize || 13),
+    labelSettings.customerBold === true,
+    labelSettings.customerMaxHeight !== undefined ? labelSettings.customerMaxHeight : 24
+  );
+
+  // 5. Nomor Item (Counter)
+  addElementSegments(
+    "counter",
+    labelSettings.counterEnabled !== false,
+    counter,
+    labelSettings.counterX !== undefined ? labelSettings.counterX : 240,
+    labelSettings.counterY !== undefined ? labelSettings.counterY : 84,
+    labelSettings.counterWidth !== undefined ? labelSettings.counterWidth : 80,
+    Number(labelSettings.counterFontSize || 13),
+    labelSettings.counterBold === true,
+    labelSettings.counterMaxHeight !== undefined ? labelSettings.counterMaxHeight : 24
+  );
+
+  // 6. Teks Kustom Tambahan
+  addElementSegments(
+    "customText",
+    labelSettings.customTextEnabled === true,
+    labelSettings.customTextValue || "TEMAN",
+    labelSettings.customTextX !== undefined ? labelSettings.customTextX : 150,
+    labelSettings.customTextY !== undefined ? labelSettings.customTextY : 12,
+    labelSettings.customTextWidth !== undefined ? labelSettings.customTextWidth : 100,
+    Number(labelSettings.customTextFontSize || 11),
+    labelSettings.customTextBold !== false,
+    labelSettings.customTextMaxHeight !== undefined ? labelSettings.customTextMaxHeight : 24
+  );
+
+  // 7. Barcode (Date format: DDMMYYYY)
+  const txDate = transaction.createdAt ? new Date(transaction.createdAt) : new Date();
+  const dd = String(txDate.getDate()).padStart(2, '0');
+  const mm = String(txDate.getMonth() + 1).padStart(2, '0');
+  const yyyy = String(txDate.getFullYear());
+  const barcodeValue = `${dd}${mm}${yyyy}`;
+  if (labelSettings.barcodeEnabled === true) {
+    segments.push({
+      id: "barcode",
+      isBarcode: true,
+      x: labelSettings.barcodeX !== undefined ? labelSettings.barcodeX : 60,
+      y: labelSettings.barcodeY !== undefined ? labelSettings.barcodeY : 130,
+      width: labelSettings.barcodeWidth !== undefined ? labelSettings.barcodeWidth : 200,
+      height: labelSettings.barcodeMaxHeight !== undefined ? labelSettings.barcodeMaxHeight : 30,
+      text: barcodeValue
+    });
   }
 
-  // 2. Detail Font B normal: total maksimum lima baris, aman untuk 20 mm.
-  payload.push(ESC, 0x45, 0x00); // Bold off
-  payload.push(ESC, 0x47, 0x00); // Double-strike off untuk detail
-  payload.push(ESC, 0x21, 0x01); // Font B
-  const detailWidth = compact40x20 ? 33 : 42;
-  payload.push(...encoder.encode("-".repeat(detailWidth) + "\n"));
-  payload.push(...encoder.encode(variantLine.slice(0, detailWidth) + "\n"));
+  const ESC = 0x1b, GS = 0x1d, FS = 0x1c;
+  const init = [ESC, 0x40, FS, 0x2e]; // Initialize & turn off Kanji/Chinese mode
+  let payload = [];
+  payload.push(...init);
 
-  // 3. Nomor order, customer, dan urutan cup.
-  payload.push(ESC, 0x45, 0x01);
-  payload.push(...encoder.encode(`${transaction.orderCode || "-"}  ${customerLine}`.slice(0, detailWidth) + "\n"));
+  const stickerOffsetX = labelSettings.stickerOffsetX !== undefined ? Number(labelSettings.stickerOffsetX) : 8;
+
+  // Group segments by Y coordinate (clustering close vertical lines)
+  const printRows = [];
+  
+  // Sort segments by Y ascending
+  segments.sort((a, b) => a.y - b.y);
+
+  for (const segment of segments) {
+    let foundRow = printRows.find(r => Math.abs(r.y - segment.y) < 12);
+    if (!foundRow) {
+      foundRow = {
+        y: segment.y,
+        segments: [],
+        maxCharHeight: 0
+      };
+      printRows.push(foundRow);
+    }
+    foundRow.segments.push(segment);
+    const segHeight = segment.isBarcode ? (segment.height + 16) : segment.charHeight;
+    if (segHeight > foundRow.maxCharHeight) {
+      foundRow.maxCharHeight = segHeight;
+    }
+  }
+
+  // Sort print rows by Y ascending
+  printRows.sort((a, b) => a.y - b.y);
+
+  // Render bytes for each printRow
+  for (const printRow of printRows) {
+    printRow.segments.sort((a, b) => a.x - b.x);
+
+    const rowBytes = [];
+    let currentXChars = 0;
+
+    for (const segment of printRow.segments) {
+      const absoluteX = stickerOffsetX + segment.x;
+      const charWidth = segment.isBarcode ? 12 : segment.charWidth;
+      const targetCol = Math.max(currentXChars, Math.floor(absoluteX / charWidth));
+      const spacesNeeded = targetCol - currentXChars;
+      if (spacesNeeded > 0) {
+        rowBytes.push(...encoder.encode(" ".repeat(spacesNeeded)));
+      }
+
+      if (segment.isBarcode) {
+        // Set barcode width: GS w n (width parameter n: 2 to 6)
+        rowBytes.push(GS, 0x77, 2);
+        // Set barcode height: GS h n (height parameter n: 1 to 255 dots)
+        const barHeight = Math.max(10, Math.min(255, segment.height));
+        rowBytes.push(GS, 0x68, barHeight);
+        // Set HRI position: GS H n (0 = no text, 2 = text below barcode)
+        rowBytes.push(GS, 0x48, 2);
+        // Print barcode using CODE39 (m = 69): GS k m length data
+        let cleanText = String(segment.text).toUpperCase().replace(/[^A-Z0-9\-\.\ \$\/\+\%]/g, "");
+        if (!cleanText) cleanText = "12345678";
+        const dataBytes = encoder.encode(cleanText);
+        rowBytes.push(GS, 0x6b, 69, dataBytes.length, ...dataBytes);
+        
+        // Estimate barcode width columns to update currentXChars:
+        // A CODE39 barcode width is approximately: (number of characters + 2) * 13 * module_width
+        // With module width = 2: (dataBytes.length + 2) * 26 dots.
+        // In character columns (12 dots per column): Math.ceil(((dataBytes.length + 2) * 26) / 12)
+        const estimatedColWidth = Math.ceil(((dataBytes.length + 2) * 26) / 12);
+        currentXChars = targetCol + estimatedColWidth;
+      } else {
+        rowBytes.push(ESC, 0x21, segment.modeByte);
+        rowBytes.push(ESC, 0x45, segment.bold ? 0x01 : 0x00);
+        rowBytes.push(...encoder.encode(segment.text));
+        currentXChars = targetCol + segment.text.length;
+      }
+    }
+
+    rowBytes.push(ESC, 0x21, 0x00);
+    rowBytes.push(ESC, 0x45, 0x00);
+    rowBytes.push(...encoder.encode("\n"));
+
+    printRow.bytes = rowBytes;
+  }
+
+  let currentY = 0;
+  for (const printRow of printRows) {
+    const feedDots = printRow.y - currentY;
+    if (feedDots > 0) {
+      payload.push(ESC, 0x4a, feedDots);
+      currentY += feedDots;
+    }
+    payload.push(...printRow.bytes);
+    currentY += printRow.maxCharHeight;
+  }
+
+  // Restore defaults
+  payload.push(ESC, 0x21, 0x00);
   payload.push(ESC, 0x45, 0x00);
 
-  // Printer ini tidak menjalankan GS FF sebagai feed-to-gap secara konsisten
-  // pada mode ESC/POS. Gunakan pitch tetap: 20 mm pada head 203 dpi = 160 dot.
-  // Setiap LF sudah memakan 20 dot, jadi yang dikirim hanya sisa tingginya.
-  const labelPitchDots = compact40x20 ? 160 : 160;
-  const linesPrinted = nameLines.length + 3; // nama, garis, varian, footer
-  const remainingFeedDots = Math.max(0, labelPitchDots - (linesPrinted * 20));
-  payload.push(ESC, 0x4a, remainingFeedDots); // ESC J n: print lalu feed n dot
-  payload.push(ESC, 0x32); // Kembalikan line spacing bawaan untuk job berikutnya.
+  // Feed mechanism
+  if (feedMethod === "gap") {
+    payload.push(GS, 0x0c); 
+  } else {
+    const remainingFeed = Math.max(0, pitch - currentY);
+    if (remainingFeed > 0) {
+      payload.push(ESC, 0x4a, remainingFeed);
+    }
+  }
 
   return new Uint8Array(payload);
 }
+
 
 async function printCupLabels(transaction) {
   if (!state.labelPrinterCharacteristic) return; // Label printer opsional
@@ -4865,12 +5661,15 @@ async function printCupLabels(transaction) {
   }
   if (!labelItems.length) return;
 
+  const labelSettings = getLabelPrinterSettings();
+  const delayMs = labelSettings.labelDelay !== undefined ? labelSettings.labelDelay : 1200;
+
   try {
     for (let i = 0; i < labelItems.length; i++) {
       const bytes = await encodeCupLabel(transaction, labelItems[i], i, labelItems.length);
       await writeLabelPrinterChunks(bytes);
-      // Gap kecil antara label
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      // Gap kecil/jeda antar label agar printer menyelesaikan feed sebelumnya
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
     }
     toast(`${labelItems.length} label cup dicetak.`);
   } catch (error) {
@@ -7186,6 +7985,9 @@ function setActiveView(viewName, { persist = true } = {}) {
   tab.classList.add("active");
   target.classList.add("active");
   if (persist) localStorage.setItem(storageKeys.activeView, viewName);
+  if (viewName === "settings") {
+    updateLabelPreview();
+  }
   if (viewName === "cashflow") {
     refreshCashflowSalesForSelection({ silent: true }).then((loaded) => {
       if (!loaded) renderCashflow();
@@ -7242,7 +8044,6 @@ els.customOrderForm?.addEventListener("submit", addCustomOrderToCart);
 
 els.itemCustomForm?.addEventListener("submit", saveItemCustomization);
 els.closeItemCustom?.addEventListener("click", closeItemCustomModal);
-
 const handleSegmentedClick = (event) => {
   const btn = event.target.closest("button[data-value]");
   if (!btn) return;
@@ -7680,6 +8481,53 @@ els.connectLabelPrinter?.addEventListener("click", connectLabelPrinter);
 els.testLabelPrint?.addEventListener("click", testLabelPrint);
 els.printerTabKasir?.addEventListener("click", () => switchPrinterTab("kasir"));
 els.printerTabLabel?.addEventListener("click", () => switchPrinterTab("label"));
+
+els.printerPaperSize?.addEventListener("change", () => {
+  localStorage.setItem("kasir-migi-printer-paper-size", els.printerPaperSize.value);
+});
+function openLabelSettingsModal() {
+  const modal = els.labelSettingsModal;
+  if (!modal) return;
+  modal.style.display = "flex";
+  modal.setAttribute("aria-hidden", "false");
+  updateLabelPreview();
+}
+function closeLabelSettingsModal() {
+  const modal = els.labelSettingsModal;
+  if (!modal) return;
+  modal.style.display = "none";
+  modal.setAttribute("aria-hidden", "true");
+}
+
+els.openLabelSettingsBtn?.addEventListener("click", openLabelSettingsModal);
+els.closeLabelSettingsBtn?.addEventListener("click", closeLabelSettingsModal);
+els.saveLabelSettingsBtn?.addEventListener("click", () => {
+  saveLabelPrinterSettingsFromUI();
+  closeLabelSettingsModal();
+  toast("Tata letak stiker berhasil disimpan.");
+});
+
+els.labelPrinterPaperSize?.addEventListener("change", saveLabelPrinterSettingsFromUI);
+els.labelPrinterFeedMethod?.addEventListener("change", saveLabelPrinterSettingsFromUI);
+els.labelPrinterDelay?.addEventListener("input", saveLabelPrinterSettingsFromUI);
+els.labelStickerOffsetX?.addEventListener("input", saveLabelPrinterSettingsFromUI);
+
+const bindSettingListeners = (key) => {
+  els[`label${key}Enabled`]?.addEventListener("change", saveLabelPrinterSettingsFromUI);
+  els[`label${key}Bold`]?.addEventListener("change", saveLabelPrinterSettingsFromUI);
+  els[`label${key}FontSize`]?.addEventListener("input", saveLabelPrinterSettingsFromUI);
+};
+["DrinkName", "Notes", "OrderCode", "Customer", "Counter", "CustomText"].forEach(bindSettingListeners);
+els.labelCustomTextValue?.addEventListener("input", saveLabelPrinterSettingsFromUI);
+els.labelBarcodeEnabled?.addEventListener("change", saveLabelPrinterSettingsFromUI);
+
+window.addEventListener("resize", () => {
+  const viewSettings = document.getElementById("view-settings");
+  if (viewSettings && viewSettings.classList.contains("active")) {
+    updateLabelPreview();
+  }
+});
+
 els.billOrderBtn.addEventListener("click", printBill);
 els.copyDailyReport?.addEventListener("click", copyDailyReport);
 els.shareDailyReport?.addEventListener("click", shareDailyReportToWhatsApp);
@@ -8110,6 +8958,7 @@ syncCfExpenseNoteField();
 renderAnalyticsControls();
 registerServiceWorker();
 initAuth();
+initPrinterSettings();
 updateClock();
 setInterval(updateClock, 1000);
 setInterval(() => updateDevicePresence().catch(() => null), 60000);
