@@ -2635,7 +2635,7 @@ function getLabelPrinterSettings() {
     barcodeX: 60,
     barcodeY: 130,
     barcodeWidth: 200,
-    barcodeMaxHeight: 30
+    barcodeMaxHeight: 20
   };
   return readJson("kasir-migi-label-printer-settings", fallback);
 }
@@ -2848,7 +2848,7 @@ function updateLabelPreview() {
     let width = parseInt(previewEl.style.width || String(labelSettings[`${key.charAt(0).toLowerCase() + key.slice(1)}Width`] || (key === "Barcode" ? 200 : 150)));
     if (widthHidden) widthHidden.value = width;
 
-    let height = parseInt(previewEl.style.height || String(labelSettings[`${key.charAt(0).toLowerCase() + key.slice(1)}MaxHeight`] || (key === "DrinkName" ? 48 : (key === "Barcode" ? 30 : 24))));
+    let height = parseInt(previewEl.style.height || String(labelSettings[`${key.charAt(0).toLowerCase() + key.slice(1)}MaxHeight`] || (key === "DrinkName" ? 48 : (key === "Barcode" ? 20 : 24))));
 
     let x = parseInt(previewEl.style.left || String(labelSettings[`${key.charAt(0).toLowerCase() + key.slice(1)}X`] || (key === "Barcode" ? 60 : 12)));
     let y = parseInt(previewEl.style.top || String(labelSettings[`${key.charAt(0).toLowerCase() + key.slice(1)}Y`] || (key === "Barcode" ? 130 : 12)));
@@ -3141,8 +3141,8 @@ function initPrinterSettings() {
       previewEl.style.left = `${labelSettings[`${keyLower}X`] !== undefined ? labelSettings[`${keyLower}X`] : (key === "Barcode" ? 60 : 12)}px`;
       previewEl.style.top = `${labelSettings[`${keyLower}Y`] !== undefined ? labelSettings[`${keyLower}Y`] : (key === "Barcode" ? 130 : 12)}px`;
       previewEl.style.width = `${labelSettings[`${keyLower}Width`] !== undefined ? labelSettings[`${keyLower}Width`] : (key === "Barcode" ? 200 : 150)}px`;
-      previewEl.style.height = `${labelSettings[`${keyLower}MaxHeight`] !== undefined ? labelSettings[`${keyLower}MaxHeight`] : (key === "DrinkName" ? 48 : (key === "Barcode" ? 30 : 24))}px`;
-      previewEl.style.maxHeight = `${labelSettings[`${keyLower}MaxHeight`] !== undefined ? labelSettings[`${keyLower}MaxHeight`] : (key === "DrinkName" ? 48 : (key === "Barcode" ? 30 : 24))}px`;
+      previewEl.style.height = `${labelSettings[`${keyLower}MaxHeight`] !== undefined ? labelSettings[`${keyLower}MaxHeight`] : (key === "DrinkName" ? 48 : (key === "Barcode" ? 20 : 24))}px`;
+      previewEl.style.maxHeight = `${labelSettings[`${keyLower}MaxHeight`] !== undefined ? labelSettings[`${keyLower}MaxHeight`] : (key === "DrinkName" ? 48 : (key === "Barcode" ? 20 : 24))}px`;
     }
   });
 
