@@ -1350,12 +1350,12 @@
               Jeda Antar Label (ms)
               <input type="number" id="labelPrinterDelay" value="1200" min="200" max="3000" step="100">
             </label>
-            <div style="display: flex; flex-direction: column; justify-content: center; gap: 4px;">
+            <div style="display: none; flex-direction: column; justify-content: center; gap: 4px;">
               <div style="display: flex; justify-content: space-between; font-weight: 500;">
                 <span>Stiker Offset X (dots)</span>
-                <span id="labelStickerOffsetXVal" style="font-family: monospace;">8</span>
+                <span id="labelStickerOffsetXVal" style="font-family: monospace;">64</span>
               </div>
-              <input type="range" id="labelStickerOffsetX" min="0" max="200" value="8" style="width: 100%;">
+              <input type="range" id="labelStickerOffsetX" min="0" max="200" value="64" style="width: 100%;">
             </div>
           </div>
 
@@ -1379,7 +1379,7 @@
                   <input type="checkbox" id="labelDrinkNameBold" checked style="width: 15px; height: 15px; min-height: 15px; min-width: 15px; max-width: 15px; max-height: 15px; margin: 0; cursor: pointer; accent-color: var(--accent);"> Bold
                 </label>
               </div>
-              <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px;">
+              <div style="display: none; justify-content: space-between; align-items: center; font-size: 11px;">
                 <span>Ukuran Teks (Slider)</span>
                 <div style="display: flex; align-items: center; gap: 6px;">
                   <input type="range" id="labelDrinkNameFontSize" min="8" max="32" value="18" style="width: 100px;">
@@ -1406,7 +1406,7 @@
                   <input type="checkbox" id="labelNotesBold" style="width: 15px; height: 15px; min-height: 15px; min-width: 15px; max-width: 15px; max-height: 15px; margin: 0; cursor: pointer; accent-color: var(--accent);"> Bold
                 </label>
               </div>
-              <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px;">
+              <div style="display: none; justify-content: space-between; align-items: center; font-size: 11px;">
                 <span>Ukuran Teks (Slider)</span>
                 <div style="display: flex; align-items: center; gap: 6px;">
                   <input type="range" id="labelNotesFontSize" min="8" max="32" value="13" style="width: 100px;">
@@ -1433,7 +1433,7 @@
                   <input type="checkbox" id="labelOrderCodeBold" style="width: 15px; height: 15px; min-height: 15px; min-width: 15px; max-width: 15px; max-height: 15px; margin: 0; cursor: pointer; accent-color: var(--accent);"> Bold
                 </label>
               </div>
-              <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px;">
+              <div style="display: none; justify-content: space-between; align-items: center; font-size: 11px;">
                 <span>Ukuran Teks (Slider)</span>
                 <div style="display: flex; align-items: center; gap: 6px;">
                   <input type="range" id="labelOrderCodeFontSize" min="8" max="32" value="13" style="width: 100px;">
@@ -1460,7 +1460,7 @@
                   <input type="checkbox" id="labelCustomerBold" style="width: 15px; height: 15px; min-height: 15px; min-width: 15px; max-width: 15px; max-height: 15px; margin: 0; cursor: pointer; accent-color: var(--accent);"> Bold
                 </label>
               </div>
-              <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px;">
+              <div style="display: none; justify-content: space-between; align-items: center; font-size: 11px;">
                 <span>Ukuran Teks (Slider)</span>
                 <div style="display: flex; align-items: center; gap: 6px;">
                   <input type="range" id="labelCustomerFontSize" min="8" max="32" value="13" style="width: 100px;">
@@ -1487,7 +1487,7 @@
                   <input type="checkbox" id="labelCounterBold" style="width: 15px; height: 15px; min-height: 15px; min-width: 15px; max-width: 15px; max-height: 15px; margin: 0; cursor: pointer; accent-color: var(--accent);"> Bold
                 </label>
               </div>
-              <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px;">
+              <div style="display: none; justify-content: space-between; align-items: center; font-size: 11px;">
                 <span>Ukuran Teks (Slider)</span>
                 <div style="display: flex; align-items: center; gap: 6px;">
                   <input type="range" id="labelCounterFontSize" min="8" max="32" value="13" style="width: 100px;">
@@ -1514,7 +1514,7 @@
                   <input type="checkbox" id="labelCustomTextBold" checked style="width: 15px; height: 15px; min-height: 15px; min-width: 15px; max-width: 15px; max-height: 15px; margin: 0; cursor: pointer; accent-color: var(--accent);"> Bold
                 </label>
               </div>
-              <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; margin-top: 2px;">
+              <div style="display: none; justify-content: space-between; align-items: center; font-size: 11px; margin-top: 2px;">
                 <span>Ukuran Teks (Slider)</span>
                 <div style="display: flex; align-items: center; gap: 6px;">
                   <input type="range" id="labelCustomTextFontSize" min="8" max="32" value="11" style="width: 100px;">
@@ -1549,6 +1549,6 @@
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-    <script src="app.js?v=85"></script>
+    <script src="app.js?v=86"></script>
   </body>
 </html>

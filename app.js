@@ -2580,7 +2580,7 @@ function getLabelPrinterSettings() {
     labelDelay: 1200,
     labelMargin: 8,
     labelSpaces: 0,
-    stickerOffsetX: 8,
+    stickerOffsetX: 64,
     
     drinkNameEnabled: true,
     drinkNameBold: true,
@@ -2637,7 +2637,11 @@ function getLabelPrinterSettings() {
     barcodeWidth: 200,
     barcodeMaxHeight: 20
   };
-  return readJson("kasir-migi-label-printer-settings", fallback);
+  const settings = readJson("kasir-migi-label-printer-settings", fallback);
+  if (settings && settings.stickerOffsetX === 8) {
+    settings.stickerOffsetX = 64;
+  }
+  return settings;
 }
 
 function saveLabelPrinterSettingsFromUI() {
@@ -3206,7 +3210,7 @@ function initPrinterSettings() {
   if (els.labelPrinterMargin) els.labelPrinterMargin.value = labelSettings.labelMargin !== undefined ? labelSettings.labelMargin : 8;
   if (els.labelPrinterSpaces) els.labelPrinterSpaces.value = labelSettings.labelSpaces !== undefined ? labelSettings.labelSpaces : 0;
 
-  if (els.labelStickerOffsetX) els.labelStickerOffsetX.value = labelSettings.stickerOffsetX !== undefined ? labelSettings.stickerOffsetX : 8;
+  if (els.labelStickerOffsetX) els.labelStickerOffsetX.value = labelSettings.stickerOffsetX !== undefined ? labelSettings.stickerOffsetX : 64;
 
   const elements = ["DrinkName", "Notes", "OrderCode", "Customer", "Counter", "CustomText", "Barcode"];
   elements.forEach((key) => {
@@ -5494,25 +5498,8 @@ async function getMascotLogoBytes() {
 async function encodeCupLabel(transaction, item, itemIndex, totalItems) {
   const labelSettings = getLabelPrinterSettings();
   const feedMethod = labelSettings.feedMethod;
-  const pitch = labelSettings.pitch;
-
-  const toTitleCase = (str) => {
-    return String(str || "")
-      .toLowerCase()
-      .split(" ")
-      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(" ");
-  };
-
-  const drinkName = toTitleCase(item.name || "Minuman");
-  const counter = `[${itemIndex + 1}/${totalItems}]`;
-  const orderNum = transaction.orderCode || "-";
-  const customer = transaction.customer || "Teman Migi";
-  const notesText = item.notes || "ICE · NORMAL · REGULAR";
-  const tags = notesText.split(" · ").filter(Boolean).map(toTitleCase);
-  const variantLine = tags.join(" * ");
-
   const paperSize = labelSettings.paperSize || "40x20mm";
+  
   let stickerWidth = 320;
   let stickerHeight = 160;
   
@@ -5530,185 +5517,35 @@ async function encodeCupLabel(transaction, item, itemIndex, totalItems) {
     stickerHeight = 240;
   }
 
-  // Create standard canvas for print
-  const canvas = document.createElement("canvas");
-  canvas.width = 384; // full printable width of 58mm printer
-  canvas.height = stickerHeight;
-  const ctx = canvas.getContext("2d", { willReadFrequently: true });
-
-  // Clear with white
-  ctx.fillStyle = "#ffffff";
-  ctx.fillRect(0, 0, 384, stickerHeight);
-
-  const stickerOffsetX = labelSettings.stickerOffsetX !== undefined ? Number(labelSettings.stickerOffsetX) : 8;
-
-  // Pixel-perfect word wrapper
-  const wrapTextPix = (text, maxWidth, font) => {
-    ctx.save();
-    ctx.font = font;
-    const words = String(text).split(" ");
-    const lines = [];
-    let currentLine = "";
-    
-    for (const word of words) {
-      const testLine = currentLine ? (currentLine + " " + word) : word;
-      const metrics = ctx.measureText(testLine);
-      if (metrics.width <= maxWidth) {
-        currentLine = testLine;
-      } else {
-        if (currentLine) lines.push(currentLine);
-        currentLine = word;
-      }
-    }
-    if (currentLine) lines.push(currentLine);
-    ctx.restore();
-    return lines;
+  const toTitleCase = (str) => {
+    return String(str || "")
+      .toLowerCase()
+      .split(" ")
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(" ");
   };
 
-  const drawTextElement = (enabled, text, x, y, width, fontSize, bold, maxHeight = 24) => {
-    if (!enabled || !text) return;
-    
-    // Map font sizes to actual printer heights to match 100% same!
-    let actualLineHeight = 24;
-    let actualFontSize = 13;
-    if (fontSize < 11) {
-      actualLineHeight = 17;
-      actualFontSize = 10;
-    } else if (fontSize >= 11 && fontSize <= 16) {
-      actualLineHeight = 24;
-      actualFontSize = 13;
-    } else if (fontSize > 16 && fontSize <= 22) {
-      actualLineHeight = 48;
-      actualFontSize = 13; // scaled double height
-    } else if (fontSize > 22 && fontSize <= 27) {
-      actualLineHeight = 24;
-      actualFontSize = 26; // scaled double width
-    } else {
-      actualLineHeight = 48;
-      actualFontSize = 26; // scaled double size
-    }
+  const drinkName = toTitleCase(item.name || "Minuman");
+  const counter = `[${itemIndex + 1}/${totalItems}]`;
+  const orderNum = transaction.orderCode || "-";
+  const customer = transaction.customer || "Teman Migi";
+  const notesText = item.notes || "ICE · NORMAL · REGULAR";
+  const tags = notesText.split(" · ").filter(Boolean).map(toTitleCase);
+  const variantLine = tags.join(" * ");
 
-    const fontStyle = `${bold ? "bold " : ""}${actualFontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
-    
-    const lines = wrapTextPix(text, width, fontStyle);
-    const maxLines = Math.max(1, Math.floor(maxHeight / actualLineHeight));
-    const activeLines = lines.slice(0, maxLines);
-    
-    if (lines.length > maxLines && activeLines.length > 0) {
-      let lastLine = activeLines[activeLines.length - 1];
-      ctx.save();
-      ctx.font = fontStyle;
-      while (lastLine.length > 0 && ctx.measureText(lastLine + "...").width > width) {
-        lastLine = lastLine.slice(0, -1);
-      }
-      activeLines[activeLines.length - 1] = lastLine + "...";
-      ctx.restore();
-    }
+  const stickerOffsetX = labelSettings.stickerOffsetX !== undefined ? Number(labelSettings.stickerOffsetX) : 64;
 
-    ctx.save();
-    ctx.font = fontStyle;
-    ctx.fillStyle = "#000000";
-    ctx.textBaseline = "top";
-    ctx.textAlign = "left";
+  // Compile list of active elements
+  const rawElements = [
+    { key: "DrinkName", text: drinkName, enabled: labelSettings.drinkNameEnabled !== false, bold: labelSettings.drinkNameBold !== false, fontSize: Number(labelSettings.drinkNameFontSize || 18), x: labelSettings.drinkNameX !== undefined ? labelSettings.drinkNameX : 12, y: labelSettings.drinkNameY !== undefined ? labelSettings.drinkNameY : 12, width: labelSettings.drinkNameWidth !== undefined ? labelSettings.drinkNameWidth : 200, height: labelSettings.drinkNameMaxHeight !== undefined ? labelSettings.drinkNameMaxHeight : 48 },
+    { key: "Notes", text: variantLine, enabled: labelSettings.notesEnabled !== false, bold: labelSettings.notesBold === true, fontSize: Number(labelSettings.notesFontSize || 13), x: labelSettings.notesX !== undefined ? labelSettings.notesX : 12, y: labelSettings.notesY !== undefined ? labelSettings.notesY : 48, width: labelSettings.notesWidth !== undefined ? labelSettings.notesWidth : 280, height: labelSettings.notesMaxHeight !== undefined ? labelSettings.notesMaxHeight : 24 },
+    { key: "OrderCode", text: `#${orderNum}`, enabled: labelSettings.orderCodeEnabled !== false, bold: labelSettings.orderCodeBold === true, fontSize: Number(labelSettings.orderCodeFontSize || 13), x: labelSettings.orderCodeX !== undefined ? labelSettings.orderCodeX : 12, y: labelSettings.orderCodeY !== undefined ? labelSettings.orderCodeY : 84, width: labelSettings.orderCodeWidth !== undefined ? labelSettings.orderCodeWidth : 120, height: labelSettings.orderCodeMaxHeight !== undefined ? labelSettings.orderCodeMaxHeight : 24 },
+    { key: "Customer", text: customer, enabled: labelSettings.customerEnabled !== false, bold: labelSettings.customerBold === true, fontSize: Number(labelSettings.customerFontSize || 13), x: labelSettings.customerX !== undefined ? labelSettings.customerX : 12, y: labelSettings.customerY !== undefined ? labelSettings.customerY : 110, width: labelSettings.customerWidth !== undefined ? labelSettings.customerWidth : 150, height: labelSettings.customerMaxHeight !== undefined ? labelSettings.customerMaxHeight : 24 },
+    { key: "Counter", text: counter, enabled: labelSettings.counterEnabled !== false, bold: labelSettings.counterBold === true, fontSize: Number(labelSettings.counterFontSize || 13), x: labelSettings.counterX !== undefined ? labelSettings.counterX : 240, y: labelSettings.counterY !== undefined ? labelSettings.counterY : 84, width: labelSettings.counterWidth !== undefined ? labelSettings.counterWidth : 80, height: labelSettings.counterMaxHeight !== undefined ? labelSettings.counterMaxHeight : 24 },
+    { key: "CustomText", text: labelSettings.customTextValue || "TEMAN", enabled: labelSettings.customTextEnabled === true, bold: labelSettings.customTextBold !== false, fontSize: Number(labelSettings.customTextFontSize || 11), x: labelSettings.customTextX !== undefined ? labelSettings.customTextX : 150, y: labelSettings.customTextY !== undefined ? labelSettings.customTextY : 12, width: labelSettings.customTextWidth !== undefined ? labelSettings.customTextWidth : 100, height: labelSettings.customTextMaxHeight !== undefined ? labelSettings.customTextMaxHeight : 24 }
+  ];
 
-    activeLines.forEach((line, index) => {
-      const drawX = stickerOffsetX + x + 4; // compensate for editor padding-left: 4px
-      const drawY = y + index * actualLineHeight + 2; // compensate for editor padding-top: 2px
-      
-      ctx.save();
-      ctx.translate(drawX, drawY);
-      if (fontSize > 16 && fontSize <= 22) {
-        ctx.scale(1, 2);
-        ctx.fillText(line, 0, 0);
-      } else if (fontSize > 22 && fontSize <= 27) {
-        ctx.scale(2, 1);
-        ctx.fillText(line, 0, 0);
-      } else if (fontSize > 27) {
-        ctx.scale(2, 2);
-        ctx.fillText(line, 0, 0);
-      } else {
-        ctx.fillText(line, 0, 0);
-      }
-      ctx.restore();
-    });
-
-    ctx.restore();
-  };
-
-  // Draw text elements
-  // 1. Nama Produk
-  drawTextElement(
-    labelSettings.drinkNameEnabled !== false,
-    drinkName,
-    labelSettings.drinkNameX !== undefined ? labelSettings.drinkNameX : 12,
-    labelSettings.drinkNameY !== undefined ? labelSettings.drinkNameY : 12,
-    labelSettings.drinkNameWidth !== undefined ? labelSettings.drinkNameWidth : 200,
-    Number(labelSettings.drinkNameFontSize || 18),
-    labelSettings.drinkNameBold !== false,
-    labelSettings.drinkNameMaxHeight !== undefined ? labelSettings.drinkNameMaxHeight : 48
-  );
-
-  // 2. Catatan Varian
-  drawTextElement(
-    labelSettings.notesEnabled !== false,
-    variantLine,
-    labelSettings.notesX !== undefined ? labelSettings.notesX : 12,
-    labelSettings.notesY !== undefined ? labelSettings.notesY : 48,
-    labelSettings.notesWidth !== undefined ? labelSettings.notesWidth : 280,
-    Number(labelSettings.notesFontSize || 13),
-    labelSettings.notesBold === true,
-    labelSettings.notesMaxHeight !== undefined ? labelSettings.notesMaxHeight : 24
-  );
-
-  // 3. Nomor Pesanan
-  drawTextElement(
-    labelSettings.orderCodeEnabled !== false,
-    `#${orderNum}`,
-    labelSettings.orderCodeX !== undefined ? labelSettings.orderCodeX : 12,
-    labelSettings.orderCodeY !== undefined ? labelSettings.orderCodeY : 84,
-    labelSettings.orderCodeWidth !== undefined ? labelSettings.orderCodeWidth : 120,
-    Number(labelSettings.orderCodeFontSize || 13),
-    labelSettings.orderCodeBold === true,
-    labelSettings.orderCodeMaxHeight !== undefined ? labelSettings.orderCodeMaxHeight : 24
-  );
-
-  // 4. Nama Pengunjung
-  drawTextElement(
-    labelSettings.customerEnabled !== false,
-    customer,
-    labelSettings.customerX !== undefined ? labelSettings.customerX : 12,
-    labelSettings.customerY !== undefined ? labelSettings.customerY : 110,
-    labelSettings.customerWidth !== undefined ? labelSettings.customerWidth : 150,
-    Number(labelSettings.customerFontSize || 13),
-    labelSettings.customerBold === true,
-    labelSettings.customerMaxHeight !== undefined ? labelSettings.customerMaxHeight : 24
-  );
-
-  // 5. Nomor Item (Counter)
-  drawTextElement(
-    labelSettings.counterEnabled !== false,
-    counter,
-    labelSettings.counterX !== undefined ? labelSettings.counterX : 240,
-    labelSettings.counterY !== undefined ? labelSettings.counterY : 84,
-    labelSettings.counterWidth !== undefined ? labelSettings.counterWidth : 80,
-    Number(labelSettings.counterFontSize || 13),
-    labelSettings.counterBold === true,
-    labelSettings.counterMaxHeight !== undefined ? labelSettings.counterMaxHeight : 24
-  );
-
-  // 6. Teks Kustom Tambahan
-  drawTextElement(
-    labelSettings.customTextEnabled === true,
-    labelSettings.customTextValue || "TEMAN",
-    labelSettings.customTextX !== undefined ? labelSettings.customTextX : 150,
-    labelSettings.customTextY !== undefined ? labelSettings.customTextY : 12,
-    labelSettings.customTextWidth !== undefined ? labelSettings.customTextWidth : 100,
-    Number(labelSettings.customTextFontSize || 11),
-    labelSettings.customTextBold !== false,
-    labelSettings.customTextMaxHeight !== undefined ? labelSettings.customTextMaxHeight : 24
-  );
-
-  // 7. Barcode (Date format: DDMMYYYY)
+  // Add barcode if enabled
   const txDate = transaction.createdAt ? new Date(transaction.createdAt) : new Date();
   const dd = String(txDate.getDate()).padStart(2, '0');
   const mm = String(txDate.getMonth() + 1).padStart(2, '0');
@@ -5716,108 +5553,159 @@ async function encodeCupLabel(transaction, item, itemIndex, totalItems) {
   const barcodeValue = `${dd}${mm}${yyyy}`;
 
   if (labelSettings.barcodeEnabled === true) {
-    const barX = stickerOffsetX + (labelSettings.barcodeX !== undefined ? labelSettings.barcodeX : 60);
-    const barY = labelSettings.barcodeY !== undefined ? labelSettings.barcodeY : 130;
-    const barW = labelSettings.barcodeWidth !== undefined ? labelSettings.barcodeWidth : 200;
-    const barH = labelSettings.barcodeMaxHeight !== undefined ? labelSettings.barcodeMaxHeight : 20;
-
-    const code39Specs = {
-      '0': 'NNNWWNWNN', '1': 'WNNWNNNNW', '2': 'NNWWNNNNW', '3': 'WNWWNNNNN',
-      '4': 'NNNWNNWNW', '5': 'WNNWNNWNN', '6': 'NNWWNNWNN', '7': 'NNNWNNNNW',
-      '8': 'WNNWNNNNN', '9': 'NNWWNNNNN', 'A': 'WNNNNWNNW', 'B': 'NNWNNWNNW',
-      'C': 'WNWNNWNNN', 'D': 'NNNNWWNNW', 'E': 'WNNNWWNNN', 'F': 'NNWNWWNNN',
-      'G': 'NNNNNWWNW', 'H': 'WNNNNWWNN', 'I': 'NNWNNWWNN', 'J': 'NNNNWWWNN',
-      'K': 'WNNNNNNWW', 'L': 'NNWNNNNWW', 'M': 'WNWNNNNWN', 'N': 'NNNNWNNWW',
-      'O': 'WNNNWNNWN', 'P': 'NNWNWNNWN', 'Q': 'NNNNNNWWW', 'R': 'WNNNNNWWN',
-      'S': 'NNWNNNWWN', 'T': 'NNNNWNWWN', 'U': 'WWNNNNNNW', 'V': 'NWWNNNNNW',
-      'W': 'WWWNNNNNN', 'X': 'NWNNWNNNW', 'Y': 'WWNNWNNNN', 'Z': 'NWWNWNNNN',
-      '-': 'NWNNNNWNW', '.': 'WWNNNNWNN', ' ': 'NWWNNNWNN', '*': 'NWNNWNNNN',
-      '$': 'NWNWNWNNN', '/': 'NWNWNNNWN', '+': 'NWNNNWNWN', '%': 'NNWNWNWNN'
-    };
-
-    const cleanText = "*" + String(barcodeValue).toUpperCase().replace(/[^A-Z0-9\-\.\ \$\/\+\%]/g, "") + "*";
-    let N = 1;
-    let W = 2;
-    const charDotWidth = 6 * N + 3 * W + 1;
-    if (cleanText.length * charDotWidth * 2 <= barW) {
-      N = 2;
-      W = 4;
-    }
-    const finalDots = cleanText.length * (6 * N + 3 * W + 1) - 1;
-    let startX = barX + Math.floor((barW - finalDots) / 2);
-
-    ctx.fillStyle = "#000000";
-    for (let i = 0; i < cleanText.length; i++) {
-      const char = cleanText[i];
-      const spec = code39Specs[char] || code39Specs['*'];
-      let curX = startX + i * (6 * N + 3 * W + 1 * N);
-      
-      for (let j = 0; j < 9; j++) {
-        const isBar = (j % 2 === 0);
-        const isWide = (spec[j] === 'W');
-        const elWidth = isWide ? W : N;
-        if (isBar) {
-          ctx.fillRect(curX, barY, elWidth, barH);
-        }
-        curX += elWidth;
-      }
-    }
-
-    // Draw text below barcode
-    ctx.fillStyle = "#000000";
-    ctx.font = "10px monospace";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "top";
-    ctx.fillText(barcodeValue, barX + Math.floor(barW / 2), barY + barH + 2);
+    rawElements.push({
+      key: "Barcode",
+      text: barcodeValue,
+      enabled: true,
+      isBarcode: true,
+      x: labelSettings.barcodeX !== undefined ? labelSettings.barcodeX : 60,
+      y: labelSettings.barcodeY !== undefined ? labelSettings.barcodeY : 130,
+      width: labelSettings.barcodeWidth !== undefined ? labelSettings.barcodeWidth : 200,
+      height: labelSettings.barcodeMaxHeight !== undefined ? labelSettings.barcodeMaxHeight : 20
+    });
   }
 
-  // Convert canvas to ESC/POS monochrome graphic raster bytes
-  const pixels = ctx.getImageData(0, 0, 384, stickerHeight).data;
-  const raster = [];
-  const widthBytes = 384 / 8; // 48 bytes
-  
-  for (let y = 0; y < stickerHeight; y++) {
-    for (let xByte = 0; xByte < widthBytes; xByte++) {
-      let byte = 0;
-      for (let bit = 0; bit < 8; bit++) {
-        const x = xByte * 8 + bit;
-        const index = (y * 384 + x) * 4;
-        const r = pixels[index];
-        const g = pixels[index + 1];
-        const b = pixels[index + 2];
-        const a = pixels[index + 3];
-        
-        const luminance = 0.299 * r + 0.587 * g + 0.114 * b;
-        if (a > 128 && luminance < 180) {
-          byte |= (0x80 >> bit);
-        }
-      }
-      raster.push(byte);
+  // Filter only active elements
+  const activeElements = rawElements.filter(el => el.enabled && el.text);
+
+  // Group elements into vertical rows (same physics as preview)
+  const segments = activeElements.map(el => {
+    let charHeight = 24;
+    if (el.isBarcode) {
+      charHeight = el.height + 24;
+    } else {
+      if (el.fontSize < 11) charHeight = 17;
+      else if (el.fontSize >= 11 && el.fontSize <= 16) charHeight = 24;
+      else if (el.fontSize > 16 && el.fontSize <= 22) charHeight = 48;
+      else if (el.fontSize > 22 && el.fontSize <= 27) charHeight = 24;
+      else charHeight = 48;
+    }
+    return { ...el, charHeight };
+  });
+
+  segments.sort((a, b) => a.y - b.y);
+
+  const printRows = [];
+  for (const segment of segments) {
+    let foundRow = printRows.find(r => Math.abs(r.y - segment.y) < 12);
+    if (!foundRow) {
+      foundRow = {
+        y: segment.y,
+        segments: [],
+        maxCharHeight: 0
+      };
+      printRows.push(foundRow);
+    }
+    foundRow.segments.push(segment);
+    if (segment.charHeight > foundRow.maxCharHeight) {
+      foundRow.maxCharHeight = segment.charHeight;
     }
   }
 
+  printRows.sort((a, b) => a.y - b.y);
+
+  // Re-calculate printedY
+  let currentYCalculated = 0;
+  printRows.forEach(row => {
+    let feedDots = row.y - currentYCalculated;
+    if (feedDots < 0) feedDots = 0;
+    const printedY = currentYCalculated + feedDots;
+    row.segments.forEach(segment => {
+      segment.printedY = printedY;
+    });
+    row.printedY = printedY;
+    currentYCalculated = printedY + row.maxCharHeight;
+  });
+
+  // ESC/POS Command Compilation
   const ESC = 0x1b, GS = 0x1d;
   const init = [ESC, 0x40];
   let payload = [];
   payload.push(...init);
 
-  // Print raster bit image
-  const xL = widthBytes & 0xff;
-  const xH = (widthBytes >> 8) & 0xff;
-  const yL = stickerHeight & 0xff;
-  const yH = (stickerHeight >> 8) & 0xff;
+  const encoder = new TextEncoder();
+  let currentY = 0;
 
-  payload.push(GS, 0x76, 0x30, 0x00, xL, xH, yL, yH, ...raster);
+  printRows.forEach(row => {
+    // 1. Feed vertically to this row's position
+    const feedDots = row.printedY - currentY;
+    if (feedDots > 0) {
+      // ESC J feeds up to 255 dots. If more, split it.
+      let remainingFeed = feedDots;
+      while (remainingFeed > 255) {
+        payload.push(ESC, 0x4a, 255);
+        remainingFeed -= 255;
+      }
+      payload.push(ESC, 0x4a, remainingFeed);
+    }
+    currentY = row.printedY;
 
-  // Feed mechanism
+    // Sort segments from left to right to prevent head backward travel issues
+    row.segments.sort((a, b) => a.x - b.x);
+
+    row.segments.forEach(segment => {
+      // 2. Set absolute X position
+      const posX = stickerOffsetX + segment.x;
+      const nL = posX & 0xff;
+      const nH = (posX >> 8) & 0xff;
+      payload.push(ESC, 0x24, nL, nH);
+
+      if (segment.isBarcode) {
+        // Native ESC/POS Barcode printing
+        // Set barcode width (2 dots)
+        payload.push(GS, 0x77, 0x02);
+        // Set barcode height
+        payload.push(GS, 0x68, segment.height);
+        // Set HRI position below barcode
+        payload.push(GS, 0x48, 0x02);
+        // Print CODE39 barcode
+        payload.push(GS, 0x6b, 0x04);
+        payload.push(...encoder.encode(segment.text));
+        payload.push(0x00); // Terminator
+      } else {
+        // Regular Text
+        // Set bold
+        payload.push(ESC, 0x45, segment.bold ? 1 : 0);
+        
+        // Set font size multiplier
+        let sizeByte = 0x00;
+        if (segment.fontSize > 16 && segment.fontSize <= 22) {
+          sizeByte = 0x01; // Double Height
+        } else if (segment.fontSize > 22 && segment.fontSize <= 27) {
+          sizeByte = 0x10; // Double Width
+        } else if (segment.fontSize > 27) {
+          sizeByte = 0x11; // Double Size
+        }
+        payload.push(GS, 0x21, sizeByte);
+
+        // Send character bytes
+        payload.push(...encoder.encode(segment.text));
+      }
+    });
+
+    // 3. Print the line and feed by the row height
+    const rowHeight = row.maxCharHeight;
+    payload.push(ESC, 0x4a, rowHeight);
+    currentY += rowHeight;
+  });
+
+  // Feed remaining paper to clear the sticker
+  const remainingFeed = stickerHeight - currentY;
+  if (remainingFeed > 0) {
+    let rem = remainingFeed;
+    while (rem > 255) {
+      payload.push(ESC, 0x4a, 255);
+      rem -= 255;
+    }
+    payload.push(ESC, 0x4a, rem);
+  }
+
+  // Cut/feed settings
   if (feedMethod === "gap") {
     payload.push(GS, 0x0c); 
   } else {
     // Pitch manual
-    const remainingFeed = Math.max(0, pitch - stickerHeight);
-    if (remainingFeed > 0) {
-      payload.push(ESC, 0x4a, remainingFeed);
-    }
+    payload.push(ESC, 0x64, 0x02);
   }
 
   return new Uint8Array(payload);
