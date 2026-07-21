@@ -2660,62 +2660,62 @@ function saveLabelPrinterSettingsFromUI() {
     labelDelay: Number(els.labelPrinterDelay?.value || 1200),
     labelMargin: Number(els.labelPrinterMargin?.value || 8),
     labelSpaces: Number(els.labelPrinterSpaces?.value || 0),
-    stickerOffsetX: Number(els.labelStickerOffsetX?.value || 8),
+    stickerOffsetX: Number(els.labelStickerOffsetX?.value || 64),
 
     drinkNameEnabled: els.labelDrinkNameEnabled?.checked !== false,
     drinkNameBold: els.labelDrinkNameBold?.checked !== false,
     drinkNameFontSize: Number(els.labelDrinkNameFontSize?.value || 18),
     drinkNameX: parseInt(els.labelPreviewDrinkName?.getAttribute("data-drag-x") || els.labelPreviewDrinkName?.style.left || "12"),
     drinkNameY: parseInt(els.labelPreviewDrinkName?.getAttribute("data-drag-y") || els.labelPreviewDrinkName?.style.top || "12"),
-    drinkNameWidth: parseInt(els.labelPreviewDrinkName?.style.width || "200"),
-    drinkNameMaxHeight: parseInt(els.labelPreviewDrinkName?.style.height || "48"),
+    drinkNameWidth: 200,
+    drinkNameMaxHeight: 48,
 
     notesEnabled: els.labelNotesEnabled?.checked !== false,
     notesBold: els.labelNotesBold?.checked === true,
     notesFontSize: Number(els.labelNotesFontSize?.value || 13),
     notesX: parseInt(els.labelPreviewNotes?.getAttribute("data-drag-x") || els.labelPreviewNotes?.style.left || "12"),
     notesY: parseInt(els.labelPreviewNotes?.getAttribute("data-drag-y") || els.labelPreviewNotes?.style.top || "48"),
-    notesWidth: parseInt(els.labelPreviewNotes?.style.width || "280"),
-    notesMaxHeight: parseInt(els.labelPreviewNotes?.style.height || "24"),
+    notesWidth: 280,
+    notesMaxHeight: 24,
 
     orderCodeEnabled: els.labelOrderCodeEnabled?.checked !== false,
     orderCodeBold: els.labelOrderCodeBold?.checked === true,
     orderCodeFontSize: Number(els.labelOrderCodeFontSize?.value || 13),
     orderCodeX: parseInt(els.labelPreviewOrderCode?.getAttribute("data-drag-x") || els.labelPreviewOrderCode?.style.left || "12"),
     orderCodeY: parseInt(els.labelPreviewOrderCode?.getAttribute("data-drag-y") || els.labelPreviewOrderCode?.style.top || "84"),
-    orderCodeWidth: parseInt(els.labelPreviewOrderCode?.style.width || "120"),
-    orderCodeMaxHeight: parseInt(els.labelPreviewOrderCode?.style.height || "24"),
+    orderCodeWidth: 120,
+    orderCodeMaxHeight: 24,
 
     customerEnabled: els.labelCustomerEnabled?.checked !== false,
     customerBold: els.labelCustomerBold?.checked === true,
     customerFontSize: Number(els.labelCustomerFontSize?.value || 13),
     customerX: parseInt(els.labelPreviewCustomer?.getAttribute("data-drag-x") || els.labelPreviewCustomer?.style.left || "12"),
     customerY: parseInt(els.labelPreviewCustomer?.getAttribute("data-drag-y") || els.labelPreviewCustomer?.style.top || "110"),
-    customerWidth: parseInt(els.labelPreviewCustomer?.style.width || "150"),
-    customerMaxHeight: parseInt(els.labelPreviewCustomer?.style.height || "24"),
+    customerWidth: 150,
+    customerMaxHeight: 24,
 
     counterEnabled: els.labelCounterEnabled?.checked !== false,
     counterBold: els.labelCounterBold?.checked === true,
     counterFontSize: Number(els.labelCounterFontSize?.value || 13),
     counterX: parseInt(els.labelPreviewCounter?.getAttribute("data-drag-x") || els.labelPreviewCounter?.style.left || "240"),
     counterY: parseInt(els.labelPreviewCounter?.getAttribute("data-drag-y") || els.labelPreviewCounter?.style.top || "84"),
-    counterWidth: parseInt(els.labelPreviewCounter?.style.width || "80"),
-    counterMaxHeight: parseInt(els.labelPreviewCounter?.style.height || "24"),
+    counterWidth: 80,
+    counterMaxHeight: 24,
 
     customTextEnabled: els.labelCustomTextEnabled?.checked === true,
     customTextBold: els.labelCustomTextBold?.checked !== false,
     customTextFontSize: Number(els.labelCustomTextFontSize?.value || 11),
     customTextX: parseInt(els.labelPreviewCustomText?.getAttribute("data-drag-x") || els.labelPreviewCustomText?.style.left || "150"),
     customTextY: parseInt(els.labelPreviewCustomText?.getAttribute("data-drag-y") || els.labelPreviewCustomText?.style.top || "12"),
-    customTextWidth: parseInt(els.labelPreviewCustomText?.style.width || "100"),
-    customTextMaxHeight: parseInt(els.labelPreviewCustomText?.style.height || "24"),
+    customTextWidth: 100,
+    customTextMaxHeight: 24,
     customTextValue: els.labelCustomTextValue?.value || "TEMAN",
 
     barcodeEnabled: els.labelBarcodeEnabled?.checked === true,
     barcodeX: parseInt(els.labelPreviewBarcode?.getAttribute("data-drag-x") || els.labelPreviewBarcode?.style.left || "60"),
     barcodeY: parseInt(els.labelPreviewBarcode?.getAttribute("data-drag-y") || els.labelPreviewBarcode?.style.top || "130"),
-    barcodeWidth: parseInt(els.labelPreviewBarcode?.style.width || "200"),
-    barcodeMaxHeight: parseInt(els.labelPreviewBarcode?.style.height || "20")
+    barcodeWidth: 160,
+    barcodeMaxHeight: 20
   };
   writeJson("kasir-migi-label-printer-settings", settings);
   toggleLabelPrinterManualSettingsVisibility();
@@ -2849,10 +2849,13 @@ function updateLabelPreview() {
 
     if (fontSizeVal && fontSizeInput) fontSizeVal.textContent = fontSize;
 
-    let width = parseInt(previewEl.style.width || String(labelSettings[`${key.charAt(0).toLowerCase() + key.slice(1)}Width`] || (key === "Barcode" ? 200 : 150)));
+    const defaultWidths = { DrinkName: 200, Notes: 280, OrderCode: 120, Customer: 150, Counter: 80, CustomText: 100, Barcode: 160 };
+    const defaultHeights = { DrinkName: 48, Notes: 24, OrderCode: 24, Customer: 24, Counter: 24, CustomText: 24, Barcode: 20 };
+    
+    let width = Number(labelSettings[`${key.charAt(0).toLowerCase() + key.slice(1)}Width`] || defaultWidths[key]);
     if (widthHidden) widthHidden.value = width;
 
-    let height = parseInt(previewEl.style.height || String(labelSettings[`${key.charAt(0).toLowerCase() + key.slice(1)}MaxHeight`] || (key === "DrinkName" ? 48 : (key === "Barcode" ? 20 : 24))));
+    let height = Number(labelSettings[`${key.charAt(0).toLowerCase() + key.slice(1)}MaxHeight`] || defaultHeights[key]);
 
     let x = parseInt(previewEl.getAttribute("data-drag-x") || String(labelSettings[`${key.charAt(0).toLowerCase() + key.slice(1)}X`] || (key === "Barcode" ? 60 : 12)));
     let y = parseInt(previewEl.getAttribute("data-drag-y") || String(labelSettings[`${key.charAt(0).toLowerCase() + key.slice(1)}Y`] || (key === "Barcode" ? 130 : 12)));

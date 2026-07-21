@@ -1258,45 +1258,33 @@
         <div style="max-height: 70vh; overflow-y: auto; padding: 12px 16px 16px 16px; display: flex; flex-direction: column; gap: 16px;">
           <!-- Live Preview Stiker -->
           <div style="background: rgba(0,0,0,0.02); border: 1px solid var(--border); padding: 16px; border-radius: 8px; display: flex; flex-direction: column; align-items: center; overflow: hidden; position: relative;">
-            <span style="font-size: 11px; font-weight: 600; color: var(--muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; text-align: center;">Geser teks (Drag) / Tarik Kanan untuk Lebar (Resize)</span>
+            <span style="font-size: 11px; font-weight: 600; color: var(--muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; text-align: center;">Geser teks (Drag)</span>
             <div style="width: 100%; display: flex; justify-content: center; align-items: center; overflow: visible; height: 160px; margin: 8px 0;">
               <div id="labelPreviewPaper" style="background: #e2e8f0; width: 384px; height: 160px; position: relative; border: 1px dashed #cbd5e1; border-radius: 6px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05); overflow: hidden; transform-origin: center center;">
                 <div id="labelPreviewSticker" style="background: #ffffff; width: 320px; height: 160px; position: absolute; left: 8px; top: 0; border-radius: 4px; box-shadow: 0 4px 10px rgba(0,0,0,0.08); box-sizing: border-box; color: #000000; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.25; overflow: hidden; user-select: none;">
                   
                   <div id="labelPreviewDrinkName" style="position: absolute; left: 12px; top: 12px; cursor: move; border: 1px dashed rgba(59, 130, 246, 0.3); padding: 2px 12px 6px 4px; border-radius: 3px; overflow: hidden; word-break: break-word; box-sizing: border-box;">
                     Kopi Susu Migi
-                    <div class="label-width-handle" data-target="DrinkName" style="position: absolute; right: 0; top: 0; width: 8px; height: 100%; cursor: ew-resize; background: rgba(59, 130, 246, 0.15); border-left: 1px solid rgba(59, 130, 246, 0.35); z-index: 10;"></div>
-                    <div class="label-height-handle" data-target="DrinkName" style="position: absolute; left: 0; bottom: 0; width: 100%; height: 6px; cursor: ns-resize; background: rgba(59, 130, 246, 0.15); border-top: 1px solid rgba(59, 130, 246, 0.35); z-index: 10;"></div>
                   </div>
                   
                   <div id="labelPreviewNotes" style="position: absolute; left: 12px; top: 48px; cursor: move; border: 1px dashed rgba(59, 130, 246, 0.3); padding: 2px 12px 6px 4px; border-radius: 3px; overflow: hidden; word-break: break-word; box-sizing: border-box;">
                     Ice * Less Sugar
-                    <div class="label-width-handle" data-target="Notes" style="position: absolute; right: 0; top: 0; width: 8px; height: 100%; cursor: ew-resize; background: rgba(59, 130, 246, 0.15); border-left: 1px solid rgba(59, 130, 246, 0.35); z-index: 10;"></div>
-                    <div class="label-height-handle" data-target="Notes" style="position: absolute; left: 0; bottom: 0; width: 100%; height: 6px; cursor: ns-resize; background: rgba(59, 130, 246, 0.15); border-top: 1px solid rgba(59, 130, 246, 0.35); z-index: 10;"></div>
                   </div>
                   
                   <div id="labelPreviewOrderCode" style="position: absolute; left: 12px; top: 84px; cursor: move; border: 1px dashed rgba(59, 130, 246, 0.3); padding: 2px 12px 6px 4px; border-radius: 3px; overflow: hidden; word-break: break-word; box-sizing: border-box;">
                     #SB-001
-                    <div class="label-width-handle" data-target="OrderCode" style="position: absolute; right: 0; top: 0; width: 8px; height: 100%; cursor: ew-resize; background: rgba(59, 130, 246, 0.15); border-left: 1px solid rgba(59, 130, 246, 0.35); z-index: 10;"></div>
-                    <div class="label-height-handle" data-target="OrderCode" style="position: absolute; left: 0; bottom: 0; width: 100%; height: 6px; cursor: ns-resize; background: rgba(59, 130, 246, 0.15); border-top: 1px solid rgba(59, 130, 246, 0.35); z-index: 10;"></div>
                   </div>
                   
                   <div id="labelPreviewCustomer" style="position: absolute; left: 12px; top: 110px; cursor: move; border: 1px dashed rgba(59, 130, 246, 0.3); padding: 2px 12px 6px 4px; border-radius: 3px; overflow: hidden; word-break: break-word; box-sizing: border-box;">
                     Teman Migi
-                    <div class="label-width-handle" data-target="Customer" style="position: absolute; right: 0; top: 0; width: 8px; height: 100%; cursor: ew-resize; background: rgba(59, 130, 246, 0.15); border-left: 1px solid rgba(59, 130, 246, 0.35); z-index: 10;"></div>
-                    <div class="label-height-handle" data-target="Customer" style="position: absolute; left: 0; bottom: 0; width: 100%; height: 6px; cursor: ns-resize; background: rgba(59, 130, 246, 0.15); border-top: 1px solid rgba(59, 130, 246, 0.35); z-index: 10;"></div>
                   </div>
 
                   <div id="labelPreviewCounter" style="position: absolute; left: 240px; top: 84px; cursor: move; border: 1px dashed rgba(59, 130, 246, 0.3); padding: 2px 12px 6px 4px; border-radius: 3px; overflow: hidden; word-break: break-word; box-sizing: border-box;">
                     [1/1]
-                    <div class="label-width-handle" data-target="Counter" style="position: absolute; right: 0; top: 0; width: 8px; height: 100%; cursor: ew-resize; background: rgba(59, 130, 246, 0.15); border-left: 1px solid rgba(59, 130, 246, 0.35); z-index: 10;"></div>
-                    <div class="label-height-handle" data-target="Counter" style="position: absolute; left: 0; bottom: 0; width: 100%; height: 6px; cursor: ns-resize; background: rgba(59, 130, 246, 0.15); border-top: 1px solid rgba(59, 130, 246, 0.35); z-index: 10;"></div>
                   </div>
                   
                   <div id="labelPreviewCustomText" style="position: absolute; left: 150px; top: 12px; cursor: move; border: 1px dashed rgba(59, 130, 246, 0.3); padding: 2px 12px 6px 4px; border-radius: 3px; overflow: hidden; word-break: break-word; box-sizing: border-box;">
                     TEKS KUSTOM
-                    <div class="label-width-handle" data-target="CustomText" style="position: absolute; right: 0; top: 0; width: 8px; height: 100%; cursor: ew-resize; background: rgba(59, 130, 246, 0.15); border-left: 1px solid rgba(59, 130, 246, 0.35); z-index: 10;"></div>
-                    <div class="label-height-handle" data-target="CustomText" style="position: absolute; left: 0; bottom: 0; width: 100%; height: 6px; cursor: ns-resize; background: rgba(59, 130, 246, 0.15); border-top: 1px solid rgba(59, 130, 246, 0.35); z-index: 10;"></div>
                   </div>
                   
                   <div id="labelPreviewBarcode" style="position: absolute; left: 60px; top: 130px; cursor: move; border: 1px dashed rgba(59, 130, 246, 0.3); box-sizing: border-box; display: flex; flex-direction: column; align-items: center; justify-content: center; overflow: hidden; background: white;">
@@ -1317,13 +1305,12 @@
                       <div style="flex: 3; background: #000; height: 100%;"></div>
                     </div>
                     <span style="font-size: 8px; font-family: monospace; line-height: 8px; margin: 0; color: #000; user-select: none;">12345678</span>
-                    <div class="label-width-handle" data-target="Barcode" style="position: absolute; right: 0; top: 0; width: 8px; height: 100%; cursor: ew-resize; background: rgba(59, 130, 246, 0.15); border-left: 1px solid rgba(59, 130, 246, 0.35); z-index: 10;"></div>
-                    <div class="label-height-handle" data-target="Barcode" style="position: absolute; left: 0; bottom: 0; width: 100%; height: 6px; cursor: ns-resize; background: rgba(59, 130, 246, 0.15); border-top: 1px solid rgba(59, 130, 246, 0.35); z-index: 10;"></div>
                   </div>
                   
                 </div>
               </div>
             </div>
+          </div>
             <span style="font-size: 11px; color: var(--muted); margin-top: 6px; text-align: center;">Abu-abu = area cetak (58mm), Putih = kertas stiker (40x20mm).</span>
           </div>
 
@@ -1549,6 +1536,6 @@
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-    <script src="app.js?v=87"></script>
+    <script src="app.js?v=88"></script>
   </body>
 </html>
