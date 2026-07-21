@@ -3616,3 +3616,90 @@ body.locked .login-screen { display: grid; }
 .amount-in  { color: var(--color-ok, #22c55e); }
 .amount-out { color: var(--color-danger, #ef4444); }
 .metric-card small { display: block; font-size: 11px; color: var(--muted); margin-top: 2px; font-weight: 400; }
+
+/* ── Editor label cup ── */
+.label-format-toggle {
+  display: inline-flex;
+  margin: 0;
+  cursor: pointer;
+  user-select: none;
+}
+.label-format-toggle input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+.label-format-icon {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--white);
+  color: var(--muted);
+  font-family: Georgia, serif;
+  font-size: 14px;
+  transition: 0.15s ease;
+}
+.label-format-toggle:hover .label-format-icon,
+.label-format-toggle input:focus-visible + .label-format-icon {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.label-format-toggle input:checked + .label-format-icon {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--white);
+  box-shadow: 0 2px 8px rgba(0, 52, 155, 0.22);
+}
+.label-size-value {
+  min-width: 26px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  font-family: monospace;
+  font-weight: 800;
+  text-align: center;
+}
+.label-width-handle,
+.label-height-handle {
+  position: absolute;
+  z-index: 4;
+  display: block;
+  padding: 0;
+  border: 2px solid #fff;
+  border-radius: 999px;
+  background: #2563eb;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.35);
+  touch-action: none;
+}
+.label-width-handle {
+  width: 11px;
+  height: 22px;
+  right: 0;
+  top: 50%;
+  cursor: ew-resize;
+  transform: translate(45%, -50%);
+}
+.label-height-handle {
+  width: 22px;
+  height: 11px;
+  bottom: 0;
+  left: 50%;
+  cursor: ns-resize;
+  transform: translate(-50%, 45%);
+}
+
+#labelPreviewSticker,
+#labelReadOnlyPreviewSticker {
+  font-family: "Geist", Arial, sans-serif !important;
+}
+#labelPreviewSticker > [id^="labelPreview"]:not(#labelPreviewBarcode),
+#labelReadOnlyPreviewSticker > [id^="labelReadOnlyPreview"]:not(#labelReadOnlyPreviewBarcode) {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}

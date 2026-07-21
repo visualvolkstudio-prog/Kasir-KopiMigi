@@ -250,6 +250,7 @@ const els = {
   labelPrinterSpaces: document.querySelector("#labelPrinterSpaces"),
   labelPreviewPaper: document.querySelector("#labelPreviewPaper"),
   labelPreviewSticker: document.querySelector("#labelPreviewSticker"),
+  labelPreviewLogo: document.querySelector("#labelPreviewLogo"),
   labelStickerOffsetX: document.querySelector("#labelStickerOffsetX"),
   labelStickerOffsetXVal: document.querySelector("#labelStickerOffsetXVal"),
 
@@ -263,8 +264,9 @@ const els = {
   labelDrinkNameBold: document.querySelector("#labelDrinkNameBold"),
   labelDrinkNameFontSize: document.querySelector("#labelDrinkNameFontSize"),
   labelDrinkNameFontSizeVal: document.querySelector("#labelDrinkNameFontSizeVal"),
+  labelDrinkNameHeight: document.querySelector("#labelDrinkNameHeight"),
+  labelDrinkNameHeightVal: document.querySelector("#labelDrinkNameHeightVal"),
   labelDrinkNameWidth: document.querySelector("#labelDrinkNameWidth"),
-  labelDrinkNamePosVal: document.querySelector("#labelDrinkNamePosVal"),
 
   labelPreviewNotes: document.querySelector("#labelPreviewNotes"),
   labelNotesEnabled: document.querySelector("#labelNotesEnabled"),
@@ -272,7 +274,6 @@ const els = {
   labelNotesFontSize: document.querySelector("#labelNotesFontSize"),
   labelNotesFontSizeVal: document.querySelector("#labelNotesFontSizeVal"),
   labelNotesWidth: document.querySelector("#labelNotesWidth"),
-  labelNotesPosVal: document.querySelector("#labelNotesPosVal"),
 
   labelPreviewOrderCode: document.querySelector("#labelPreviewOrderCode"),
   labelOrderCodeEnabled: document.querySelector("#labelOrderCodeEnabled"),
@@ -280,15 +281,14 @@ const els = {
   labelOrderCodeFontSize: document.querySelector("#labelOrderCodeFontSize"),
   labelOrderCodeFontSizeVal: document.querySelector("#labelOrderCodeFontSizeVal"),
   labelOrderCodeWidth: document.querySelector("#labelOrderCodeWidth"),
-  labelOrderCodePosVal: document.querySelector("#labelOrderCodePosVal"),
 
   labelPreviewCustomer: document.querySelector("#labelPreviewCustomer"),
+  labelPreviewServiceType: document.querySelector("#labelPreviewServiceType"),
   labelCustomerEnabled: document.querySelector("#labelCustomerEnabled"),
   labelCustomerBold: document.querySelector("#labelCustomerBold"),
   labelCustomerFontSize: document.querySelector("#labelCustomerFontSize"),
   labelCustomerFontSizeVal: document.querySelector("#labelCustomerFontSizeVal"),
   labelCustomerWidth: document.querySelector("#labelCustomerWidth"),
-  labelCustomerPosVal: document.querySelector("#labelCustomerPosVal"),
 
   labelPreviewCounter: document.querySelector("#labelPreviewCounter"),
   labelCounterEnabled: document.querySelector("#labelCounterEnabled"),
@@ -296,7 +296,6 @@ const els = {
   labelCounterFontSize: document.querySelector("#labelCounterFontSize"),
   labelCounterFontSizeVal: document.querySelector("#labelCounterFontSizeVal"),
   labelCounterWidth: document.querySelector("#labelCounterWidth"),
-  labelCounterPosVal: document.querySelector("#labelCounterPosVal"),
 
   labelPreviewCustomText: document.querySelector("#labelPreviewCustomText"),
   labelCustomTextEnabled: document.querySelector("#labelCustomTextEnabled"),
@@ -305,12 +304,15 @@ const els = {
   labelCustomTextFontSize: document.querySelector("#labelCustomTextFontSize"),
   labelCustomTextFontSizeVal: document.querySelector("#labelCustomTextFontSizeVal"),
   labelCustomTextWidth: document.querySelector("#labelCustomTextWidth"),
-  labelCustomTextPosVal: document.querySelector("#labelCustomTextPosVal"),
-  
+
   labelPreviewBarcode: document.querySelector("#labelPreviewBarcode"),
+  labelLogoEnabled: document.querySelector("#labelLogoEnabled"),
+  labelLogoWidth: document.querySelector("#labelLogoWidth"),
+  labelServiceTypeEnabled: document.querySelector("#labelServiceTypeEnabled"),
+  labelServiceTypeFontSize: document.querySelector("#labelServiceTypeFontSize"),
+  labelServiceTypeFontSizeVal: document.querySelector("#labelServiceTypeFontSizeVal"),
   labelBarcodeEnabled: document.querySelector("#labelBarcodeEnabled"),
   labelBarcodeWidth: document.querySelector("#labelBarcodeWidth"),
-  labelBarcodePosVal: document.querySelector("#labelBarcodePosVal"),
   connectLabelPrinter: document.querySelector("#connectLabelPrinter"),
   testLabelPrint: document.querySelector("#testLabelPrint"),
   labelPrinterHint: document.querySelector("#labelPrinterHint"),
@@ -1553,7 +1555,7 @@ function applyAccessControls() {
   document.querySelector("#view-stock .inventory-grid > .settings-panel")?.classList.toggle("owner-only", !owner);
   els.employeeAddForm?.classList.toggle("owner-only", !owner);
   els.employeeList?.classList.toggle("owner-only", !owner);
-  
+
   // Hanya blok akses ke view-cashflow jika bukan owner
   if (!owner && document.querySelector("#view-cashflow")?.classList.contains("active")) {
     setActiveView("pos");
@@ -1874,6 +1876,7 @@ function getSettingsPayload() {
     dailyCashReports: getDailyCashReports(),
     wifiReceipt: getWifiReceiptSettings(),
     employeeRoles: getEmployeeRoles(),
+    labelPrinter: getLabelPrinterSettings(),
   };
 }
 
@@ -1918,6 +1921,10 @@ function applyCloudSettings(settings) {
   }
   if (Array.isArray(settings.employeeRoles)) {
     saveEmployeeRoles(settings.employeeRoles, { dirty: false });
+    changed = true;
+  }
+  if (settings.labelPrinter && typeof settings.labelPrinter === "object" && !Array.isArray(settings.labelPrinter)) {
+    writeJson("kasir-migi-label-printer-settings", settings.labelPrinter);
     changed = true;
   }
   return changed;
@@ -2571,6 +2578,63 @@ function syncFullscreenButton() {
   els.fullscreenToggle?.classList.toggle("active", !!document.fullscreenElement);
 }
 
+function normalizeLabelFontScale(value) {
+  const size = Number(value ?? 16);
+  // Legacy ESC/POS values (0..4) map to useful bitmap pixel sizes.
+  if (size >= 0 && size <= 4) return [12, 16, 20, 18, 24][Math.round(size)];
+  return Math.max(10, Math.min(32, Math.round(size)));
+}
+
+function getLabelFontMetrics(value) {
+  const requestedPixelSize = normalizeLabelFontScale(value);
+  // Browser CSS pixels and thermal printer dots have different glyph density.
+  // Use the same calibrated effective size in preview and bitmap rendering.
+  const pixelSize = Math.max(10, Math.round(requestedPixelSize * 1.35));
+  const metrics = { fontByte: 0, sizeByte: 0x00, widthMultiplier: 1, heightMultiplier: 1 };
+  return {
+    ...metrics,
+    scale: requestedPixelSize,
+    requestedPixelSize,
+    pixelSize,
+    charWidth: Math.max(6, Math.round(pixelSize * 0.6)),
+    charHeight: Math.max(12, Math.round(pixelSize * 1.2))
+  };
+}
+
+function fitLabelText(text, widthDots, fontScale) {
+  const normalized = String(text || "").replace(/\s+/g, " ").trim();
+  const { charWidth } = getLabelFontMetrics(fontScale);
+  const maxChars = Math.max(0, Math.floor(Number(widthDots || 0) / charWidth));
+  if (!maxChars || normalized.length <= maxChars) return maxChars ? normalized : "";
+  if (maxChars <= 2) return normalized.slice(0, maxChars);
+  return `${normalized.slice(0, maxChars - 2).trimEnd()}..`;
+}
+
+function getLabelPaperDimensions(settings = {}) {
+  const paperSize = settings.paperSize || "40x20mm";
+  if (paperSize === "50x30mm") return { width: 400, height: 240 };
+  if (paperSize === "30x15mm") return { width: 240, height: 120 };
+  if (paperSize === "58mm") return { width: 384, height: 240 };
+  return { width: 320, height: 160 };
+}
+
+const LABEL_PRINTER_WIDTH_DOTS = 384;
+
+function getMaxLabelOffsetX(paperWidth) {
+  return Math.max(0, LABEL_PRINTER_WIDTH_DOTS - Number(paperWidth || LABEL_PRINTER_WIDTH_DOTS));
+}
+
+function syncLabelOffsetLimit(settings = getLabelPrinterSettings()) {
+  if (!els.labelStickerOffsetX) return 0;
+  const { width } = getLabelPaperDimensions(settings);
+  const maxOffset = getMaxLabelOffsetX(width);
+  const nextOffset = Math.min(maxOffset, Math.max(0, Number(els.labelStickerOffsetX.value || 0)));
+  els.labelStickerOffsetX.max = String(maxOffset);
+  els.labelStickerOffsetX.value = String(nextOffset);
+  if (els.labelStickerOffsetXVal) els.labelStickerOffsetXVal.textContent = String(nextOffset);
+  return nextOffset;
+}
+
 function getLabelPrinterSettings() {
   const fallback = {
     paperSize: "40x20mm",
@@ -2584,75 +2648,230 @@ function getLabelPrinterSettings() {
     
     drinkNameEnabled: true,
     drinkNameBold: true,
-    drinkNameFontSize: 18,
+    drinkNameFontSize: 1,
     drinkNameX: 12,
     drinkNameY: 12,
-    drinkNameWidth: 200,
-    drinkNameMaxHeight: 48,
+    drinkNameWidth: parseInt(els.labelPreviewDrinkName?.style.width || "200"),
+    drinkNameMaxHeight: parseInt(els.labelPreviewDrinkName?.style.height || "48"),
 
     notesEnabled: true,
     notesBold: false,
-    notesFontSize: 13,
+    notesFontSize: 1,
     notesX: 12,
     notesY: 48,
-    notesWidth: 280,
-    notesMaxHeight: 24,
+    notesWidth: parseInt(els.labelPreviewNotes?.style.width || "280"),
+    notesMaxHeight: parseInt(els.labelPreviewNotes?.style.height || "24"),
 
     orderCodeEnabled: true,
     orderCodeBold: false,
-    orderCodeFontSize: 13,
+    orderCodeFontSize: 1,
     orderCodeX: 12,
     orderCodeY: 84,
-    orderCodeWidth: 120,
-    orderCodeMaxHeight: 24,
+    orderCodeWidth: parseInt(els.labelPreviewOrderCode?.style.width || "120"),
+    orderCodeMaxHeight: parseInt(els.labelPreviewOrderCode?.style.height || "24"),
 
     customerEnabled: true,
     customerBold: false,
-    customerFontSize: 13,
+    customerFontSize: 1,
     customerX: 12,
     customerY: 110,
     customerWidth: 150,
-    customerMaxHeight: 24,
+    customerMaxHeight: parseInt(els.labelPreviewCustomer?.style.height || "24"),
 
     counterEnabled: true,
     counterBold: false,
-    counterFontSize: 13,
+    counterFontSize: 1,
     counterX: 240,
     counterY: 84,
-    counterWidth: 80,
-    counterMaxHeight: 24,
+    counterWidth: parseInt(els.labelPreviewCounter?.style.width || "80"),
+    counterMaxHeight: parseInt(els.labelPreviewCounter?.style.height || "24"),
 
     customTextEnabled: false,
     customTextBold: true,
-    customTextFontSize: 11,
+    customTextFontSize: 1,
     customTextX: 150,
     customTextY: 12,
     customTextWidth: 100,
-    customTextMaxHeight: 24,
+    customTextMaxHeight: parseInt(els.labelPreviewCustomText?.style.height || "24"),
     customTextValue: "TEMAN",
+
+    logoEnabled: false,
+    logoX: 12,
+    logoY: 12,
+    logoWidth: 32,
+    logoMaxHeight: 32,
 
     barcodeEnabled: false,
     barcodeX: 60,
     barcodeY: 130,
-    barcodeWidth: 200,
+    barcodeWidth: parseInt(els.labelPreviewBarcode?.style.width || "200"),
     barcodeMaxHeight: 20
   };
   const settings = readJson("kasir-migi-label-printer-settings", fallback);
+  // Pulihkan konfigurasi stabil sebelum perubahan pitch manual v126.
+  // Migrasi hanya sekali agar pengaturan baru pengguna tetap dihormati.
+  if (settings && !settings.feedRollback127Applied) {
+    settings.feedMethod = "gap";
+    settings.feedRollback127Applied = true;
+    writeJson("kasir-migi-label-printer-settings", settings);
+  }
+  if (settings && !settings.labelTransportV128Applied) {
+    settings.labelDelay = Math.max(1500, Number(settings.labelDelay || 0));
+    settings.labelTransportV128Applied = true;
+    writeJson("kasir-migi-label-printer-settings", settings);
+  }
+  if (settings && (settings.serviceTypeY === undefined || settings.serviceTypeY >= 110)) {
+    settings.serviceTypeX = 214;
+    settings.serviceTypeY = 88;
+    settings.serviceTypeWidth = 64;
+    writeJson("kasir-migi-label-printer-settings", settings);
+  }
+  if (["40x30mm", "40x40mm", "custom"].includes(settings.paperSize)) {
+    settings.paperSize = "40x20mm";
+    settings.pitch = 160;
+    writeJson("kasir-migi-label-printer-settings", settings);
+  }
   if (settings && settings.stickerOffsetX === 8) {
     settings.stickerOffsetX = 64;
+  }
+  if (settings && !settings.fontScaleV2) {
+    ["drinkName", "notes", "orderCode", "customer", "counter", "customText"].forEach((key) => {
+      settings[`${key}FontSize`] = normalizeLabelFontScale(settings[`${key}FontSize`]);
+    });
+    settings.fontScaleV2 = true;
+    writeJson("kasir-migi-label-printer-settings", settings);
+  }
+  if (settings && !settings.migrated4x2) {
+    if (settings.paperSize === "40x20mm") {
+      settings.drinkNameY = 8;
+      settings.drinkNameMaxHeight = 48;
+      settings.notesY = 40;
+      settings.notesMaxHeight = 24;
+      settings.orderCodeY = 64;
+      settings.orderCodeMaxHeight = 24;
+      settings.counterY = 64;
+      settings.counterMaxHeight = 24;
+      settings.customerY = 88;
+      settings.customerMaxHeight = 24;
+      settings.barcodeY = 112;
+      settings.barcodeMaxHeight = 20;
+    }
+    settings.migrated4x2 = true;
+    writeJson("kasir-migi-label-printer-settings", settings);
+  }
+  if (settings && settings.paperSize === "40x20mm" && !settings.exactLayoutPresetV1) {
+    Object.assign(settings, {
+      drinkNameEnabled: true,
+      drinkNameBold: true,
+      drinkNameFontSize: 16,
+      drinkNameX: 10,
+      drinkNameY: 8,
+      drinkNameWidth: 210,
+      drinkNameMaxHeight: 44,
+      customTextEnabled: true,
+      customTextBold: true,
+      customTextFontSize: 12,
+      customTextValue: "©2026",
+      customTextX: 252,
+      customTextY: 8,
+      customTextWidth: 68,
+      customTextMaxHeight: 24,
+      counterEnabled: true,
+      counterBold: false,
+      counterFontSize: 12,
+      counterX: 272,
+      counterY: 76,
+      counterWidth: 48,
+      counterMaxHeight: 24,
+      customerEnabled: true,
+      customerBold: true,
+      customerFontSize: 14,
+      customerX: 8,
+      customerY: 106,
+      customerWidth: 150,
+      customerMaxHeight: 24,
+      notesEnabled: true,
+      notesBold: false,
+      notesFontSize: 14,
+      notesX: 8,
+      notesY: 134,
+      notesWidth: 160,
+      notesMaxHeight: 24,
+      orderCodeEnabled: true,
+      orderCodeBold: false,
+      orderCodeFontSize: 14,
+      orderCodeX: 170,
+      orderCodeY: 134,
+      orderCodeWidth: 80,
+      orderCodeMaxHeight: 24,
+      barcodeEnabled: true,
+      barcodeX: 250,
+      barcodeY: 108,
+      barcodeWidth: 70,
+      barcodeMaxHeight: 24,
+      serviceTypeEnabled: false,
+      logoEnabled: false,
+      exactLayoutPresetV1: true,
+    });
+    writeJson("kasir-migi-label-printer-settings", settings);
   }
   return settings;
 }
 
+const LABEL_LAYOUT_KEYS = ["Logo", "DrinkName", "Notes", "OrderCode", "Customer", "ServiceType", "Counter", "CustomText", "Barcode"];
+
+function scaleLabelLayoutForPaperChange(previousSettings, nextPaperSize) {
+  const previousPaper = getLabelPaperDimensions(previousSettings);
+  const nextPaper = getLabelPaperDimensions({ paperSize: nextPaperSize });
+  const scaleX = nextPaper.width / previousPaper.width;
+  const scaleY = nextPaper.height / previousPaper.height;
+
+  LABEL_LAYOUT_KEYS.forEach((key) => {
+    const element = els[`labelPreview${key}`];
+    if (!element) return;
+    const currentX = parseInt(element.getAttribute("data-drag-x") || element.style.left || "0");
+    const currentY = parseInt(element.getAttribute("data-drag-y") || element.style.top || "0");
+    const currentWidth = parseInt(element.style.width || "80");
+    const currentHeight = parseInt(element.style.height || "24");
+    const nextWidth = Math.max(30, Math.min(nextPaper.width, Math.round(currentWidth * scaleX)));
+    const nextHeight = Math.max(15, Math.min(nextPaper.height, Math.round(currentHeight * scaleY)));
+    const nextX = Math.max(0, Math.min(nextPaper.width - nextWidth, Math.round(currentX * scaleX)));
+    const nextY = Math.max(0, Math.min(nextPaper.height - nextHeight, Math.round(currentY * scaleY)));
+
+    element.style.left = `${nextX}px`;
+    element.style.top = `${nextY}px`;
+    element.style.width = `${nextWidth}px`;
+    element.style.height = `${nextHeight}px`;
+    element.style.maxWidth = `${nextWidth}px`;
+    element.style.maxHeight = `${nextHeight}px`;
+    element.setAttribute("data-drag-x", String(nextX));
+    element.setAttribute("data-drag-y", String(nextY));
+  });
+
+  if (els.labelStickerOffsetX) {
+    const previousMax = getMaxLabelOffsetX(previousPaper.width);
+    const nextMax = getMaxLabelOffsetX(nextPaper.width);
+    const currentOffset = Math.max(0, Number(els.labelStickerOffsetX.value || 0));
+    const alignmentRatio = previousMax > 0 ? currentOffset / previousMax : 0;
+    els.labelStickerOffsetX.value = String(Math.round(nextMax * alignmentRatio));
+  }
+}
+
 function saveLabelPrinterSettingsFromUI() {
+  const previousSettings = getLabelPrinterSettings();
   const paperSize = els.labelPrinterPaperSize?.value || "40x20mm";
-  let pitch = 160;
-  if (paperSize === "40x30mm") pitch = 240;
-  else if (paperSize === "40x40mm") pitch = 320;
-  else if (paperSize === "50x30mm") pitch = 240;
-  else if (paperSize === "58mm") pitch = 240;
+  if (previousSettings.paperSize !== paperSize) {
+    scaleLabelLayoutForPaperChange(previousSettings, paperSize);
+  }
+
+  const presetPitch = getLabelPaperDimensions({ paperSize }).height;
+  const pitch = previousSettings.paperSize !== paperSize
+    ? presetPitch
+    : Math.max(1, Number(els.labelPrinterPitch?.value || previousSettings.pitch || presetPitch));
+  if (els.labelPrinterPitch) els.labelPrinterPitch.value = pitch;
 
   const settings = {
+    ...previousSettings,
     paperSize,
     feedMethod: els.labelPrinterFeedMethod?.value || "gap",
     pitch,
@@ -2660,68 +2879,105 @@ function saveLabelPrinterSettingsFromUI() {
     labelDelay: Number(els.labelPrinterDelay?.value || 1200),
     labelMargin: Number(els.labelPrinterMargin?.value || 8),
     labelSpaces: Number(els.labelPrinterSpaces?.value || 0),
-    stickerOffsetX: Number(els.labelStickerOffsetX?.value || 64),
+    stickerOffsetX: syncLabelOffsetLimit({ paperSize }),
+    fontScaleV2: true,
 
     drinkNameEnabled: els.labelDrinkNameEnabled?.checked !== false,
     drinkNameBold: els.labelDrinkNameBold?.checked !== false,
-    drinkNameFontSize: Number(els.labelDrinkNameFontSize?.value || 18),
+    drinkNameFontSize: Number(els.labelDrinkNameFontSize?.value ?? 1),
     drinkNameX: parseInt(els.labelPreviewDrinkName?.getAttribute("data-drag-x") || els.labelPreviewDrinkName?.style.left || "12"),
     drinkNameY: parseInt(els.labelPreviewDrinkName?.getAttribute("data-drag-y") || els.labelPreviewDrinkName?.style.top || "12"),
-    drinkNameWidth: 200,
-    drinkNameMaxHeight: 48,
+    drinkNameWidth: parseInt(els.labelPreviewDrinkName?.style.width || "200"),
+    drinkNameMaxHeight: parseInt(els.labelPreviewDrinkName?.style.height || "48"),
 
     notesEnabled: els.labelNotesEnabled?.checked !== false,
     notesBold: els.labelNotesBold?.checked === true,
-    notesFontSize: Number(els.labelNotesFontSize?.value || 13),
+    notesFontSize: Number(els.labelNotesFontSize?.value ?? 1),
     notesX: parseInt(els.labelPreviewNotes?.getAttribute("data-drag-x") || els.labelPreviewNotes?.style.left || "12"),
     notesY: parseInt(els.labelPreviewNotes?.getAttribute("data-drag-y") || els.labelPreviewNotes?.style.top || "48"),
-    notesWidth: 280,
-    notesMaxHeight: 24,
+    notesWidth: parseInt(els.labelPreviewNotes?.style.width || "280"),
+    notesMaxHeight: parseInt(els.labelPreviewNotes?.style.height || "24"),
 
     orderCodeEnabled: els.labelOrderCodeEnabled?.checked !== false,
     orderCodeBold: els.labelOrderCodeBold?.checked === true,
-    orderCodeFontSize: Number(els.labelOrderCodeFontSize?.value || 13),
+    orderCodeFontSize: Number(els.labelOrderCodeFontSize?.value ?? 1),
     orderCodeX: parseInt(els.labelPreviewOrderCode?.getAttribute("data-drag-x") || els.labelPreviewOrderCode?.style.left || "12"),
     orderCodeY: parseInt(els.labelPreviewOrderCode?.getAttribute("data-drag-y") || els.labelPreviewOrderCode?.style.top || "84"),
-    orderCodeWidth: 120,
-    orderCodeMaxHeight: 24,
+    orderCodeWidth: parseInt(els.labelPreviewOrderCode?.style.width || "120"),
+    orderCodeMaxHeight: parseInt(els.labelPreviewOrderCode?.style.height || "24"),
 
     customerEnabled: els.labelCustomerEnabled?.checked !== false,
     customerBold: els.labelCustomerBold?.checked === true,
-    customerFontSize: Number(els.labelCustomerFontSize?.value || 13),
+    customerFontSize: Number(els.labelCustomerFontSize?.value ?? 1),
     customerX: parseInt(els.labelPreviewCustomer?.getAttribute("data-drag-x") || els.labelPreviewCustomer?.style.left || "12"),
     customerY: parseInt(els.labelPreviewCustomer?.getAttribute("data-drag-y") || els.labelPreviewCustomer?.style.top || "110"),
-    customerWidth: 150,
-    customerMaxHeight: 24,
+    customerWidth: parseInt(els.labelPreviewCustomer?.style.width || "150"),
+    customerMaxHeight: parseInt(els.labelPreviewCustomer?.style.height || "24"),
+
+    serviceTypeEnabled: els.labelServiceTypeEnabled?.checked !== false,
+    serviceTypeFontSize: Number(els.labelServiceTypeFontSize?.value ?? 16),
+    serviceTypeX: parseInt(els.labelPreviewServiceType?.getAttribute("data-drag-x") || els.labelPreviewServiceType?.style.left || "214"),
+    serviceTypeY: parseInt(els.labelPreviewServiceType?.getAttribute("data-drag-y") || els.labelPreviewServiceType?.style.top || "88"),
+    serviceTypeWidth: parseInt(els.labelPreviewServiceType?.style.width || "64"),
+    serviceTypeMaxHeight: parseInt(els.labelPreviewServiceType?.style.height || "24"),
 
     counterEnabled: els.labelCounterEnabled?.checked !== false,
     counterBold: els.labelCounterBold?.checked === true,
-    counterFontSize: Number(els.labelCounterFontSize?.value || 13),
+    counterFontSize: Number(els.labelCounterFontSize?.value ?? 1),
     counterX: parseInt(els.labelPreviewCounter?.getAttribute("data-drag-x") || els.labelPreviewCounter?.style.left || "240"),
     counterY: parseInt(els.labelPreviewCounter?.getAttribute("data-drag-y") || els.labelPreviewCounter?.style.top || "84"),
-    counterWidth: 80,
-    counterMaxHeight: 24,
+    counterWidth: parseInt(els.labelPreviewCounter?.style.width || "80"),
+    counterMaxHeight: parseInt(els.labelPreviewCounter?.style.height || "24"),
 
     customTextEnabled: els.labelCustomTextEnabled?.checked === true,
     customTextBold: els.labelCustomTextBold?.checked !== false,
-    customTextFontSize: Number(els.labelCustomTextFontSize?.value || 11),
+    customTextFontSize: Number(els.labelCustomTextFontSize?.value ?? 1),
     customTextX: parseInt(els.labelPreviewCustomText?.getAttribute("data-drag-x") || els.labelPreviewCustomText?.style.left || "150"),
     customTextY: parseInt(els.labelPreviewCustomText?.getAttribute("data-drag-y") || els.labelPreviewCustomText?.style.top || "12"),
-    customTextWidth: 100,
-    customTextMaxHeight: 24,
+    customTextWidth: parseInt(els.labelPreviewCustomText?.style.width || "100"),
+    customTextMaxHeight: parseInt(els.labelPreviewCustomText?.style.height || "24"),
     customTextValue: els.labelCustomTextValue?.value || "TEMAN",
+
+    logoEnabled: els.labelLogoEnabled?.checked === true,
+    logoX: parseInt(els.labelPreviewLogo?.getAttribute("data-drag-x") || els.labelPreviewLogo?.style.left || "12"),
+    logoY: parseInt(els.labelPreviewLogo?.getAttribute("data-drag-y") || els.labelPreviewLogo?.style.top || "12"),
+    logoWidth: parseInt(els.labelPreviewLogo?.style.width || "32"),
+    logoMaxHeight: parseInt(els.labelPreviewLogo?.style.height || "32"),
 
     barcodeEnabled: els.labelBarcodeEnabled?.checked === true,
     barcodeX: parseInt(els.labelPreviewBarcode?.getAttribute("data-drag-x") || els.labelPreviewBarcode?.style.left || "60"),
     barcodeY: parseInt(els.labelPreviewBarcode?.getAttribute("data-drag-y") || els.labelPreviewBarcode?.style.top || "130"),
-    barcodeWidth: 160,
-    barcodeMaxHeight: 20
+    barcodeWidth: parseInt(els.labelPreviewBarcode?.style.width || "160"),
+    barcodeMaxHeight: (() => {
+      const renderedHeight = parseInt(els.labelPreviewBarcode?.style.height || "44");
+      return Math.max(1, renderedHeight > 24 ? renderedHeight - 24 : renderedHeight);
+    })()
   };
   writeJson("kasir-migi-label-printer-settings", settings);
+  markSettingsDirty();
   toggleLabelPrinterManualSettingsVisibility();
   updateLabelPreview();
   renderLabelSettingsSummary();
 }
+
+function persistLabelLayoutSnapshot() {
+  const settings = getLabelPrinterSettings();
+  LABEL_LAYOUT_KEYS.forEach((key) => {
+    const element = els[`labelPreview${key}`];
+    if (!element) return;
+    const keyLower = key.charAt(0).toLowerCase() + key.slice(1);
+    settings[`${keyLower}X`] = parseInt(element.style.left || element.getAttribute("data-drag-x") || "0");
+    settings[`${keyLower}Y`] = parseInt(element.style.top || element.getAttribute("data-drag-y") || "0");
+    settings[`${keyLower}Width`] = parseInt(element.style.width || "80");
+    const renderedHeight = parseInt(element.style.height || "24");
+    settings[`${keyLower}MaxHeight`] = key === "Barcode" ? Math.max(1, renderedHeight - 24) : renderedHeight;
+  });
+  writeJson("kasir-migi-label-printer-settings", settings);
+}
+
+// Preserve the latest visible layout even if the page is refreshed while a
+// drag gesture is still active and the normal mouseup handler has not fired.
+window.addEventListener("pagehide", persistLabelLayoutSnapshot);
 
 function toggleLabelPrinterManualSettingsVisibility() {
   if (!els.labelPrinterFeedMethod || !els.labelPrinterManualSettings) return;
@@ -2750,16 +3006,13 @@ function renderLabelSettingsSummary() {
     const enabled = settings[`${keyLower}Enabled`] !== false;
     if (enabled) {
       activeCount++;
-      const x = settings[`${keyLower}X`] !== undefined ? settings[`${keyLower}X`] : 12;
-      const y = settings[`${keyLower}Y`] !== undefined ? settings[`${keyLower}Y`] : 12;
-      const width = settings[`${keyLower}Width`] !== undefined ? settings[`${keyLower}Width`] : 150;
       const size = settings[`${keyLower}FontSize`] !== undefined ? settings[`${keyLower}FontSize`] : 13;
-      const bold = settings[`${keyLower}Bold`] === true ? "Bold" : "Normal";
+      const bold = settings[`${keyLower}Bold`] === true ? " · B" : "";
       const extra = (key === "CustomText" && textVal) ? ` ("${textVal}")` : "";
       html += `
         <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed var(--border); padding: 4px 0;">
           <span style="font-weight: 500;">${label}${extra}</span>
-          <span style="color: var(--muted); font-family: monospace; font-size: 11.5px;">Pos: (${x},${y}), L:${width}px, S:${size}px (${bold})</span>
+          <span style="color: var(--muted); font-family: monospace; font-size: 11.5px;">Ukuran ${size}${bold}</span>
         </div>
       `;
     }
@@ -2776,31 +3029,17 @@ function updateLabelPreview() {
   if (!els.labelPreviewSticker) return;
 
   const labelSettings = getLabelPrinterSettings();
-  const stickerOffsetX = Number(els.labelStickerOffsetX?.value || 8);
 
-  if (els.labelStickerOffsetXVal) els.labelStickerOffsetXVal.textContent = stickerOffsetX;
-
-  const paperSize = labelSettings.paperSize || "40x20mm";
-  let stickerWidth = 320;
-  let stickerHeight = 160;
-  
-  if (paperSize === "40x30mm") {
-    stickerWidth = 320;
-    stickerHeight = 240;
-  } else if (paperSize === "40x40mm") {
-    stickerWidth = 320;
-    stickerHeight = 320;
-  } else if (paperSize === "50x30mm") {
-    stickerWidth = 400;
-    stickerHeight = 240;
-  } else if (paperSize === "58mm") {
-    stickerWidth = 384;
-    stickerHeight = 240;
-  }
+  const previewSettings = {
+    ...labelSettings,
+    paperSize: els.labelPrinterPaperSize?.value || labelSettings.paperSize
+  };
+  const { width: stickerWidth, height: stickerHeight } = getLabelPaperDimensions(previewSettings);
+  const stickerOffsetX = syncLabelOffsetLimit(previewSettings);
 
   [els.labelPreviewPaper, document.getElementById("labelReadOnlyPreviewPaper")].forEach(p => {
     if (p) {
-      p.style.width = `${stickerWidth + 64}px`;
+      p.style.width = `${Math.max(LABEL_PRINTER_WIDTH_DOTS, stickerWidth)}px`;
       p.style.height = `${stickerHeight}px`;
     }
   });
@@ -2813,14 +3052,25 @@ function updateLabelPreview() {
   });
 
   els.labelPreviewSticker.style.left = `${stickerOffsetX}px`;
+  els.labelPreviewSticker.style.top = "0px";
   const readOnlySticker = document.getElementById("labelReadOnlyPreviewSticker");
-  if (readOnlySticker) readOnlySticker.style.left = `${stickerOffsetX}px`;
+  if (readOnlySticker) {
+    readOnlySticker.style.left = `${stickerOffsetX}px`;
+    readOnlySticker.style.top = "0px";
+  }
+  const previewCaption = document.getElementById("labelPreviewCaption");
+  if (previewCaption) {
+    const paperLabels = { "50x30mm": "50 × 30 mm", "40x20mm": "40 × 20 mm", "30x15mm": "30 × 15 mm", "58mm": "58 mm" };
+    previewCaption.textContent = `Abu-abu = area printer 58 mm, putih = stiker ${paperLabels[previewSettings.paperSize] || "40 × 20 mm"}.`;
+  }
 
   const elements = [
+    { key: "Logo", label: "Logo", defaultText: "", isImage: true },
     { key: "DrinkName", label: "Nama Produk", defaultText: "Kopi Susu Migi" },
     { key: "Notes", label: "Catatan Varian", defaultText: "Ice * Less Sugar" },
     { key: "OrderCode", label: "Nomor Pesanan", defaultText: "#SB-001" },
     { key: "Customer", label: "Nama Pengunjung", defaultText: "Teman Migi" },
+    { key: "ServiceType", label: "Metode Pesanan", defaultText: "DI" },
     { key: "Counter", label: "Nomor Item", defaultText: "[1/1]" },
     { key: "CustomText", label: "Teks Kustom", defaultText: "TEMAN", isFreeText: true },
     { key: "Barcode", label: "Barcode", defaultText: "12345678", isBarcode: true }
@@ -2828,14 +3078,13 @@ function updateLabelPreview() {
 
   const segments = [];
 
-  elements.forEach(({ key, label, defaultText, isFreeText, isBarcode }) => {
+  elements.forEach(({ key, label, defaultText, isFreeText, isBarcode, isImage }) => {
     const previewEl = els[`labelPreview${key}`];
     const readOnlyEl = document.getElementById(`labelReadOnlyPreview${key}`);
     const enabledInput = els[`label${key}Enabled`];
     const boldInput = els[`label${key}Bold`];
     const fontSizeInput = els[`label${key}FontSize`];
     const fontSizeVal = document.getElementById(`label${key}FontSizeVal`);
-    const posVal = document.getElementById(`label${key}PosVal`);
     const widthHidden = document.getElementById(`label${key}Width`);
     const customTextVal = els.labelCustomTextValue;
 
@@ -2843,14 +3092,18 @@ function updateLabelPreview() {
 
     const enabled = enabledInput ? enabledInput.checked : (labelSettings[`${key.charAt(0).toLowerCase() + key.slice(1)}Enabled`] !== false);
     
-    const fontSizeInputVal = fontSizeInput ? Number(fontSizeInput.value) : 0;
-    const fontSize = fontSizeInputVal || Number(labelSettings[`${key.charAt(0).toLowerCase() + key.slice(1)}FontSize`] || 13);
+    const fontSizeInputVal = fontSizeInput ? Number(fontSizeInput.value) : Number(labelSettings[`${key.charAt(0).toLowerCase() + key.slice(1)}FontSize`] ?? 16);
+    const fontSize = fontSizeInput
+      ? normalizeLabelFontScale(fontSizeInputVal)
+      : normalizeLabelFontScale(labelSettings[`${key.charAt(0).toLowerCase() + key.slice(1)}FontSize`]);
     const bold = boldInput ? boldInput.checked : (labelSettings[`${key.charAt(0).toLowerCase() + key.slice(1)}Bold`] === true);
 
-    if (fontSizeVal && fontSizeInput) fontSizeVal.textContent = fontSize;
+    if (fontSizeVal && fontSizeInput) {
+      fontSizeVal.textContent = String(fontSize);
+    }
 
-    const defaultWidths = { DrinkName: 200, Notes: 280, OrderCode: 120, Customer: 150, Counter: 80, CustomText: 100, Barcode: 160 };
-    const defaultHeights = { DrinkName: 48, Notes: 24, OrderCode: 24, Customer: 24, Counter: 24, CustomText: 24, Barcode: 20 };
+    const defaultWidths = { Logo: 32, DrinkName: 200, Notes: 280, OrderCode: 120, Customer: 150, ServiceType: 120, Counter: 80, CustomText: 100, Barcode: 160 };
+    const defaultHeights = { Logo: 32, DrinkName: 48, Notes: 24, OrderCode: 24, Customer: 24, ServiceType: 24, Counter: 24, CustomText: 24, Barcode: 20 };
     
     let width = Number(labelSettings[`${key.charAt(0).toLowerCase() + key.slice(1)}Width`] || defaultWidths[key]);
     if (widthHidden) widthHidden.value = width;
@@ -2872,6 +3125,8 @@ function updateLabelPreview() {
       text = `${dd}${mm}${yyyy}`;
     } else if (isFreeText && customTextVal) {
       text = customTextVal.value || defaultText;
+    } else if (key === "ServiceType") {
+      text = defaultText;
     } else if (isFreeText) {
       text = labelSettings.customTextValue || defaultText;
     }
@@ -2881,11 +3136,7 @@ function updateLabelPreview() {
       if (isBarcode) {
         charHeight = height + 24; // barcode height + HRI text
       } else {
-        if (fontSize < 11) charHeight = 17;
-        else if (fontSize >= 11 && fontSize <= 16) charHeight = 24;
-        else if (fontSize > 16 && fontSize <= 22) charHeight = 48;
-        else if (fontSize > 22 && fontSize <= 27) charHeight = 24;
-        else charHeight = 48;
+        charHeight = getLabelFontMetrics(fontSize).charHeight;
       }
 
       segments.push({
@@ -2899,9 +3150,10 @@ function updateLabelPreview() {
         bold,
         text,
         isBarcode,
+        isImage,
         previewEl,
         readOnlyEl,
-        posVal
+        posVal: null
       });
     } else {
       [previewEl, readOnlyEl].forEach(el => {
@@ -2910,71 +3162,40 @@ function updateLabelPreview() {
     }
   });
 
-  // Sort and apply push-down physics matching EPPOS text rendering
-  segments.sort((a, b) => a.y - b.y);
-
-  const printRows = [];
-  for (const segment of segments) {
-    let foundRow = printRows.find(r => Math.abs(r.y - segment.y) < 12);
-    if (!foundRow) {
-      foundRow = {
-        y: segment.y,
-        segments: [],
-        maxCharHeight: 0
-      };
-      printRows.push(foundRow);
-    }
-    foundRow.segments.push(segment);
-    if (segment.charHeight > foundRow.maxCharHeight) {
-      foundRow.maxCharHeight = segment.charHeight;
-    }
-  }
-
-  printRows.sort((a, b) => a.y - b.y);
-
-  let currentY = 0;
-  printRows.forEach(row => {
-    let feedDots = row.y - currentY;
-    if (feedDots < 0) {
-      feedDots = 0;
-    }
-    const printedY = currentY + feedDots;
-    row.segments.forEach(segment => {
-      segment.printedY = printedY;
-    });
-    currentY = printedY + row.maxCharHeight;
+  // Bitmap printing supports true absolute coordinates. Do not push elements
+  // into simulated ESC/POS rows; this lets text align exactly with a barcode.
+  segments.forEach((segment) => {
+    segment.printedY = segment.y;
   });
 
   segments.forEach((segment) => {
-    const { key, x, printedY, width, height, fontSize, bold, text, isBarcode, previewEl, readOnlyEl, posVal } = segment;
-
-    if (posVal) posVal.textContent = `X:${x}, Y:${printedY}`;
+    const { key, x, printedY, width, height, fontSize, bold, text, isBarcode, isImage, previewEl, readOnlyEl, posVal } = segment;
 
     let actualLineHeight = 24;
     let actualFontSize = 13;
+    if (isImage) {
+      [previewEl, readOnlyEl].forEach((el) => {
+        if (!el) return;
+        el.style.display = "block";
+        el.style.left = `${x}px`;
+        el.style.top = `${printedY}px`;
+        el.style.width = `${width}px`;
+        el.style.height = `${height}px`;
+      });
+      return;
+    }
     if (isBarcode) {
       actualLineHeight = height + 24;
     } else {
-      if (fontSize < 11) {
-        actualLineHeight = 17;
-        actualFontSize = 11;
-      } else if (fontSize >= 11 && fontSize <= 16) {
-        actualLineHeight = 24;
-        actualFontSize = 15;
-      } else if (fontSize > 16 && fontSize <= 22) {
-        actualLineHeight = 48;
-        actualFontSize = 15;
-      } else if (fontSize > 22 && fontSize <= 27) {
-        actualLineHeight = 24;
-        actualFontSize = 30;
-      } else {
-        actualLineHeight = 48;
-        actualFontSize = 30;
-      }
+      const metrics = getLabelFontMetrics(fontSize);
+      actualLineHeight = metrics.charHeight;
+      // Font A ESC/POS kira-kira 12 dot lebar x 24 dot tinggi.
+      // Courier New 20px mendekati lebar karakter tersebut pada preview.
+      actualFontSize = metrics.pixelSize;
+      actualLineHeight = metrics.charHeight;
     }
 
     const lineClamp = Math.max(1, Math.floor(height / (isBarcode ? height : actualLineHeight)));
-    const clampedHeight = lineClamp * (isBarcode ? (height + 24) : actualLineHeight);
 
     [previewEl, readOnlyEl].forEach((el) => {
       if (!el) return;
@@ -2992,6 +3213,7 @@ function updateLabelPreview() {
 
       el.style.fontSize = `${actualFontSize}px`;
       el.style.lineHeight = `${actualLineHeight}px`;
+      el.style.letterSpacing = getLabelFontMetrics(fontSize).widthMultiplier === 2 ? "12px" : "normal";
       el.style.fontWeight = bold ? "bold" : "normal";
       el.style.maxWidth = `${width}px`;
 
@@ -2999,8 +3221,8 @@ function updateLabelPreview() {
       el.style.webkitBoxOrient = "vertical";
       el.style.overflow = "hidden";
       el.style.webkitLineClamp = String(lineClamp);
-      el.style.height = `${clampedHeight}px`;
-      el.style.maxHeight = `${clampedHeight}px`;
+      el.style.height = `${height}px`;
+      el.style.maxHeight = `${height}px`;
 
       let textNode = Array.from(el.childNodes).find(n => n.nodeType === Node.TEXT_NODE);
       if (!textNode) {
@@ -3028,21 +3250,25 @@ function updateLabelPreview() {
     if (availableWidth < currentPaperWidth && availableWidth > 0) {
       const scale = availableWidth / currentPaperWidth;
       paper.style.transform = `scale(${scale})`;
-      paper.style.transformOrigin = "center center";
-      paper.style.margin = `-${(currentPaperHeight - currentPaperHeight * scale) / 2}px -${(currentPaperWidth - availableWidth) / 2}px`;
+      paper.style.transformOrigin = "top center";
+      paper.style.margin = `0 -${(currentPaperWidth - availableWidth) / 2}px`;
+      if (paper.parentElement) paper.parentElement.style.height = `${Math.ceil(currentPaperHeight * scale)}px`;
     } else {
       paper.style.transform = "none";
       paper.style.margin = "0";
+      if (paper.parentElement) paper.parentElement.style.height = `${currentPaperHeight}px`;
     }
   });
 }
 
 function initDraggableRows() {
   const items = [
+    { el: els.labelPreviewLogo, key: "Logo" },
     { el: els.labelPreviewDrinkName, key: "DrinkName" },
     { el: els.labelPreviewNotes, key: "Notes" },
     { el: els.labelPreviewOrderCode, key: "OrderCode" },
     { el: els.labelPreviewCustomer, key: "Customer" },
+    { el: els.labelPreviewServiceType, key: "ServiceType" },
     { el: els.labelPreviewCounter, key: "Counter" },
     { el: els.labelPreviewCustomText, key: "CustomText" },
     { el: els.labelPreviewBarcode, key: "Barcode" }
@@ -3050,6 +3276,23 @@ function initDraggableRows() {
 
   items.forEach(({ el, key }) => {
     if (!el) return;
+
+    if (!el.querySelector(".label-width-handle")) {
+      const widthHandleElement = document.createElement("button");
+      widthHandleElement.type = "button";
+      widthHandleElement.className = "label-width-handle";
+      widthHandleElement.title = "Ubah lebar";
+      widthHandleElement.setAttribute("aria-label", `Ubah lebar ${key}`);
+      el.appendChild(widthHandleElement);
+    }
+    if (!el.querySelector(".label-height-handle")) {
+      const heightHandleElement = document.createElement("button");
+      heightHandleElement.type = "button";
+      heightHandleElement.className = "label-height-handle";
+      heightHandleElement.title = "Ubah tinggi";
+      heightHandleElement.setAttribute("aria-label", `Ubah tinggi ${key}`);
+      el.appendChild(heightHandleElement);
+    }
 
     let isDragging = false;
     let isWidthResizing = false;
@@ -3118,10 +3361,13 @@ function initDraggableRows() {
       const stickerEl = els.labelPreviewSticker;
       const containerWidth = stickerEl ? parseInt(stickerEl.style.width || "320") : 320;
       const containerHeight = stickerEl ? parseInt(stickerEl.style.height || "160") : 160;
+      const stickerRect = stickerEl?.getBoundingClientRect();
+      const scaleX = stickerRect?.width ? stickerRect.width / containerWidth : 1;
+      const scaleY = stickerRect?.height ? stickerRect.height / containerHeight : 1;
 
       if (isWidthResizing) {
         const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-        const dx = clientX - startX;
+        const dx = (clientX - startX) / Math.max(0.01, scaleX);
         let newWidth = originalWidth + dx;
         const maxAvailableWidth = containerWidth - parseInt(el.style.left || "0");
         newWidth = Math.max(30, Math.min(maxAvailableWidth, newWidth));
@@ -3132,10 +3378,9 @@ function initDraggableRows() {
         const widthVal = document.getElementById(`label${key}Width`);
         if (widthVal) widthVal.value = newWidth;
         
-        updateLabelPreview();
       } else if (isHeightResizing) {
         const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-        const dy = clientY - startY;
+        const dy = (clientY - startY) / Math.max(0.01, scaleY);
         let newHeight = originalHeight + dy;
         const maxAvailableHeight = containerHeight - parseInt(el.style.top || "0");
         newHeight = Math.max(15, Math.min(maxAvailableHeight, newHeight));
@@ -3143,13 +3388,12 @@ function initDraggableRows() {
         el.style.height = `${newHeight}px`;
         el.style.maxHeight = `${newHeight}px`;
 
-        updateLabelPreview();
       } else if (isDragging) {
         const clientX = e.touches ? e.touches[0].clientX : e.clientX;
         const clientY = e.touches ? e.touches[0].clientY : e.clientY;
         
-        const dx = clientX - startX;
-        const dy = clientY - startY;
+        const dx = (clientX - startX) / Math.max(0.01, scaleX);
+        const dy = (clientY - startY) / Math.max(0.01, scaleY);
         
         let newLeft = originalLeft + dx;
         let newTop = originalTop + dy;
@@ -3164,8 +3408,6 @@ function initDraggableRows() {
         el.style.left = `${newLeft}px`;
         el.style.top = `${newTop}px`;
 
-        const posVal = document.getElementById(`label${key}PosVal`);
-        if (posVal) posVal.textContent = `X:${newLeft}, Y:${newTop}`;
       }
     };
 
@@ -3205,7 +3447,9 @@ function initPrinterSettings() {
   if (els.printerPaperSize) els.printerPaperSize.value = printerSize;
 
   const labelSettings = getLabelPrinterSettings();
-  if (els.labelPrinterPaperSize) els.labelPrinterPaperSize.value = labelSettings.paperSize;
+  if (els.labelPrinterPaperSize) {
+    els.labelPrinterPaperSize.value = labelSettings.paperSize;
+  }
   if (els.labelPrinterFeedMethod) els.labelPrinterFeedMethod.value = labelSettings.feedMethod;
   if (els.labelPrinterPitch) els.labelPrinterPitch.value = labelSettings.pitch;
   if (els.labelPrinterLineSpacing) els.labelPrinterLineSpacing.value = labelSettings.lineSpacing;
@@ -3214,8 +3458,9 @@ function initPrinterSettings() {
   if (els.labelPrinterSpaces) els.labelPrinterSpaces.value = labelSettings.labelSpaces !== undefined ? labelSettings.labelSpaces : 0;
 
   if (els.labelStickerOffsetX) els.labelStickerOffsetX.value = labelSettings.stickerOffsetX !== undefined ? labelSettings.stickerOffsetX : 64;
+  syncLabelOffsetLimit(labelSettings);
 
-  const elements = ["DrinkName", "Notes", "OrderCode", "Customer", "Counter", "CustomText", "Barcode"];
+  const elements = ["Logo", "DrinkName", "Notes", "OrderCode", "Customer", "ServiceType", "Counter", "CustomText", "Barcode"];
   elements.forEach((key) => {
     const keyLower = key.charAt(0).toLowerCase() + key.slice(1);
     const enabledInput = els[`label${key}Enabled`];
@@ -3226,15 +3471,27 @@ function initPrinterSettings() {
 
     if (enabledInput) enabledInput.checked = labelSettings[`${keyLower}Enabled`] !== false;
     if (boldInput) boldInput.checked = labelSettings[`${keyLower}Bold`] === true;
-    if (fontSizeInput) fontSizeInput.value = labelSettings[`${keyLower}FontSize`] !== undefined ? labelSettings[`${keyLower}FontSize`] : 13;
+    if (fontSizeInput) fontSizeInput.value = normalizeLabelFontScale(labelSettings[`${keyLower}FontSize`]);
     if (widthInput) widthInput.value = labelSettings[`${keyLower}Width`] !== undefined ? labelSettings[`${keyLower}Width`] : (key === "Barcode" ? 200 : 150);
 
     if (previewEl) {
-      previewEl.style.left = `${labelSettings[`${keyLower}X`] !== undefined ? labelSettings[`${keyLower}X`] : (key === "Barcode" ? 60 : 12)}px`;
-      previewEl.style.top = `${labelSettings[`${keyLower}Y`] !== undefined ? labelSettings[`${keyLower}Y`] : (key === "Barcode" ? 130 : 12)}px`;
+      const savedHeight = labelSettings[`${keyLower}MaxHeight`] !== undefined
+        ? labelSettings[`${keyLower}MaxHeight`]
+        : (key === "Logo" ? 32 : (key === "DrinkName" ? 48 : (key === "Barcode" ? 20 : 24)));
+      const renderedHeight = key === "Barcode" ? Number(savedHeight) + 24 : Number(savedHeight);
+      const savedX = labelSettings[`${keyLower}X`] !== undefined ? labelSettings[`${keyLower}X`] : (key === "ServiceType" ? 214 : (key === "Barcode" ? 60 : 12));
+      const savedY = labelSettings[`${keyLower}Y`] !== undefined ? labelSettings[`${keyLower}Y`] : (key === "ServiceType" ? 88 : (key === "Barcode" ? 130 : 12));
+      previewEl.style.left = `${savedX}px`;
+      previewEl.style.top = `${savedY}px`;
+      previewEl.setAttribute("data-drag-x", String(savedX));
+      previewEl.setAttribute("data-drag-y", String(savedY));
       previewEl.style.width = `${labelSettings[`${keyLower}Width`] !== undefined ? labelSettings[`${keyLower}Width`] : (key === "Barcode" ? 200 : 150)}px`;
-      previewEl.style.height = `${labelSettings[`${keyLower}MaxHeight`] !== undefined ? labelSettings[`${keyLower}MaxHeight`] : (key === "DrinkName" ? 48 : (key === "Barcode" ? 20 : 24))}px`;
-      previewEl.style.maxHeight = `${labelSettings[`${keyLower}MaxHeight`] !== undefined ? labelSettings[`${keyLower}MaxHeight`] : (key === "DrinkName" ? 48 : (key === "Barcode" ? 20 : 24))}px`;
+      previewEl.style.height = `${renderedHeight}px`;
+      previewEl.style.maxHeight = `${renderedHeight}px`;
+      if (key === "DrinkName" && els.labelDrinkNameHeight) {
+        els.labelDrinkNameHeight.value = String(renderedHeight);
+        if (els.labelDrinkNameHeightVal) els.labelDrinkNameHeightVal.textContent = String(renderedHeight);
+      }
     }
   });
 
@@ -3408,7 +3665,7 @@ async function testLabelPrint() {
       name: "KOPI SUSU MIGI",
       notes: "ICE · REGULAR · LESS SUGAR"
     };
-    const bytes = await encodeCupLabel(mockTransaction, mockItem, 0, 1);
+    const bytes = await encodeCupLabelBitmap(mockTransaction, mockItem, 0, 1);
     await writeLabelPrinterChunks(bytes);
     toast("Test label dikirim ke printer.");
   } catch (error) {
@@ -5402,7 +5659,7 @@ async function encodeEscPosReceipt(transaction, kind) {
   }
 }
 
-async function writePrinterChunks(bytes, characteristic = state.printerCharacteristic) {
+async function writePrinterChunks(bytes, characteristic = state.printerCharacteristic, chunkDelayMs = 18, preferResponse = false) {
   if (!characteristic) return;
   // Gunakan chunk kecil (20 byte) agar kompatibel dengan semua printer BLE
   const chunkSize = 20;
@@ -5410,7 +5667,10 @@ async function writePrinterChunks(bytes, characteristic = state.printerCharacter
   const canWriteWithoutResponse = characteristic.properties.writeWithoutResponse;
   for (let index = 0; index < bytes.length; index += chunkSize) {
     const chunk = bytes.slice(index, index + chunkSize);
-    if (canWriteWithoutResponse) {
+    if (preferResponse && canWriteWithResponse) {
+      // ACK per chunk prevents large raster jobs from overflowing the BLE buffer.
+      await characteristic.writeValueWithResponse(chunk);
+    } else if (canWriteWithoutResponse) {
       await characteristic.writeValueWithoutResponse(chunk);
     } else if (canWriteWithResponse) {
       // writeValueWithResponse menggantikan writeValue() yang sudah deprecated
@@ -5418,13 +5678,19 @@ async function writePrinterChunks(bytes, characteristic = state.printerCharacter
     } else {
       throw new Error("Characteristic printer tidak mendukung write.");
     }
-    // Delay pendek agar BLE tetap stabil tanpa membuat logo terasa macet terlalu lama.
-    await new Promise((resolve) => setTimeout(resolve, 18));
+    // ACK sudah menjadi flow-control; delay penuh hanya diperlukan pada
+    // characteristic tanpa respons.
+    const effectiveDelay = preferResponse && canWriteWithResponse ? 1 : chunkDelayMs;
+    if (effectiveDelay > 0) {
+      await new Promise((resolve) => setTimeout(resolve, effectiveDelay));
+    }
   }
 }
 
 async function writeLabelPrinterChunks(bytes) {
-  return writePrinterChunks(bytes, state.labelPrinterCharacteristic);
+  // Prefer acknowledged writes for large bitmap jobs. Printers that expose
+  // only write-without-response get conservative pacing instead.
+  return writePrinterChunks(bytes, state.labelPrinterCharacteristic, 8, true);
 }
 
 // Kategori yang TIDAK perlu cetak label cup (makanan, non-minuman)
@@ -5501,24 +5767,7 @@ async function getMascotLogoBytes() {
 async function encodeCupLabel(transaction, item, itemIndex, totalItems) {
   const labelSettings = getLabelPrinterSettings();
   const feedMethod = labelSettings.feedMethod;
-  const paperSize = labelSettings.paperSize || "40x20mm";
-  
-  let stickerWidth = 320;
-  let stickerHeight = 160;
-  
-  if (paperSize === "40x30mm") {
-    stickerWidth = 320;
-    stickerHeight = 240;
-  } else if (paperSize === "40x40mm") {
-    stickerWidth = 320;
-    stickerHeight = 320;
-  } else if (paperSize === "50x30mm") {
-    stickerWidth = 400;
-    stickerHeight = 240;
-  } else if (paperSize === "58mm") {
-    stickerWidth = 384;
-    stickerHeight = 240;
-  }
+  const { width: stickerWidth, height: stickerHeight } = getLabelPaperDimensions(labelSettings);
 
   const toTitleCase = (str) => {
     return String(str || "")
@@ -5540,12 +5789,12 @@ async function encodeCupLabel(transaction, item, itemIndex, totalItems) {
 
   // Compile list of active elements
   const rawElements = [
-    { key: "DrinkName", text: drinkName, enabled: labelSettings.drinkNameEnabled !== false, bold: labelSettings.drinkNameBold !== false, fontSize: Number(labelSettings.drinkNameFontSize || 18), x: labelSettings.drinkNameX !== undefined ? labelSettings.drinkNameX : 12, y: labelSettings.drinkNameY !== undefined ? labelSettings.drinkNameY : 12, width: labelSettings.drinkNameWidth !== undefined ? labelSettings.drinkNameWidth : 200, height: labelSettings.drinkNameMaxHeight !== undefined ? labelSettings.drinkNameMaxHeight : 48 },
-    { key: "Notes", text: variantLine, enabled: labelSettings.notesEnabled !== false, bold: labelSettings.notesBold === true, fontSize: Number(labelSettings.notesFontSize || 13), x: labelSettings.notesX !== undefined ? labelSettings.notesX : 12, y: labelSettings.notesY !== undefined ? labelSettings.notesY : 48, width: labelSettings.notesWidth !== undefined ? labelSettings.notesWidth : 280, height: labelSettings.notesMaxHeight !== undefined ? labelSettings.notesMaxHeight : 24 },
-    { key: "OrderCode", text: `#${orderNum}`, enabled: labelSettings.orderCodeEnabled !== false, bold: labelSettings.orderCodeBold === true, fontSize: Number(labelSettings.orderCodeFontSize || 13), x: labelSettings.orderCodeX !== undefined ? labelSettings.orderCodeX : 12, y: labelSettings.orderCodeY !== undefined ? labelSettings.orderCodeY : 84, width: labelSettings.orderCodeWidth !== undefined ? labelSettings.orderCodeWidth : 120, height: labelSettings.orderCodeMaxHeight !== undefined ? labelSettings.orderCodeMaxHeight : 24 },
-    { key: "Customer", text: customer, enabled: labelSettings.customerEnabled !== false, bold: labelSettings.customerBold === true, fontSize: Number(labelSettings.customerFontSize || 13), x: labelSettings.customerX !== undefined ? labelSettings.customerX : 12, y: labelSettings.customerY !== undefined ? labelSettings.customerY : 110, width: labelSettings.customerWidth !== undefined ? labelSettings.customerWidth : 150, height: labelSettings.customerMaxHeight !== undefined ? labelSettings.customerMaxHeight : 24 },
-    { key: "Counter", text: counter, enabled: labelSettings.counterEnabled !== false, bold: labelSettings.counterBold === true, fontSize: Number(labelSettings.counterFontSize || 13), x: labelSettings.counterX !== undefined ? labelSettings.counterX : 240, y: labelSettings.counterY !== undefined ? labelSettings.counterY : 84, width: labelSettings.counterWidth !== undefined ? labelSettings.counterWidth : 80, height: labelSettings.counterMaxHeight !== undefined ? labelSettings.counterMaxHeight : 24 },
-    { key: "CustomText", text: labelSettings.customTextValue || "TEMAN", enabled: labelSettings.customTextEnabled === true, bold: labelSettings.customTextBold !== false, fontSize: Number(labelSettings.customTextFontSize || 11), x: labelSettings.customTextX !== undefined ? labelSettings.customTextX : 150, y: labelSettings.customTextY !== undefined ? labelSettings.customTextY : 12, width: labelSettings.customTextWidth !== undefined ? labelSettings.customTextWidth : 100, height: labelSettings.customTextMaxHeight !== undefined ? labelSettings.customTextMaxHeight : 24 }
+    { key: "DrinkName", text: drinkName, enabled: labelSettings.drinkNameEnabled !== false, bold: labelSettings.drinkNameBold !== false, fontSize: normalizeLabelFontScale(labelSettings.drinkNameFontSize), x: labelSettings.drinkNameX !== undefined ? labelSettings.drinkNameX : 12, y: labelSettings.drinkNameY !== undefined ? labelSettings.drinkNameY : 12, width: labelSettings.drinkNameWidth !== undefined ? labelSettings.drinkNameWidth : 200, height: labelSettings.drinkNameMaxHeight !== undefined ? labelSettings.drinkNameMaxHeight : 48 },
+    { key: "Notes", text: variantLine, enabled: labelSettings.notesEnabled !== false, bold: labelSettings.notesBold === true, fontSize: normalizeLabelFontScale(labelSettings.notesFontSize), x: labelSettings.notesX !== undefined ? labelSettings.notesX : 12, y: labelSettings.notesY !== undefined ? labelSettings.notesY : 48, width: labelSettings.notesWidth !== undefined ? labelSettings.notesWidth : 280, height: labelSettings.notesMaxHeight !== undefined ? labelSettings.notesMaxHeight : 24 },
+    { key: "OrderCode", text: `#${orderNum}`, enabled: labelSettings.orderCodeEnabled !== false, bold: labelSettings.orderCodeBold === true, fontSize: normalizeLabelFontScale(labelSettings.orderCodeFontSize), x: labelSettings.orderCodeX !== undefined ? labelSettings.orderCodeX : 12, y: labelSettings.orderCodeY !== undefined ? labelSettings.orderCodeY : 84, width: labelSettings.orderCodeWidth !== undefined ? labelSettings.orderCodeWidth : 120, height: labelSettings.orderCodeMaxHeight !== undefined ? labelSettings.orderCodeMaxHeight : 24 },
+    { key: "Customer", text: customer, enabled: labelSettings.customerEnabled !== false, bold: labelSettings.customerBold === true, fontSize: normalizeLabelFontScale(labelSettings.customerFontSize), x: labelSettings.customerX !== undefined ? labelSettings.customerX : 12, y: labelSettings.customerY !== undefined ? labelSettings.customerY : 110, width: labelSettings.customerWidth !== undefined ? labelSettings.customerWidth : 150, height: labelSettings.customerMaxHeight !== undefined ? labelSettings.customerMaxHeight : 24 },
+    { key: "Counter", text: counter, enabled: labelSettings.counterEnabled !== false, bold: labelSettings.counterBold === true, fontSize: normalizeLabelFontScale(labelSettings.counterFontSize), x: labelSettings.counterX !== undefined ? labelSettings.counterX : 240, y: labelSettings.counterY !== undefined ? labelSettings.counterY : 84, width: labelSettings.counterWidth !== undefined ? labelSettings.counterWidth : 80, height: labelSettings.counterMaxHeight !== undefined ? labelSettings.counterMaxHeight : 24 },
+    { key: "CustomText", text: labelSettings.customTextValue || "TEMAN", enabled: labelSettings.customTextEnabled === true, bold: labelSettings.customTextBold !== false, fontSize: normalizeLabelFontScale(labelSettings.customTextFontSize), x: labelSettings.customTextX !== undefined ? labelSettings.customTextX : 150, y: labelSettings.customTextY !== undefined ? labelSettings.customTextY : 12, width: labelSettings.customTextWidth !== undefined ? labelSettings.customTextWidth : 100, height: labelSettings.customTextMaxHeight !== undefined ? labelSettings.customTextMaxHeight : 24 }
   ];
 
   // Add barcode if enabled
@@ -5577,11 +5826,7 @@ async function encodeCupLabel(transaction, item, itemIndex, totalItems) {
     if (el.isBarcode) {
       charHeight = el.height + 24;
     } else {
-      if (el.fontSize < 11) charHeight = 17;
-      else if (el.fontSize >= 11 && el.fontSize <= 16) charHeight = 24;
-      else if (el.fontSize > 16 && el.fontSize <= 22) charHeight = 48;
-      else if (el.fontSize > 22 && el.fontSize <= 27) charHeight = 24;
-      else charHeight = 48;
+      charHeight = getLabelFontMetrics(el.fontSize).charHeight;
     }
     return { ...el, charHeight };
   });
@@ -5626,27 +5871,31 @@ async function encodeCupLabel(transaction, item, itemIndex, totalItems) {
   let payload = [];
   payload.push(...init);
 
+  // EPPOS dapat menyimpan line spacing/margin dari job sebelumnya. Kunci
+  // keduanya agar posisi fisik mengikuti koordinat preview setiap kali cetak.
+  const lineSpacing = Math.max(0, Math.min(255, Number(labelSettings.lineSpacing || 20)));
+  payload.push(ESC, 0x61, 0x00); // left alignment
+  payload.push(GS, 0x4c, 0x00, 0x00); // reset printer left margin
+  payload.push(ESC, 0x33, lineSpacing); // explicit line spacing
+
   const encoder = new TextEncoder();
   let currentY = 0;
 
   printRows.forEach(row => {
-    // 1. Feed vertically to this row's position
-    const feedDots = row.printedY - currentY;
-    if (feedDots > 0) {
-      // ESC J feeds up to 255 dots. If more, split it.
-      let remainingFeed = feedDots;
-      while (remainingFeed > 255) {
-        payload.push(ESC, 0x4a, 255);
-        remainingFeed -= 255;
-      }
-      payload.push(ESC, 0x4a, remainingFeed);
-    }
-    currentY = row.printedY;
+    // EPPOS tidak konsisten memperlakukan ESC J sebagai dot feed pada mode
+    // stiker. Gunakan LF dengan line spacing eksplisit agar satu baris tidak
+    // meloncat ke label fisik berikutnya.
+    const rowHeight = Math.max(1, Math.min(255, row.maxCharHeight));
+    payload.push(ESC, 0x33, rowHeight);
+    const gapDots = Math.max(0, row.printedY - currentY);
+    const blankLines = Math.max(0, Math.round(gapDots / rowHeight) - 1);
+    for (let blank = 0; blank < blankLines; blank += 1) payload.push(0x0a);
+    currentY += blankLines * rowHeight;
 
     // Sort segments from left to right to prevent head backward travel issues
     row.segments.sort((a, b) => a.x - b.x);
 
-    row.segments.forEach(segment => {
+    row.segments.forEach((segment, segmentIndex) => {
       // 2. Set absolute X position
       const posX = stickerOffsetX + segment.x;
       const nL = posX & 0xff;
@@ -5668,53 +5917,186 @@ async function encodeCupLabel(transaction, item, itemIndex, totalItems) {
         payload.push(0x00); // Terminator
       } else {
         // Regular Text
+        // Set font family. Some EPPOS firmware ignores ESC M, so also set
+        // the equivalent ESC ! font-B bit for the smallest native font.
+        const fontMetrics = getLabelFontMetrics(segment.fontSize);
+        payload.push(ESC, 0x4d, fontMetrics.fontByte);
+        payload.push(ESC, 0x21, fontMetrics.fontByte === 1 ? 0x01 : 0x00);
         // Set bold
         payload.push(ESC, 0x45, segment.bold ? 1 : 0);
         
         // Set font size multiplier
-        let sizeByte = 0x00;
-        if (segment.fontSize > 16 && segment.fontSize <= 22) {
-          // GS ! memakai nibble bawah untuk lebar dan nibble atas untuk tinggi.
-          // 0x10 = tinggi 2×; sebelumnya 0x01 membuat judul melebar 2×.
-          sizeByte = 0x10;
-        } else if (segment.fontSize > 22 && segment.fontSize <= 27) {
-          sizeByte = 0x01; // Lebar 2×
-        } else if (segment.fontSize > 27) {
-          sizeByte = 0x11; // Double Size
-        }
-        payload.push(GS, 0x21, sizeByte);
+        payload.push(GS, 0x21, fontMetrics.sizeByte);
 
-        // Send character bytes
-        payload.push(...encoder.encode(segment.text));
+        // Batasi teks ke kotak elemen, tepi stiker, dan elemen berikutnya pada baris yang sama.
+        const nextSegment = row.segments[segmentIndex + 1];
+        const widthToLabelEdge = stickerWidth - segment.x;
+        const widthToNextElement = nextSegment ? nextSegment.x - segment.x - 4 : widthToLabelEdge;
+        const availableWidth = Math.max(0, Math.min(segment.width, widthToLabelEdge, widthToNextElement));
+        const fittedText = fitLabelText(segment.text, availableWidth, segment.fontSize);
+        payload.push(...encoder.encode(fittedText));
       }
     });
 
-    // 3. Print the line and feed by the row height
-    const rowHeight = row.maxCharHeight;
-    payload.push(ESC, 0x4a, rowHeight);
-    currentY += rowHeight;
+    // 3. Print the line and advance exactly one configured printer row.
+    payload.push(0x0a);
+    currentY = Math.max(currentY, row.printedY) + rowHeight;
   });
-
-  // Feed remaining paper to clear the sticker
-  const remainingFeed = stickerHeight - currentY;
-  if (remainingFeed > 0) {
-    let rem = remainingFeed;
-    while (rem > 255) {
-      payload.push(ESC, 0x4a, 255);
-      rem -= 255;
-    }
-    payload.push(ESC, 0x4a, rem);
-  }
 
   // Cut/feed settings
   if (feedMethod === "gap") {
+    // Do not feed remaining height manually, let the printer's gap sensor do it
     payload.push(GS, 0x0c); 
   } else {
-    // Pitch manual
-    payload.push(ESC, 0x64, 0x02);
+    // Feed sampai pitch berikutnya secara tepat; nilai dapat dikalibrasi sesuai gap fisik roll.
+    const pitch = Math.max(stickerHeight, Number(labelSettings.pitch || stickerHeight));
+    const remainingFeed = pitch - currentY;
+    if (remainingFeed > 0) {
+      let rem = remainingFeed;
+      while (rem > 255) {
+        payload.push(ESC, 0x4a, 255);
+        rem -= 255;
+      }
+      payload.push(ESC, 0x4a, rem);
+    }
   }
 
+  payload.push(ESC, 0x32); // restore printer default line spacing for next job
+
   return new Uint8Array(payload);
+}
+
+// Render one label as a monochrome bitmap so the printer receives the same
+// font, positions, and wrapping that the preview uses. This is slower than
+// native text but avoids firmware-specific ESC/POS font differences.
+async function encodeCupLabelBitmap(transaction, item, itemIndex, totalItems) {
+  const settings = getLabelPrinterSettings();
+  if (document.fonts?.load) {
+    await document.fonts.load("16px Geist");
+  }
+  const { width: stickerWidth, height: stickerHeight } = getLabelPaperDimensions(settings);
+  const printerWidth = LABEL_PRINTER_WIDTH_DOTS;
+  // The EPPOS 58 mm head starts before the loaded 40 mm roll.
+  // Compensate in bitmap mode so the first glyph does not get clipped.
+  const physicalCalibrationX = settings.paperSize === "40x20mm" ? 32 : 0;
+  const offsetX = Math.max(0, Math.min(printerWidth - 1, Number(settings.stickerOffsetX || 0) + physicalCalibrationX));
+  const titleCase = (value) => String(value || "").toLowerCase().split(" ").map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(" ");
+  const txDate = transaction.createdAt ? new Date(transaction.createdAt) : new Date();
+  const barcodeValue = `${String(txDate.getDate()).padStart(2, "0")}${String(txDate.getMonth() + 1).padStart(2, "0")}${txDate.getFullYear()}`;
+  const tags = String(item.notes || "ICE · NORMAL · REGULAR").split(" · ").filter(Boolean).map(titleCase);
+  const elements = [
+    { text: "logo", enabled: settings.logoEnabled === true, isImage: true, imageSrc: "assets/logo-migi-print.png", x: settings.logoX ?? 12, y: settings.logoY ?? 12, width: settings.logoWidth ?? 32, height: settings.logoMaxHeight ?? 32 },
+    { text: titleCase(item.name || "Minuman"), enabled: settings.drinkNameEnabled !== false, bold: settings.drinkNameBold !== false, fontSize: settings.drinkNameFontSize, x: settings.drinkNameX ?? 12, y: settings.drinkNameY ?? 12, width: settings.drinkNameWidth ?? 200, height: settings.drinkNameMaxHeight ?? 48 },
+    { text: tags.join(" * "), enabled: settings.notesEnabled !== false, bold: settings.notesBold === true, fontSize: settings.notesFontSize, x: settings.notesX ?? 12, y: settings.notesY ?? 48, width: settings.notesWidth ?? 280, height: settings.notesMaxHeight ?? 24 },
+    { text: `#${transaction.orderCode || "-"}`, enabled: settings.orderCodeEnabled !== false, bold: settings.orderCodeBold === true, fontSize: settings.orderCodeFontSize, x: settings.orderCodeX ?? 12, y: settings.orderCodeY ?? 84, width: settings.orderCodeWidth ?? 120, height: settings.orderCodeMaxHeight ?? 24 },
+    { text: transaction.customer || "Teman Migi", enabled: settings.customerEnabled !== false, bold: settings.customerBold === true, fontSize: settings.customerFontSize, x: settings.customerX ?? 12, y: settings.customerY ?? 110, width: settings.customerWidth ?? 150, height: settings.customerMaxHeight ?? 24 },
+    { text: transaction.serviceType === "take_away" ? "TA" : "DI", enabled: settings.serviceTypeEnabled !== false, bold: false, fontSize: settings.serviceTypeFontSize ?? 16, x: settings.serviceTypeX ?? 214, y: settings.serviceTypeY ?? 88, width: settings.serviceTypeWidth ?? 64, height: settings.serviceTypeMaxHeight ?? 24 },
+    { text: `[${itemIndex + 1}/${totalItems}]`, enabled: settings.counterEnabled !== false, bold: settings.counterBold === true, fontSize: settings.counterFontSize, x: settings.counterX ?? 240, y: settings.counterY ?? 84, width: settings.counterWidth ?? 80, height: settings.counterMaxHeight ?? 24 },
+    { text: settings.customTextValue || "TEMAN", enabled: settings.customTextEnabled === true, bold: settings.customTextBold !== false, fontSize: settings.customTextFontSize, x: settings.customTextX ?? 150, y: settings.customTextY ?? 12, width: settings.customTextWidth ?? 100, height: settings.customTextMaxHeight ?? 24 },
+    { text: barcodeValue, enabled: settings.barcodeEnabled === true, barcode: true, x: settings.barcodeX ?? 60, y: settings.barcodeY ?? 130, width: settings.barcodeWidth ?? 200, height: settings.barcodeMaxHeight ?? 20 }
+  ].filter((element) => element.enabled && (element.text || element.isImage));
+
+  const logoImage = elements.some((element) => element.isImage) ? await new Promise((resolve) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => resolve(null);
+    image.src = "assets/logo-migi-print.png";
+  }) : null;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = printerWidth;
+  canvas.height = Math.max(1, stickerHeight);
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = "#000000";
+  ctx.textBaseline = "top";
+  elements.forEach((element) => {
+    const elementWidth = Math.max(1, Number(element.width || 1));
+    const x = Math.max(0, Math.min(offsetX + Number(element.x || 0), printerWidth - elementWidth - 4));
+    const y = Number(element.y || 0);
+    if (element.isImage) {
+      if (!logoImage) return;
+      const logoCanvas = document.createElement("canvas");
+      logoCanvas.width = Math.max(1, Math.round(element.width));
+      logoCanvas.height = Math.max(1, Math.round(element.height));
+      const logoCtx = logoCanvas.getContext("2d", { willReadFrequently: true });
+      logoCtx.drawImage(logoImage, 0, 0, logoCanvas.width, logoCanvas.height);
+      const logoPixels = logoCtx.getImageData(0, 0, logoCanvas.width, logoCanvas.height);
+      for (let index = 0; index < logoPixels.data.length; index += 4) {
+        const luminance = 0.299 * logoPixels.data[index] + 0.587 * logoPixels.data[index + 1] + 0.114 * logoPixels.data[index + 2];
+        const dark = logoPixels.data[index + 3] > 30 && luminance < 180;
+        logoPixels.data[index] = dark ? 0 : 255;
+        logoPixels.data[index + 1] = dark ? 0 : 255;
+        logoPixels.data[index + 2] = dark ? 0 : 255;
+        logoPixels.data[index + 3] = 255;
+      }
+      logoCtx.putImageData(logoPixels, 0, 0);
+      ctx.drawImage(logoCanvas, x, y);
+      return;
+    }
+    if (element.barcode) {
+      const barWidth = Math.max(1, Math.floor(Math.min(element.width, 72) / (element.text.length * 8)));
+      for (let i = 0; i < element.text.length * 8; i += 1) {
+        if ((i + element.text.charCodeAt(i % element.text.length)) % 3 !== 1) ctx.fillRect(x + i * barWidth, y, barWidth, element.height);
+      }
+      ctx.font = "9px Courier New, monospace";
+      ctx.fillText(element.text, x, y + element.height + 2);
+      return;
+    }
+    const metrics = getLabelFontMetrics(element.fontSize);
+    const px = metrics.pixelSize;
+    ctx.font = `${element.bold ? "bold " : ""}${px}px Geist, Arial, sans-serif`;
+    const maxWidth = Math.max(1, Number(element.width || 0));
+    const maxHeight = Math.max(metrics.charHeight, Number(element.height || metrics.charHeight));
+    const words = String(element.text).trim().split(/\s+/);
+    const lines = [];
+    let line = "";
+    words.forEach((word) => {
+      const candidate = line ? `${line} ${word}` : word;
+      if (ctx.measureText(candidate).width <= maxWidth) {
+        line = candidate;
+      } else {
+        if (line) lines.push(line);
+        line = word;
+      }
+    });
+    if (line) lines.push(line);
+    const maxLines = Math.max(1, Math.floor(maxHeight / metrics.charHeight));
+    lines.slice(0, maxLines).forEach((textLine, lineIndex) => {
+      ctx.fillText(textLine, x, y + lineIndex * metrics.charHeight);
+    });
+  });
+
+  const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+  const widthBytes = Math.ceil(canvas.width / 8);
+  const raster = [];
+  for (let y = 0; y < canvas.height; y += 1) {
+    for (let xByte = 0; xByte < widthBytes; xByte += 1) {
+      let byte = 0;
+      for (let bit = 0; bit < 8; bit += 1) {
+        const x = xByte * 8 + bit;
+        const index = (y * canvas.width + x) * 4;
+        if (pixels[index] < 180) byte |= 0x80 >> bit;
+      }
+      raster.push(byte);
+    }
+  }
+  const xL = widthBytes & 0xff;
+  const xH = (widthBytes >> 8) & 0xff;
+  const yL = canvas.height & 0xff;
+  const yH = (canvas.height >> 8) & 0xff;
+  // Die-cut roll: let the printer's gap sensor find the next label.
+  const feedBytes = settings.feedMethod === "manual"
+    ? (() => {
+        const bytes = [];
+        let remaining = Math.max(0, Number(settings.pitch || stickerHeight) - canvas.height);
+        while (remaining > 255) { bytes.push(0x1b, 0x4a, 255); remaining -= 255; }
+        if (remaining > 0) bytes.push(0x1b, 0x4a, remaining);
+        return bytes;
+      })()
+    : [0x1d, 0x0c];
+  return new Uint8Array([0x1b, 0x40, 0x1b, 0x61, 0x00, 0x1d, 0x76, 0x30, 0x00, xL, xH, yL, yH, ...raster, ...feedBytes]);
 }
 
 
@@ -5732,11 +6114,11 @@ async function printCupLabels(transaction) {
   if (!labelItems.length) return;
 
   const labelSettings = getLabelPrinterSettings();
-  const delayMs = labelSettings.labelDelay !== undefined ? labelSettings.labelDelay : 1200;
+  const delayMs = Math.max(1500, Number(labelSettings.labelDelay || 1500));
 
   try {
     for (let i = 0; i < labelItems.length; i++) {
-      const bytes = await encodeCupLabel(transaction, labelItems[i], i, labelItems.length);
+      const bytes = await encodeCupLabelBitmap(transaction, labelItems[i], i, labelItems.length);
       await writeLabelPrinterChunks(bytes);
       // Gap kecil/jeda antar label agar printer menyelesaikan feed sebelumnya
       await new Promise((resolve) => setTimeout(resolve, delayMs));
@@ -8010,6 +8392,7 @@ function renderAll() {
   renderWifiReceiptSettings();
   renderPendingSync();
   renderEmployeeRolesControls();
+  updateLabelPreview();
 }
 
 function registerServiceWorker() {
@@ -8571,14 +8954,16 @@ function closeLabelSettingsModal() {
 
 els.openLabelSettingsBtn?.addEventListener("click", openLabelSettingsModal);
 els.closeLabelSettingsBtn?.addEventListener("click", closeLabelSettingsModal);
-els.saveLabelSettingsBtn?.addEventListener("click", () => {
+els.saveLabelSettingsBtn?.addEventListener("click", async () => {
   saveLabelPrinterSettingsFromUI();
+  const synced = await syncSettingsToCloud({ force: true }).catch(() => false);
   closeLabelSettingsModal();
-  toast("Tata letak stiker berhasil disimpan.");
+  toast(synced ? "Tata letak stiker tersimpan dan tersinkron." : "Tata letak stiker tersimpan lokal; sync cloud akan dicoba lagi.");
 });
 
 els.labelPrinterPaperSize?.addEventListener("change", saveLabelPrinterSettingsFromUI);
 els.labelPrinterFeedMethod?.addEventListener("change", saveLabelPrinterSettingsFromUI);
+els.labelPrinterPitch?.addEventListener("input", saveLabelPrinterSettingsFromUI);
 els.labelPrinterDelay?.addEventListener("input", saveLabelPrinterSettingsFromUI);
 els.labelStickerOffsetX?.addEventListener("input", saveLabelPrinterSettingsFromUI);
 
@@ -8587,9 +8972,21 @@ const bindSettingListeners = (key) => {
   els[`label${key}Bold`]?.addEventListener("change", saveLabelPrinterSettingsFromUI);
   els[`label${key}FontSize`]?.addEventListener("input", saveLabelPrinterSettingsFromUI);
 };
-["DrinkName", "Notes", "OrderCode", "Customer", "Counter", "CustomText"].forEach(bindSettingListeners);
+  ["DrinkName", "Notes", "OrderCode", "Customer", "Counter", "CustomText"].forEach(bindSettingListeners);
 els.labelCustomTextValue?.addEventListener("input", saveLabelPrinterSettingsFromUI);
 els.labelBarcodeEnabled?.addEventListener("change", saveLabelPrinterSettingsFromUI);
+els.labelLogoEnabled?.addEventListener("change", saveLabelPrinterSettingsFromUI);
+els.labelServiceTypeEnabled?.addEventListener("change", saveLabelPrinterSettingsFromUI);
+els.labelServiceTypeFontSize?.addEventListener("input", saveLabelPrinterSettingsFromUI);
+els.labelDrinkNameHeight?.addEventListener("input", () => {
+  const height = Math.max(20, Math.min(100, Number(els.labelDrinkNameHeight.value || 48)));
+  if (els.labelDrinkNameHeightVal) els.labelDrinkNameHeightVal.textContent = String(height);
+  if (els.labelPreviewDrinkName) {
+    els.labelPreviewDrinkName.style.height = `${height}px`;
+    els.labelPreviewDrinkName.style.maxHeight = `${height}px`;
+  }
+  saveLabelPrinterSettingsFromUI();
+});
 
 window.addEventListener("resize", () => {
   const viewSettings = document.getElementById("view-settings");
