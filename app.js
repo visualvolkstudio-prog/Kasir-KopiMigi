@@ -5652,15 +5652,16 @@ async function encodeCupLabel(transaction, item, itemIndex, totalItems) {
 
       if (segment.isBarcode) {
         // Native ESC/POS Barcode printing
-        // Set barcode width (2 dots)
-        payload.push(GS, 0x77, 0x02);
+        // Set barcode width (1 dot for compact size)
+        payload.push(GS, 0x77, 0x01);
         // Set barcode height
         payload.push(GS, 0x68, segment.height);
         // Set HRI position below barcode
         payload.push(GS, 0x48, 0x02);
-        // Print CODE39 barcode
+        // Print CODE39 barcode (CODE39 needs asterisks wrapping to scan correctly)
         payload.push(GS, 0x6b, 0x04);
-        payload.push(...encoder.encode(segment.text));
+        const barcodeText = `*${segment.text}*`;
+        payload.push(...encoder.encode(barcodeText));
         payload.push(0x00); // Terminator
       } else {
         // Regular Text
@@ -5670,9 +5671,11 @@ async function encodeCupLabel(transaction, item, itemIndex, totalItems) {
         // Set font size multiplier
         let sizeByte = 0x00;
         if (segment.fontSize > 16 && segment.fontSize <= 22) {
-          sizeByte = 0x01; // Double Height
+          // GS ! memakai nibble bawah untuk lebar dan nibble atas untuk tinggi.
+          // 0x10 = tinggi 2×; sebelumnya 0x01 membuat judul melebar 2×.
+          sizeByte = 0x10;
         } else if (segment.fontSize > 22 && segment.fontSize <= 27) {
-          sizeByte = 0x10; // Double Width
+          sizeByte = 0x01; // Lebar 2×
         } else if (segment.fontSize > 27) {
           sizeByte = 0x11; // Double Size
         }
