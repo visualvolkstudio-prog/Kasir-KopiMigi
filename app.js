@@ -2641,10 +2641,17 @@ function getLabelPrinterSettings() {
 }
 
 function saveLabelPrinterSettingsFromUI() {
+  const paperSize = els.labelPrinterPaperSize?.value || "40x20mm";
+  let pitch = 160;
+  if (paperSize === "40x30mm") pitch = 240;
+  else if (paperSize === "40x40mm") pitch = 320;
+  else if (paperSize === "50x30mm") pitch = 240;
+  else if (paperSize === "58mm") pitch = 240;
+
   const settings = {
-    paperSize: els.labelPrinterPaperSize?.value || "40x20mm",
+    paperSize,
     feedMethod: els.labelPrinterFeedMethod?.value || "gap",
-    pitch: Number(els.labelPrinterPitch?.value || 160),
+    pitch,
     lineSpacing: Number(els.labelPrinterLineSpacing?.value || 20),
     labelDelay: Number(els.labelPrinterDelay?.value || 1200),
     labelMargin: Number(els.labelPrinterMargin?.value || 8),
@@ -2769,6 +2776,38 @@ function updateLabelPreview() {
 
   if (els.labelStickerOffsetXVal) els.labelStickerOffsetXVal.textContent = stickerOffsetX;
 
+  const paperSize = labelSettings.paperSize || "40x20mm";
+  let stickerWidth = 320;
+  let stickerHeight = 160;
+  
+  if (paperSize === "40x30mm") {
+    stickerWidth = 320;
+    stickerHeight = 240;
+  } else if (paperSize === "40x40mm") {
+    stickerWidth = 320;
+    stickerHeight = 320;
+  } else if (paperSize === "50x30mm") {
+    stickerWidth = 400;
+    stickerHeight = 240;
+  } else if (paperSize === "58mm") {
+    stickerWidth = 384;
+    stickerHeight = 240;
+  }
+
+  [els.labelPreviewPaper, document.getElementById("labelReadOnlyPreviewPaper")].forEach(p => {
+    if (p) {
+      p.style.width = `${stickerWidth + 64}px`;
+      p.style.height = `${stickerHeight}px`;
+    }
+  });
+
+  [els.labelPreviewSticker, document.getElementById("labelReadOnlyPreviewSticker")].forEach(s => {
+    if (s) {
+      s.style.width = `${stickerWidth}px`;
+      s.style.height = `${stickerHeight}px`;
+    }
+  });
+
   els.labelPreviewSticker.style.left = `${stickerOffsetX}px`;
   const readOnlySticker = document.getElementById("labelReadOnlyPreviewSticker");
   if (readOnlySticker) readOnlySticker.style.left = `${stickerOffsetX}px`;
@@ -2878,11 +2917,13 @@ function updateLabelPreview() {
     const parentWidth = paper.parentElement?.getBoundingClientRect().width || 384;
     const padding = 32;
     const availableWidth = parentWidth - padding;
-    if (availableWidth < 384) {
-      const scale = availableWidth / 384;
+    const currentPaperWidth = parseInt(paper.style.width || "384");
+    const currentPaperHeight = parseInt(paper.style.height || "160");
+    if (availableWidth < currentPaperWidth) {
+      const scale = availableWidth / currentPaperWidth;
       paper.style.transform = `scale(${scale})`;
       paper.style.transformOrigin = "center center";
-      paper.style.margin = `-${(160 - 160 * scale) / 2}px -${(384 - availableWidth) / 2}px`;
+      paper.style.margin = `-${(currentPaperHeight - currentPaperHeight * scale) / 2}px -${(currentPaperWidth - availableWidth) / 2}px`;
     } else {
       paper.style.transform = "none";
       paper.style.margin = "0";
