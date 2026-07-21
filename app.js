@@ -5688,9 +5688,10 @@ async function writePrinterChunks(bytes, characteristic = state.printerCharacter
 }
 
 async function writeLabelPrinterChunks(bytes) {
-  // Prefer acknowledged writes for large bitmap jobs. Printers that expose
-  // only write-without-response get conservative pacing instead.
-  return writePrinterChunks(bytes, state.labelPrinterCharacteristic, 8, true);
+  // Stream bitmap chunks continuously so the print head does not pause while
+  // waiting for an ACK after every 20 bytes. The inter-label delay below still
+  // gives the printer time to empty its buffer before the next bitmap.
+  return writePrinterChunks(bytes, state.labelPrinterCharacteristic, 6, false);
 }
 
 // Kategori yang TIDAK perlu cetak label cup (makanan, non-minuman)
@@ -5978,7 +5979,7 @@ async function encodeCupLabelBitmap(transaction, item, itemIndex, totalItems) {
   const printerWidth = LABEL_PRINTER_WIDTH_DOTS;
   // The EPPOS 58 mm head starts before the loaded 40 mm roll.
   // Compensate in bitmap mode so the first glyph does not get clipped.
-  const physicalCalibrationX = settings.paperSize === "40x20mm" ? 32 : 0;
+  const physicalCalibrationX = settings.paperSize === "40x20mm" ? 40 : 0;
   const offsetX = Math.max(0, Math.min(printerWidth - 1, Number(settings.stickerOffsetX || 0) + physicalCalibrationX));
   const titleCase = (value) => String(value || "").toLowerCase().split(" ").map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(" ");
   const txDate = transaction.createdAt ? new Date(transaction.createdAt) : new Date();
