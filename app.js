@@ -2661,57 +2661,57 @@ function saveLabelPrinterSettingsFromUI() {
     drinkNameEnabled: els.labelDrinkNameEnabled?.checked !== false,
     drinkNameBold: els.labelDrinkNameBold?.checked !== false,
     drinkNameFontSize: Number(els.labelDrinkNameFontSize?.value || 18),
-    drinkNameX: parseInt(els.labelPreviewDrinkName?.style.left || "12"),
-    drinkNameY: parseInt(els.labelPreviewDrinkName?.style.top || "12"),
+    drinkNameX: parseInt(els.labelPreviewDrinkName?.getAttribute("data-drag-x") || els.labelPreviewDrinkName?.style.left || "12"),
+    drinkNameY: parseInt(els.labelPreviewDrinkName?.getAttribute("data-drag-y") || els.labelPreviewDrinkName?.style.top || "12"),
     drinkNameWidth: parseInt(els.labelPreviewDrinkName?.style.width || "200"),
     drinkNameMaxHeight: parseInt(els.labelPreviewDrinkName?.style.height || "48"),
 
     notesEnabled: els.labelNotesEnabled?.checked !== false,
     notesBold: els.labelNotesBold?.checked === true,
     notesFontSize: Number(els.labelNotesFontSize?.value || 13),
-    notesX: parseInt(els.labelPreviewNotes?.style.left || "12"),
-    notesY: parseInt(els.labelPreviewNotes?.style.top || "48"),
+    notesX: parseInt(els.labelPreviewNotes?.getAttribute("data-drag-x") || els.labelPreviewNotes?.style.left || "12"),
+    notesY: parseInt(els.labelPreviewNotes?.getAttribute("data-drag-y") || els.labelPreviewNotes?.style.top || "48"),
     notesWidth: parseInt(els.labelPreviewNotes?.style.width || "280"),
     notesMaxHeight: parseInt(els.labelPreviewNotes?.style.height || "24"),
 
     orderCodeEnabled: els.labelOrderCodeEnabled?.checked !== false,
     orderCodeBold: els.labelOrderCodeBold?.checked === true,
     orderCodeFontSize: Number(els.labelOrderCodeFontSize?.value || 13),
-    orderCodeX: parseInt(els.labelPreviewOrderCode?.style.left || "12"),
-    orderCodeY: parseInt(els.labelPreviewOrderCode?.style.top || "84"),
+    orderCodeX: parseInt(els.labelPreviewOrderCode?.getAttribute("data-drag-x") || els.labelPreviewOrderCode?.style.left || "12"),
+    orderCodeY: parseInt(els.labelPreviewOrderCode?.getAttribute("data-drag-y") || els.labelPreviewOrderCode?.style.top || "84"),
     orderCodeWidth: parseInt(els.labelPreviewOrderCode?.style.width || "120"),
     orderCodeMaxHeight: parseInt(els.labelPreviewOrderCode?.style.height || "24"),
 
     customerEnabled: els.labelCustomerEnabled?.checked !== false,
     customerBold: els.labelCustomerBold?.checked === true,
     customerFontSize: Number(els.labelCustomerFontSize?.value || 13),
-    customerX: parseInt(els.labelPreviewCustomer?.style.left || "12"),
-    customerY: parseInt(els.labelPreviewCustomer?.style.top || "110"),
+    customerX: parseInt(els.labelPreviewCustomer?.getAttribute("data-drag-x") || els.labelPreviewCustomer?.style.left || "12"),
+    customerY: parseInt(els.labelPreviewCustomer?.getAttribute("data-drag-y") || els.labelPreviewCustomer?.style.top || "110"),
     customerWidth: parseInt(els.labelPreviewCustomer?.style.width || "150"),
     customerMaxHeight: parseInt(els.labelPreviewCustomer?.style.height || "24"),
 
     counterEnabled: els.labelCounterEnabled?.checked !== false,
     counterBold: els.labelCounterBold?.checked === true,
     counterFontSize: Number(els.labelCounterFontSize?.value || 13),
-    counterX: parseInt(els.labelPreviewCounter?.style.left || "240"),
-    counterY: parseInt(els.labelPreviewCounter?.style.top || "84"),
+    counterX: parseInt(els.labelPreviewCounter?.getAttribute("data-drag-x") || els.labelPreviewCounter?.style.left || "240"),
+    counterY: parseInt(els.labelPreviewCounter?.getAttribute("data-drag-y") || els.labelPreviewCounter?.style.top || "84"),
     counterWidth: parseInt(els.labelPreviewCounter?.style.width || "80"),
     counterMaxHeight: parseInt(els.labelPreviewCounter?.style.height || "24"),
 
     customTextEnabled: els.labelCustomTextEnabled?.checked === true,
     customTextBold: els.labelCustomTextBold?.checked !== false,
     customTextFontSize: Number(els.labelCustomTextFontSize?.value || 11),
-    customTextX: parseInt(els.labelPreviewCustomText?.style.left || "150"),
-    customTextY: parseInt(els.labelPreviewCustomText?.style.top || "12"),
+    customTextX: parseInt(els.labelPreviewCustomText?.getAttribute("data-drag-x") || els.labelPreviewCustomText?.style.left || "150"),
+    customTextY: parseInt(els.labelPreviewCustomText?.getAttribute("data-drag-y") || els.labelPreviewCustomText?.style.top || "12"),
     customTextWidth: parseInt(els.labelPreviewCustomText?.style.width || "100"),
     customTextMaxHeight: parseInt(els.labelPreviewCustomText?.style.height || "24"),
     customTextValue: els.labelCustomTextValue?.value || "TEMAN",
 
     barcodeEnabled: els.labelBarcodeEnabled?.checked === true,
-    barcodeX: parseInt(els.labelPreviewBarcode?.style.left || "60"),
-    barcodeY: parseInt(els.labelPreviewBarcode?.style.top || "130"),
+    barcodeX: parseInt(els.labelPreviewBarcode?.getAttribute("data-drag-x") || els.labelPreviewBarcode?.style.left || "60"),
+    barcodeY: parseInt(els.labelPreviewBarcode?.getAttribute("data-drag-y") || els.labelPreviewBarcode?.style.top || "130"),
     barcodeWidth: parseInt(els.labelPreviewBarcode?.style.width || "200"),
-    barcodeMaxHeight: parseInt(els.labelPreviewBarcode?.style.height || "30")
+    barcodeMaxHeight: parseInt(els.labelPreviewBarcode?.style.height || "20")
   };
   writeJson("kasir-migi-label-printer-settings", settings);
   toggleLabelPrinterManualSettingsVisibility();
@@ -2822,6 +2822,8 @@ function updateLabelPreview() {
     { key: "Barcode", label: "Barcode", defaultText: "12345678", isBarcode: true }
   ];
 
+  const segments = [];
+
   elements.forEach(({ key, label, defaultText, isFreeText, isBarcode }) => {
     const previewEl = els[`labelPreview${key}`];
     const readOnlyEl = document.getElementById(`labelReadOnlyPreview${key}`);
@@ -2837,10 +2839,8 @@ function updateLabelPreview() {
 
     const enabled = enabledInput ? enabledInput.checked : (labelSettings[`${key.charAt(0).toLowerCase() + key.slice(1)}Enabled`] !== false);
     
-    // Crucial bug fix: ensure fontSize never returns 0/NaN on initialization
     const fontSizeInputVal = fontSizeInput ? Number(fontSizeInput.value) : 0;
     const fontSize = fontSizeInputVal || Number(labelSettings[`${key.charAt(0).toLowerCase() + key.slice(1)}FontSize`] || 13);
-    
     const bold = boldInput ? boldInput.checked : (labelSettings[`${key.charAt(0).toLowerCase() + key.slice(1)}Bold`] === true);
 
     if (fontSizeVal && fontSizeInput) fontSizeVal.textContent = fontSize;
@@ -2850,9 +2850,11 @@ function updateLabelPreview() {
 
     let height = parseInt(previewEl.style.height || String(labelSettings[`${key.charAt(0).toLowerCase() + key.slice(1)}MaxHeight`] || (key === "DrinkName" ? 48 : (key === "Barcode" ? 20 : 24))));
 
-    let x = parseInt(previewEl.style.left || String(labelSettings[`${key.charAt(0).toLowerCase() + key.slice(1)}X`] || (key === "Barcode" ? 60 : 12)));
-    let y = parseInt(previewEl.style.top || String(labelSettings[`${key.charAt(0).toLowerCase() + key.slice(1)}Y`] || (key === "Barcode" ? 130 : 12)));
-    if (posVal) posVal.textContent = `X:${x}, Y:${y}`;
+    let x = parseInt(previewEl.getAttribute("data-drag-x") || String(labelSettings[`${key.charAt(0).toLowerCase() + key.slice(1)}X`] || (key === "Barcode" ? 60 : 12)));
+    let y = parseInt(previewEl.getAttribute("data-drag-y") || String(labelSettings[`${key.charAt(0).toLowerCase() + key.slice(1)}Y`] || (key === "Barcode" ? 130 : 12)));
+
+    previewEl.setAttribute("data-drag-x", x);
+    previewEl.setAttribute("data-drag-y", y);
 
     let text = defaultText;
     if (isBarcode) {
@@ -2867,56 +2869,125 @@ function updateLabelPreview() {
       text = labelSettings.customTextValue || defaultText;
     }
 
+    if (enabled) {
+      let charHeight = 24;
+      if (isBarcode) {
+        charHeight = height + 24; // barcode height + HRI text
+      } else {
+        if (fontSize < 11) charHeight = 17;
+        else if (fontSize >= 11 && fontSize <= 16) charHeight = 24;
+        else if (fontSize > 16 && fontSize <= 22) charHeight = 48;
+        else if (fontSize > 22 && fontSize <= 27) charHeight = 24;
+        else charHeight = 48;
+      }
+
+      segments.push({
+        key,
+        x,
+        y,
+        width,
+        height,
+        charHeight,
+        fontSize,
+        bold,
+        text,
+        isBarcode,
+        previewEl,
+        readOnlyEl,
+        posVal
+      });
+    } else {
+      [previewEl, readOnlyEl].forEach(el => {
+        if (el) el.style.display = "none";
+      });
+    }
+  });
+
+  // Sort and apply push-down physics matching EPPOS text rendering
+  segments.sort((a, b) => a.y - b.y);
+
+  const printRows = [];
+  for (const segment of segments) {
+    let foundRow = printRows.find(r => Math.abs(r.y - segment.y) < 12);
+    if (!foundRow) {
+      foundRow = {
+        y: segment.y,
+        segments: [],
+        maxCharHeight: 0
+      };
+      printRows.push(foundRow);
+    }
+    foundRow.segments.push(segment);
+    if (segment.charHeight > foundRow.maxCharHeight) {
+      foundRow.maxCharHeight = segment.charHeight;
+    }
+  }
+
+  printRows.sort((a, b) => a.y - b.y);
+
+  let currentY = 0;
+  printRows.forEach(row => {
+    let feedDots = row.y - currentY;
+    if (feedDots < 0) {
+      feedDots = 0;
+    }
+    const printedY = currentY + feedDots;
+    row.segments.forEach(segment => {
+      segment.printedY = printedY;
+    });
+    currentY = printedY + row.maxCharHeight;
+  });
+
+  segments.forEach((segment) => {
+    const { key, x, printedY, width, height, fontSize, bold, text, isBarcode, previewEl, readOnlyEl, posVal } = segment;
+
+    if (posVal) posVal.textContent = `X:${x}, Y:${printedY}`;
+
     let actualLineHeight = 24;
     let actualFontSize = 13;
-    if (fontSize < 11) {
-      actualLineHeight = 17;
-      actualFontSize = 10;
-    } else if (fontSize >= 11 && fontSize <= 16) {
-      actualLineHeight = 24;
-      actualFontSize = 13;
-    } else if (fontSize > 16 && fontSize <= 22) {
-      actualLineHeight = 48;
-      actualFontSize = 13;
-    } else if (fontSize > 22 && fontSize <= 27) {
-      actualLineHeight = 24;
-      actualFontSize = 26;
+    if (isBarcode) {
+      actualLineHeight = height + 24;
     } else {
-      actualLineHeight = 48;
-      actualFontSize = 26;
+      if (fontSize < 11) {
+        actualLineHeight = 17;
+        actualFontSize = 11;
+      } else if (fontSize >= 11 && fontSize <= 16) {
+        actualLineHeight = 24;
+        actualFontSize = 15;
+      } else if (fontSize > 16 && fontSize <= 22) {
+        actualLineHeight = 48;
+        actualFontSize = 15;
+      } else if (fontSize > 22 && fontSize <= 27) {
+        actualLineHeight = 24;
+        actualFontSize = 30;
+      } else {
+        actualLineHeight = 48;
+        actualFontSize = 30;
+      }
     }
 
-    const lineClamp = Math.max(1, Math.floor(height / actualLineHeight));
-    const clampedHeight = lineClamp * actualLineHeight;
+    const lineClamp = Math.max(1, Math.floor(height / (isBarcode ? height : actualLineHeight)));
+    const clampedHeight = lineClamp * (isBarcode ? (height + 24) : actualLineHeight);
 
     [previewEl, readOnlyEl].forEach((el) => {
       if (!el) return;
-      if (!enabled) {
-        el.style.display = "none";
-        return;
-      }
-      
+      el.style.display = isBarcode ? "flex" : "block";
+      el.style.left = `${x}px`;
+      el.style.top = `${printedY}px`;
+      el.style.width = `${width}px`;
+
       if (isBarcode) {
-        el.style.display = "flex";
-        el.style.width = `${width}px`;
-        el.style.height = `${height + 24}px`; // Include HRI text space
-        el.style.left = `${x}px`;
-        el.style.top = `${y}px`;
+        el.style.height = `${height + 24}px`;
         const spanEl = el.querySelector("span");
         if (spanEl) spanEl.textContent = text;
         return;
       }
 
-      el.style.display = "block";
       el.style.fontSize = `${actualFontSize}px`;
       el.style.lineHeight = `${actualLineHeight}px`;
       el.style.fontWeight = bold ? "bold" : "normal";
-      el.style.width = `${width}px`;
       el.style.maxWidth = `${width}px`;
-      el.style.left = `${x}px`;
-      el.style.top = `${y}px`;
 
-      // Enforce line clamping / height limit truncation dynamically matching printer
       el.style.display = "-webkit-box";
       el.style.webkitBoxOrient = "vertical";
       el.style.overflow = "hidden";
@@ -3021,8 +3092,8 @@ function initDraggableRows() {
       
       startX = clientX;
       startY = clientY;
-      originalLeft = parseInt(el.style.left || "12");
-      originalTop = parseInt(el.style.top || "12");
+      originalLeft = parseInt(el.getAttribute("data-drag-x") || el.style.left || "12");
+      originalTop = parseInt(el.getAttribute("data-drag-y") || el.style.top || "12");
       
       e.preventDefault();
     };
@@ -3076,11 +3147,13 @@ function initDraggableRows() {
         newLeft = Math.max(0, Math.min(containerWidth - elWidth, newLeft));
         newTop = Math.max(0, Math.min(containerHeight - elHeight, newTop));
         
-        el.style.left = `${newLeft}px`;
-        el.style.top = `${newTop}px`;
+        el.setAttribute("data-drag-x", newLeft);
+        el.setAttribute("data-drag-y", newTop);
 
         const posVal = document.getElementById(`label${key}PosVal`);
         if (posVal) posVal.textContent = `X:${newLeft}, Y:${newTop}`;
+
+        updateLabelPreview();
       }
     };
 
