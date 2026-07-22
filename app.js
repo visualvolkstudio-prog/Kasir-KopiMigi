@@ -3655,19 +3655,22 @@ async function testLabelPrint() {
       els.testLabelPrint.disabled = true;
       els.testLabelPrint.textContent = "Mengirim...";
     }
+    const activeCartItem = state.cart.find((item) => isBeverageItem(item));
     const mockTransaction = {
-      orderCode: "999",
-      customer: "Test Migi",
-      serviceType: "dine_in",
+      orderCode: els.orderTableNumber?.value.trim() || els.tableNumber?.value.trim() || "999",
+      customer: els.customerName?.value.trim() || "Test Migi",
+      serviceType: state.serviceType || "dine_in",
       createdAt: new Date().toISOString()
     };
-    const mockItem = {
+    const mockItem = activeCartItem || {
       name: "KOPI SUSU MIGI",
       notes: "ICE · REGULAR · LESS SUGAR"
     };
     const bytes = await encodeCupLabelBitmap(mockTransaction, mockItem, 0, 1);
     await writeLabelPrinterChunks(bytes);
-    toast("Test label dikirim ke printer.");
+    toast(activeCartItem
+      ? `Test label ${activeCartItem.name}${activeCartItem.notes ? ` · ${activeCartItem.notes}` : ""} dikirim ke printer.`
+      : "Test label contoh dikirim ke printer.");
   } catch (error) {
     toast(`Test label gagal: ${error.message}`);
   } finally {
@@ -5179,12 +5182,14 @@ function currentTransaction(draft = false) {
     sendToBooth: hasPhotoboothCart(),
     paid,
     change: onlineChannel ? 0 : Math.max(0, paid - total.grandTotal),
-    items: transactionItems.map(({ id, name, category, price, qty, isCustomOrder, customStockUsage }) => ({
+    items: transactionItems.map(({ id, name, category, price, qty, notes, printLabel, isCustomOrder, customStockUsage }) => ({
       id,
       name,
       category,
       price,
       qty,
+      ...(notes ? { notes } : {}),
+      ...(typeof printLabel === "boolean" ? { printLabel } : {}),
       ...(isCustomOrder ? { isCustomOrder: true } : {}),
       ...(customStockUsage ? { customStockUsage } : {}),
     })),
@@ -5701,6 +5706,12 @@ function isBeverageItem(item) {
   // Prioritaskan saklar printLabel per produk jika didefinisikan
   if (item.printLabel === false) return false;
   if (item.printLabel === true) return true;
+
+  // Transaksi lama belum menyimpan printLabel pada item. Untuk cetak ulang,
+  // tetap hormati pengaturan menu terkini sebelum memakai fallback kategori.
+  const menuItem = getMenu().find((entry) => entry.id === item.id);
+  if (menuItem?.printLabel === false) return false;
+  if (menuItem?.printLabel === true) return true;
 
   // Fallback berdasarkan kategori jika properti belum diset
   const cat = String(item.category || "").toLowerCase();
