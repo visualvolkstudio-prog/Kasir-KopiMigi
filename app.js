@@ -240,6 +240,7 @@ const els = {
   printerPanelKasir: document.querySelector("#printerPanelKasir"),
   printerPanelLabel: document.querySelector("#printerPanelLabel"),
   labelPrinterStatus: document.querySelector("#labelPrinterStatus"),
+  labelPrinterCheckoutWarning: document.querySelector("#labelPrinterCheckoutWarning"),
   labelPrinterPaperSize: document.querySelector("#labelPrinterPaperSize"),
   labelPrinterFeedMethod: document.querySelector("#labelPrinterFeedMethod"),
   labelPrinterManualSettings: document.querySelector("#labelPrinterManualSettings"),
@@ -251,6 +252,7 @@ const els = {
   labelPreviewPaper: document.querySelector("#labelPreviewPaper"),
   labelPreviewSticker: document.querySelector("#labelPreviewSticker"),
   labelPreviewLogo: document.querySelector("#labelPreviewLogo"),
+  labelPreviewCustomImage: document.querySelector("#labelPreviewCustomImage"),
   labelStickerOffsetX: document.querySelector("#labelStickerOffsetX"),
   labelStickerOffsetXVal: document.querySelector("#labelStickerOffsetXVal"),
 
@@ -313,6 +315,10 @@ const els = {
   labelServiceTypeFontSizeVal: document.querySelector("#labelServiceTypeFontSizeVal"),
   labelBarcodeEnabled: document.querySelector("#labelBarcodeEnabled"),
   labelBarcodeWidth: document.querySelector("#labelBarcodeWidth"),
+  labelCustomImageEnabled: document.querySelector("#labelCustomImageEnabled"),
+  labelCustomImageFile: document.querySelector("#labelCustomImageFile"),
+  labelCustomImageHint: document.querySelector("#labelCustomImageHint"),
+  removeLabelCustomImage: document.querySelector("#removeLabelCustomImage"),
   connectLabelPrinter: document.querySelector("#connectLabelPrinter"),
   testLabelPrint: document.querySelector("#testLabelPrint"),
   labelPrinterHint: document.querySelector("#labelPrinterHint"),
@@ -324,6 +330,8 @@ const els = {
   itemCustomNoteOptions: document.querySelector("#itemCustomNoteOptions"),
 
   customTemp: document.querySelector("#customTemp"),
+  customIce: document.querySelector("#customIce"),
+  customIceGroup: document.querySelector("#customIceGroup"),
   customSugar: document.querySelector("#customSugar"),
   customSize: document.querySelector("#customSize"),
   customTextNote: document.querySelector("#customTextNote"),
@@ -2521,10 +2529,10 @@ function setPrinterStatus(status, tone, hint) {
   els.connectPrinter.disabled = tone === "connecting";
   els.printerHint.textContent = hint;
 
-  // Badge on printer icon: show amber dot when label printer disconnected (and kasir connected)
+  // Label printer is optional, but its warning remains visible regardless of
+  // the receipt-printer connection.
   if (els.printerBadge) {
-    const showBadge = state.printerCharacteristic && !state.labelPrinterCharacteristic;
-    els.printerBadge.classList.toggle("hidden", !showBadge);
+    els.printerBadge.classList.toggle("hidden", isLabelPrinterReady());
   }
 }
 
@@ -2545,11 +2553,11 @@ function setLabelPrinterStatus(status, tone, hint) {
     els.connectLabelPrinter.disabled = tone === "connecting";
   }
   if (els.labelPrinterHint) els.labelPrinterHint.textContent = hint;
-  // Badge on printer icon: show amber dot when label printer disconnected (and kasir connected)
+  // Keep the indicator and checkout notice in sync with the actual GATT state.
   if (els.printerBadge) {
-    const showBadge = state.printerCharacteristic && !state.labelPrinterCharacteristic;
-    els.printerBadge.classList.toggle("hidden", !showBadge);
+    els.printerBadge.classList.toggle("hidden", isLabelPrinterReady());
   }
+  updateLabelPrinterCheckoutWarning();
 }
 
 function switchPrinterTab(tab) {
@@ -2701,6 +2709,13 @@ function getLabelPrinterSettings() {
     logoWidth: 32,
     logoMaxHeight: 32,
 
+    customImageEnabled: false,
+    customImageData: "",
+    customImageX: 260,
+    customImageY: 12,
+    customImageWidth: 48,
+    customImageMaxHeight: 48,
+
     barcodeEnabled: false,
     barcodeX: 60,
     barcodeY: 130,
@@ -2718,6 +2733,17 @@ function getLabelPrinterSettings() {
   if (settings && !settings.labelTransportV128Applied) {
     settings.labelDelay = Math.max(1500, Number(settings.labelDelay || 0));
     settings.labelTransportV128Applied = true;
+    writeJson("kasir-migi-label-printer-settings", settings);
+  }
+  if (settings && settings.customImageEnabled === undefined) {
+    Object.assign(settings, {
+      customImageEnabled: false,
+      customImageData: "",
+      customImageX: 260,
+      customImageY: 12,
+      customImageWidth: 48,
+      customImageMaxHeight: 48,
+    });
     writeJson("kasir-migi-label-printer-settings", settings);
   }
   if (settings && (settings.serviceTypeY === undefined || settings.serviceTypeY >= 110)) {
@@ -2818,7 +2844,7 @@ function getLabelPrinterSettings() {
   return settings;
 }
 
-const LABEL_LAYOUT_KEYS = ["Logo", "DrinkName", "Notes", "OrderCode", "Customer", "ServiceType", "Counter", "CustomText", "Barcode"];
+const LABEL_LAYOUT_KEYS = ["Logo", "CustomImage", "DrinkName", "Notes", "OrderCode", "Customer", "ServiceType", "Counter", "CustomText", "Barcode"];
 
 function scaleLabelLayoutForPaperChange(previousSettings, nextPaperSize) {
   const previousPaper = getLabelPaperDimensions(previousSettings);
@@ -2944,6 +2970,12 @@ function saveLabelPrinterSettingsFromUI() {
     logoWidth: parseInt(els.labelPreviewLogo?.style.width || "32"),
     logoMaxHeight: parseInt(els.labelPreviewLogo?.style.height || "32"),
 
+    customImageEnabled: els.labelCustomImageEnabled?.checked === true && Boolean(previousSettings.customImageData),
+    customImageX: parseInt(els.labelPreviewCustomImage?.getAttribute("data-drag-x") || els.labelPreviewCustomImage?.style.left || "260"),
+    customImageY: parseInt(els.labelPreviewCustomImage?.getAttribute("data-drag-y") || els.labelPreviewCustomImage?.style.top || "12"),
+    customImageWidth: parseInt(els.labelPreviewCustomImage?.style.width || "48"),
+    customImageMaxHeight: parseInt(els.labelPreviewCustomImage?.style.height || "48"),
+
     barcodeEnabled: els.labelBarcodeEnabled?.checked === true,
     barcodeX: parseInt(els.labelPreviewBarcode?.getAttribute("data-drag-x") || els.labelPreviewBarcode?.style.left || "60"),
     barcodeY: parseInt(els.labelPreviewBarcode?.getAttribute("data-drag-y") || els.labelPreviewBarcode?.style.top || "130"),
@@ -2979,6 +3011,102 @@ function persistLabelLayoutSnapshot() {
 // drag gesture is still active and the normal mouseup handler has not fired.
 window.addEventListener("pagehide", persistLabelLayoutSnapshot);
 
+async function prepareLabelCustomImage(file) {
+  if (!file || !file.type.startsWith("image/")) throw new Error("Pilih file gambar PNG, JPG, atau WebP.");
+  if (file.size > 5 * 1024 * 1024) throw new Error("Ukuran gambar maksimal 5 MB.");
+
+  const objectUrl = URL.createObjectURL(file);
+  try {
+    const source = await new Promise((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => resolve(image);
+      image.onerror = () => reject(new Error("File gambar tidak dapat dibaca."));
+      image.src = objectUrl;
+    });
+    const maxDimension = 256;
+    const scale = Math.min(1, maxDimension / Math.max(source.naturalWidth, source.naturalHeight));
+    const width = Math.max(1, Math.round(source.naturalWidth * scale));
+    const height = Math.max(1, Math.round(source.naturalHeight * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, width, height);
+    ctx.drawImage(source, 0, 0, width, height);
+
+    // Simpan persis seperti hasil thermal: monokrom dan berukuran kecil.
+    const pixels = ctx.getImageData(0, 0, width, height);
+    for (let index = 0; index < pixels.data.length; index += 4) {
+      const luminance = 0.299 * pixels.data[index] + 0.587 * pixels.data[index + 1] + 0.114 * pixels.data[index + 2];
+      const value = luminance < 190 ? 0 : 255;
+      pixels.data[index] = value;
+      pixels.data[index + 1] = value;
+      pixels.data[index + 2] = value;
+      pixels.data[index + 3] = 255;
+    }
+    ctx.putImageData(pixels, 0, 0);
+    return { dataUrl: canvas.toDataURL("image/png"), width, height };
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
+async function handleLabelCustomImageUpload(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  try {
+    if (els.labelCustomImageHint) els.labelCustomImageHint.textContent = "Memproses gambar...";
+    const processed = await prepareLabelCustomImage(file);
+    const paper = getLabelPaperDimensions(getLabelPrinterSettings());
+    const displayWidth = Math.max(24, Math.min(80, Math.round(processed.width * Math.min(1, 64 / processed.width))));
+    const displayHeight = Math.max(15, Math.min(paper.height, Math.round(displayWidth * processed.height / processed.width)));
+    const settings = getLabelPrinterSettings();
+    Object.assign(settings, {
+      customImageData: processed.dataUrl,
+      customImageEnabled: true,
+      customImageWidth: displayWidth,
+      customImageMaxHeight: displayHeight,
+    });
+    writeJson("kasir-migi-label-printer-settings", settings);
+    markSettingsDirty();
+    if (els.labelCustomImageEnabled) els.labelCustomImageEnabled.checked = true;
+    if (els.labelPreviewCustomImage) {
+      els.labelPreviewCustomImage.style.width = `${displayWidth}px`;
+      els.labelPreviewCustomImage.style.height = `${displayHeight}px`;
+      els.labelPreviewCustomImage.style.maxHeight = `${displayHeight}px`;
+    }
+    updateLabelPreview();
+    renderLabelSettingsSummary();
+    if (els.labelCustomImageHint) els.labelCustomImageHint.textContent = `${file.name} siap · tarik gambarnya di preview untuk mengatur posisi dan ukuran.`;
+    toast("Gambar dekorasi ditambahkan ke label.");
+  } catch (error) {
+    if (els.labelCustomImageHint) els.labelCustomImageHint.textContent = error.message;
+    toast(error.message);
+  } finally {
+    event.target.value = "";
+  }
+}
+
+function removeLabelCustomImage() {
+  const settings = getLabelPrinterSettings();
+  settings.customImageData = "";
+  settings.customImageEnabled = false;
+  writeJson("kasir-migi-label-printer-settings", settings);
+  markSettingsDirty();
+  if (els.labelCustomImageEnabled) els.labelCustomImageEnabled.checked = false;
+  if (els.labelCustomImageHint) {
+    els.labelCustomImageHint.textContent = "PNG/JPG/WebP maks. 5 MB. Gambar otomatis diperkecil dan dicetak hitam-putih.";
+  }
+  [els.labelPreviewCustomImage, document.getElementById("labelReadOnlyPreviewCustomImage")].forEach((element) => {
+    const image = element?.querySelector("img");
+    if (image) image.removeAttribute("src");
+  });
+  updateLabelPreview();
+  renderLabelSettingsSummary();
+  toast("Gambar dekorasi dihapus.");
+}
+
 function toggleLabelPrinterManualSettingsVisibility() {
   if (!els.labelPrinterFeedMethod || !els.labelPrinterManualSettings) return;
   const isManual = els.labelPrinterFeedMethod.value === "manual";
@@ -2990,6 +3118,7 @@ function renderLabelSettingsSummary() {
   if (!container) return;
   const settings = getLabelPrinterSettings();
   const elements = [
+    { key: "CustomImage", label: "Gambar Dekorasi", isGraphic: true },
     { key: "DrinkName", label: "Nama Produk" },
     { key: "Notes", label: "Catatan Varian" },
     { key: "OrderCode", label: "Nomor Pesanan" },
@@ -3001,12 +3130,14 @@ function renderLabelSettingsSummary() {
   let html = '<div style="font-weight: 600; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">Konfigurasi Aktif saat ini:</div>';
   let activeCount = 0;
   
-  elements.forEach(({ key, label, textVal }) => {
+  elements.forEach(({ key, label, textVal, isGraphic }) => {
     const keyLower = key.charAt(0).toLowerCase() + key.slice(1);
     const enabled = settings[`${keyLower}Enabled`] !== false;
     if (enabled) {
       activeCount++;
-      const size = settings[`${keyLower}FontSize`] !== undefined ? settings[`${keyLower}FontSize`] : 13;
+      const size = isGraphic
+        ? `${settings.customImageWidth || 48}×${settings.customImageMaxHeight || 48}`
+        : (settings[`${keyLower}FontSize`] !== undefined ? settings[`${keyLower}FontSize`] : 13);
       const bold = settings[`${keyLower}Bold`] === true ? " · B" : "";
       const extra = (key === "CustomText" && textVal) ? ` ("${textVal}")` : "";
       html += `
@@ -3066,6 +3197,7 @@ function updateLabelPreview() {
 
   const elements = [
     { key: "Logo", label: "Logo", defaultText: "", isImage: true },
+    { key: "CustomImage", label: "Gambar Dekorasi", defaultText: "", isImage: true, imageData: labelSettings.customImageData },
     { key: "DrinkName", label: "Nama Produk", defaultText: "Kopi Susu Migi" },
     { key: "Notes", label: "Catatan Varian", defaultText: "Ice * Less Sugar" },
     { key: "OrderCode", label: "Nomor Pesanan", defaultText: "#SB-001" },
@@ -3078,7 +3210,7 @@ function updateLabelPreview() {
 
   const segments = [];
 
-  elements.forEach(({ key, label, defaultText, isFreeText, isBarcode, isImage }) => {
+  elements.forEach(({ key, label, defaultText, isFreeText, isBarcode, isImage, imageData }) => {
     const previewEl = els[`labelPreview${key}`];
     const readOnlyEl = document.getElementById(`labelReadOnlyPreview${key}`);
     const enabledInput = els[`label${key}Enabled`];
@@ -3090,7 +3222,8 @@ function updateLabelPreview() {
 
     if (!previewEl) return;
 
-    const enabled = enabledInput ? enabledInput.checked : (labelSettings[`${key.charAt(0).toLowerCase() + key.slice(1)}Enabled`] !== false);
+    const enabledBySetting = enabledInput ? enabledInput.checked : (labelSettings[`${key.charAt(0).toLowerCase() + key.slice(1)}Enabled`] !== false);
+    const enabled = key === "CustomImage" ? enabledBySetting && Boolean(labelSettings.customImageData) : enabledBySetting;
     
     const fontSizeInputVal = fontSizeInput ? Number(fontSizeInput.value) : Number(labelSettings[`${key.charAt(0).toLowerCase() + key.slice(1)}FontSize`] ?? 16);
     const fontSize = fontSizeInput
@@ -3102,8 +3235,8 @@ function updateLabelPreview() {
       fontSizeVal.textContent = String(fontSize);
     }
 
-    const defaultWidths = { Logo: 32, DrinkName: 200, Notes: 280, OrderCode: 120, Customer: 150, ServiceType: 120, Counter: 80, CustomText: 100, Barcode: 160 };
-    const defaultHeights = { Logo: 32, DrinkName: 48, Notes: 24, OrderCode: 24, Customer: 24, ServiceType: 24, Counter: 24, CustomText: 24, Barcode: 20 };
+    const defaultWidths = { Logo: 32, CustomImage: 48, DrinkName: 200, Notes: 280, OrderCode: 120, Customer: 150, ServiceType: 120, Counter: 80, CustomText: 100, Barcode: 160 };
+    const defaultHeights = { Logo: 32, CustomImage: 48, DrinkName: 48, Notes: 24, OrderCode: 24, Customer: 24, ServiceType: 24, Counter: 24, CustomText: 24, Barcode: 20 };
     
     let width = Number(labelSettings[`${key.charAt(0).toLowerCase() + key.slice(1)}Width`] || defaultWidths[key]);
     if (widthHidden) widthHidden.value = width;
@@ -3151,6 +3284,7 @@ function updateLabelPreview() {
         text,
         isBarcode,
         isImage,
+        imageData,
         previewEl,
         readOnlyEl,
         posVal: null
@@ -3169,13 +3303,15 @@ function updateLabelPreview() {
   });
 
   segments.forEach((segment) => {
-    const { key, x, printedY, width, height, fontSize, bold, text, isBarcode, isImage, previewEl, readOnlyEl, posVal } = segment;
+    const { key, x, printedY, width, height, fontSize, bold, text, isBarcode, isImage, imageData, previewEl, readOnlyEl, posVal } = segment;
 
     let actualLineHeight = 24;
     let actualFontSize = 13;
     if (isImage) {
       [previewEl, readOnlyEl].forEach((el) => {
         if (!el) return;
+        const image = el.querySelector("img");
+        if (image && imageData) image.src = imageData;
         el.style.display = "block";
         el.style.left = `${x}px`;
         el.style.top = `${printedY}px`;
@@ -3213,6 +3349,7 @@ function updateLabelPreview() {
 
       el.style.fontSize = `${actualFontSize}px`;
       el.style.lineHeight = `${actualLineHeight}px`;
+      el.style.fontFamily = "Geist, Arial, sans-serif";
       el.style.letterSpacing = getLabelFontMetrics(fontSize).widthMultiplier === 2 ? "12px" : "normal";
       el.style.fontWeight = bold ? "bold" : "normal";
       el.style.maxWidth = `${width}px`;
@@ -3233,6 +3370,37 @@ function updateLabelPreview() {
       }
     });
   });
+
+  const collisionWarning = document.getElementById("labelLayoutCollisionWarning");
+  if (collisionWarning) {
+    const collisions = [];
+    for (let leftIndex = 0; leftIndex < segments.length; leftIndex += 1) {
+      for (let rightIndex = leftIndex + 1; rightIndex < segments.length; rightIndex += 1) {
+        const left = segments[leftIndex];
+        const right = segments[rightIndex];
+        const leftHeight = left.isBarcode ? left.height + 24 : left.height;
+        const rightHeight = right.isBarcode ? right.height + 24 : right.height;
+        const overlapWidth = Math.min(left.x + left.width, right.x + right.width) - Math.max(left.x, right.x);
+        const overlapHeight = Math.min(left.y + leftHeight, right.y + rightHeight) - Math.max(left.y, right.y);
+        if (overlapWidth > 4 && overlapHeight > 4) collisions.push(`${left.key}–${right.key}`);
+      }
+    }
+    const clipped = segments
+      .filter((segment) => {
+        const boxHeight = segment.isBarcode ? segment.height + 24 : segment.height;
+        return segment.x < 0 || segment.y < 0 ||
+          segment.x + segment.width > stickerWidth ||
+          segment.y + boxHeight > stickerHeight;
+      })
+      .map((segment) => segment.key);
+    if (clipped.length) {
+      collisions.push(`keluar batas: ${clipped.slice(0, 2).join(", ")}`);
+    }
+    collisionWarning.style.display = collisions.length ? "block" : "none";
+    collisionWarning.textContent = collisions.length
+      ? `⚠ Ada elemen bertumpuk: ${collisions.slice(0, 3).join(", ")}${collisions.length > 3 ? ` +${collisions.length - 3}` : ""}`
+      : "";
+  }
 
   [els.labelPreviewPaper, document.getElementById("labelReadOnlyPreviewPaper")].forEach((paper) => {
     if (!paper) return;
@@ -3264,6 +3432,7 @@ function updateLabelPreview() {
 function initDraggableRows() {
   const items = [
     { el: els.labelPreviewLogo, key: "Logo" },
+    { el: els.labelPreviewCustomImage, key: "CustomImage" },
     { el: els.labelPreviewDrinkName, key: "DrinkName" },
     { el: els.labelPreviewNotes, key: "Notes" },
     { el: els.labelPreviewOrderCode, key: "OrderCode" },
@@ -3460,7 +3629,7 @@ function initPrinterSettings() {
   if (els.labelStickerOffsetX) els.labelStickerOffsetX.value = labelSettings.stickerOffsetX !== undefined ? labelSettings.stickerOffsetX : 64;
   syncLabelOffsetLimit(labelSettings);
 
-  const elements = ["Logo", "DrinkName", "Notes", "OrderCode", "Customer", "ServiceType", "Counter", "CustomText", "Barcode"];
+  const elements = ["Logo", "CustomImage", "DrinkName", "Notes", "OrderCode", "Customer", "ServiceType", "Counter", "CustomText", "Barcode"];
   elements.forEach((key) => {
     const keyLower = key.charAt(0).toLowerCase() + key.slice(1);
     const enabledInput = els[`label${key}Enabled`];
@@ -3477,15 +3646,15 @@ function initPrinterSettings() {
     if (previewEl) {
       const savedHeight = labelSettings[`${keyLower}MaxHeight`] !== undefined
         ? labelSettings[`${keyLower}MaxHeight`]
-        : (key === "Logo" ? 32 : (key === "DrinkName" ? 48 : (key === "Barcode" ? 20 : 24)));
+        : (key === "Logo" ? 32 : (key === "CustomImage" ? 48 : (key === "DrinkName" ? 48 : (key === "Barcode" ? 20 : 24))));
       const renderedHeight = key === "Barcode" ? Number(savedHeight) + 24 : Number(savedHeight);
-      const savedX = labelSettings[`${keyLower}X`] !== undefined ? labelSettings[`${keyLower}X`] : (key === "ServiceType" ? 214 : (key === "Barcode" ? 60 : 12));
+      const savedX = labelSettings[`${keyLower}X`] !== undefined ? labelSettings[`${keyLower}X`] : (key === "CustomImage" ? 260 : (key === "ServiceType" ? 214 : (key === "Barcode" ? 60 : 12)));
       const savedY = labelSettings[`${keyLower}Y`] !== undefined ? labelSettings[`${keyLower}Y`] : (key === "ServiceType" ? 88 : (key === "Barcode" ? 130 : 12));
       previewEl.style.left = `${savedX}px`;
       previewEl.style.top = `${savedY}px`;
       previewEl.setAttribute("data-drag-x", String(savedX));
       previewEl.setAttribute("data-drag-y", String(savedY));
-      previewEl.style.width = `${labelSettings[`${keyLower}Width`] !== undefined ? labelSettings[`${keyLower}Width`] : (key === "Barcode" ? 200 : 150)}px`;
+      previewEl.style.width = `${labelSettings[`${keyLower}Width`] !== undefined ? labelSettings[`${keyLower}Width`] : (key === "CustomImage" ? 48 : (key === "Barcode" ? 200 : 150))}px`;
       previewEl.style.height = `${renderedHeight}px`;
       previewEl.style.maxHeight = `${renderedHeight}px`;
       if (key === "DrinkName" && els.labelDrinkNameHeight) {
@@ -3604,6 +3773,16 @@ async function connectLabelPrinter() {
     if (!characteristic) throw new Error("Characteristic label printer tidak ditemukan.");
 
     state.labelPrinterCharacteristic = characteristic;
+    // Reset the command parser only after Bluetooth is fully connected. Using
+    // acknowledged writes here prevents a just-powered-on printer from missing
+    // the ESC/POS header and treating later bitmap bytes as plain text.
+    await writePrinterChunks(
+      new Uint8Array([0x1b, 0x40, 0x1b, 0x61, 0x00]),
+      state.labelPrinterCharacteristic,
+      12,
+      true,
+    );
+    await new Promise((resolve) => setTimeout(resolve, 250));
     setLabelPrinterStatus("Tersambung", "connected", `${state.labelPrinterDevice.name || "Label Printer"} siap cetak label cup.`);
     toast("Label printer tersambung.");
   } catch (error) {
@@ -3643,7 +3822,7 @@ async function testLogoPrint() {
 }
 
 async function testLabelPrint() {
-  if (!state.labelPrinterCharacteristic) {
+  if (!isLabelPrinterReady()) {
     toast("Sambungkan printer label dulu untuk test label.");
     togglePrinterDropdown(true);
     switchPrinterTab("label");
@@ -4883,6 +5062,7 @@ function renderCart() {
     ? `<i class="ph ph-caret-right" aria-hidden="true"></i>${state.activeDraftId ? "Update Bill" : "Process Order"}`
     : `<i class="ph ph-caret-right" aria-hidden="true"></i>Pilih Menu`;
   syncOrderTypeUi();
+  updateLabelPrinterCheckoutWarning();
 }
 
 function openOrderModal() {
@@ -4892,6 +5072,7 @@ function openOrderModal() {
   els.orderTableNumber.value = activeDraft?.orderCode || activeDraft?.table || nextDailyOrderCode(new Date(), state.orderChannel);
   syncCheckoutWifiOption({ reset: true });
   syncOrderTypeUi();
+  updateLabelPrinterCheckoutWarning();
   els.modalOrderList.innerHTML = state.cart.length
     ? state.cart
         .map(
@@ -5022,6 +5203,10 @@ async function startOrder(event) {
     if (state.orderType === "staff_drink" && await staffDrinkAlreadyUsedToday()) {
       window.alert(`Jatah kopi gratis untuk ${activeEmployeeName()} hari ini sudah digunakan.`);
       return;
+    }
+    const pendingLabelCount = labelItemCount();
+    if (pendingLabelCount > 0 && !isLabelPrinterReady()) {
+      toast(`Label printer belum tersambung. Order tetap diproses; ${pendingLabelCount} label cetak ulang dari tab Order.`);
     }
     if (!ensurePrinterReadyForOrderPrint()) return;
     els.customerName.value = els.orderCustomerName.value.trim();
@@ -5693,10 +5878,9 @@ async function writePrinterChunks(bytes, characteristic = state.printerCharacter
 }
 
 async function writeLabelPrinterChunks(bytes) {
-  // Stream bitmap chunks continuously so the print head does not pause while
-  // waiting for an ACK after every 20 bytes. The inter-label delay below still
-  // gives the printer time to empty its buffer before the next bitmap.
-  return writePrinterChunks(bytes, state.labelPrinterCharacteristic, 6, false);
+  // Prefer acknowledged writes for raster data. A missing first chunk contains
+  // the ESC/POS header; without it, bitmap bytes can be printed as binary text.
+  return writePrinterChunks(bytes, state.labelPrinterCharacteristic, 12, true);
 }
 
 // Kategori yang TIDAK perlu cetak label cup (makanan, non-minuman)
@@ -5716,6 +5900,36 @@ function isBeverageItem(item) {
   // Fallback berdasarkan kategori jika properti belum diset
   const cat = String(item.category || "").toLowerCase();
   return !SKIP_LABEL_CATEGORIES.some((kw) => cat.includes(kw));
+}
+
+function isLabelPrinterReady() {
+  if (!state.labelPrinterCharacteristic) return false;
+  const gatt = state.labelPrinterDevice?.gatt;
+  return !gatt || gatt.connected;
+}
+
+function labelItemCount(items = state.cart) {
+  return (items || []).reduce(
+    (total, item) => total + (isBeverageItem(item) ? Math.max(1, Number(item.qty || 1)) : 0),
+    0,
+  );
+}
+
+function updateLabelPrinterCheckoutWarning() {
+  if (els.printerBadge) {
+    els.printerBadge.classList.toggle("hidden", isLabelPrinterReady());
+  }
+  if (!els.labelPrinterCheckoutWarning) return;
+  const count = labelItemCount();
+  const show = count > 0 && !isLabelPrinterReady();
+  els.labelPrinterCheckoutWarning.hidden = !show;
+  if (show) {
+    const noun = count === 1 ? "label" : `${count} label`;
+    const text = els.labelPrinterCheckoutWarning.querySelector("span");
+    if (text) {
+      text.textContent = `Label printer belum tersambung. Order tetap diproses; ${noun} dapat dicetak ulang dari tab Order.`;
+    }
+  }
 }
 
 let cachedMascotBytes = null;
@@ -5988,9 +6202,9 @@ async function encodeCupLabelBitmap(transaction, item, itemIndex, totalItems) {
   }
   const { width: stickerWidth, height: stickerHeight } = getLabelPaperDimensions(settings);
   const printerWidth = LABEL_PRINTER_WIDTH_DOTS;
-  // The EPPOS 58 mm head starts before the loaded 40 mm roll.
-  // Compensate in bitmap mode so the first glyph does not get clipped.
-  const physicalCalibrationX = settings.paperSize === "40x20mm" ? 40 : 0;
+  // Kalibrasi fisik roll 40 mm yang dipakai sebelum perubahan terakhir.
+  // Clamp per-elemen tetap tidak digunakan agar objek tidak saling menumpuk.
+  const physicalCalibrationX = settings.paperSize === "40x20mm" ? 20 : 0;
   const offsetX = Math.max(0, Math.min(printerWidth - 1, Number(settings.stickerOffsetX || 0) + physicalCalibrationX));
   const titleCase = (value) => String(value || "").toLowerCase().split(" ").map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(" ");
   const txDate = transaction.createdAt ? new Date(transaction.createdAt) : new Date();
@@ -5998,6 +6212,7 @@ async function encodeCupLabelBitmap(transaction, item, itemIndex, totalItems) {
   const tags = String(item.notes || "ICE · NORMAL · REGULAR").split(" · ").filter(Boolean).map(titleCase);
   const elements = [
     { text: "logo", enabled: settings.logoEnabled === true, isImage: true, imageSrc: "assets/logo-migi-print.png", x: settings.logoX ?? 12, y: settings.logoY ?? 12, width: settings.logoWidth ?? 32, height: settings.logoMaxHeight ?? 32 },
+    { text: "custom-image", enabled: settings.customImageEnabled === true && Boolean(settings.customImageData), isImage: true, imageSrc: settings.customImageData, x: settings.customImageX ?? 260, y: settings.customImageY ?? 12, width: settings.customImageWidth ?? 48, height: settings.customImageMaxHeight ?? 48 },
     { text: titleCase(item.name || "Minuman"), enabled: settings.drinkNameEnabled !== false, bold: settings.drinkNameBold !== false, fontSize: settings.drinkNameFontSize, x: settings.drinkNameX ?? 12, y: settings.drinkNameY ?? 12, width: settings.drinkNameWidth ?? 200, height: settings.drinkNameMaxHeight ?? 48 },
     { text: tags.join(" * "), enabled: settings.notesEnabled !== false, bold: settings.notesBold === true, fontSize: settings.notesFontSize, x: settings.notesX ?? 12, y: settings.notesY ?? 48, width: settings.notesWidth ?? 280, height: settings.notesMaxHeight ?? 24 },
     { text: `#${transaction.orderCode || "-"}`, enabled: settings.orderCodeEnabled !== false, bold: settings.orderCodeBold === true, fontSize: settings.orderCodeFontSize, x: settings.orderCodeX ?? 12, y: settings.orderCodeY ?? 84, width: settings.orderCodeWidth ?? 120, height: settings.orderCodeMaxHeight ?? 24 },
@@ -6008,12 +6223,16 @@ async function encodeCupLabelBitmap(transaction, item, itemIndex, totalItems) {
     { text: barcodeValue, enabled: settings.barcodeEnabled === true, barcode: true, x: settings.barcodeX ?? 60, y: settings.barcodeY ?? 130, width: settings.barcodeWidth ?? 200, height: settings.barcodeMaxHeight ?? 20 }
   ].filter((element) => element.enabled && (element.text || element.isImage));
 
-  const logoImage = elements.some((element) => element.isImage) ? await new Promise((resolve) => {
+  const loadedImages = new Map();
+  await Promise.all(elements.filter((element) => element.isImage && element.imageSrc).map((element) => new Promise((resolve) => {
     const image = new Image();
-    image.onload = () => resolve(image);
-    image.onerror = () => resolve(null);
-    image.src = "assets/logo-migi-print.png";
-  }) : null;
+    image.onload = () => {
+      loadedImages.set(element.imageSrc, image);
+      resolve();
+    };
+    image.onerror = resolve;
+    image.src = element.imageSrc;
+  })));
 
   const canvas = document.createElement("canvas");
   canvas.width = printerWidth;
@@ -6023,17 +6242,25 @@ async function encodeCupLabelBitmap(transaction, item, itemIndex, totalItems) {
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.fillStyle = "#000000";
   ctx.textBaseline = "top";
+  // Samakan perilaku dengan overflow:hidden pada stiker di live preview.
+  // Elemen yang melewati tepi dipotong, bukan digeser kembali ke kiri.
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(offsetX, 0, stickerWidth, stickerHeight);
+  ctx.clip();
   elements.forEach((element) => {
-    const elementWidth = Math.max(1, Number(element.width || 1));
-    const x = Math.max(0, Math.min(offsetX + Number(element.x || 0), printerWidth - elementWidth - 4));
+    const x = offsetX + Number(element.x || 0);
     const y = Number(element.y || 0);
     if (element.isImage) {
-      if (!logoImage) return;
+      const sourceImage = loadedImages.get(element.imageSrc);
+      if (!sourceImage) return;
       const logoCanvas = document.createElement("canvas");
       logoCanvas.width = Math.max(1, Math.round(element.width));
       logoCanvas.height = Math.max(1, Math.round(element.height));
       const logoCtx = logoCanvas.getContext("2d", { willReadFrequently: true });
-      logoCtx.drawImage(logoImage, 0, 0, logoCanvas.width, logoCanvas.height);
+      logoCtx.fillStyle = "#ffffff";
+      logoCtx.fillRect(0, 0, logoCanvas.width, logoCanvas.height);
+      logoCtx.drawImage(sourceImage, 0, 0, logoCanvas.width, logoCanvas.height);
       const logoPixels = logoCtx.getImageData(0, 0, logoCanvas.width, logoCanvas.height);
       for (let index = 0; index < logoPixels.data.length; index += 4) {
         const luminance = 0.299 * logoPixels.data[index] + 0.587 * logoPixels.data[index + 1] + 0.114 * logoPixels.data[index + 2];
@@ -6059,8 +6286,12 @@ async function encodeCupLabelBitmap(transaction, item, itemIndex, totalItems) {
     const metrics = getLabelFontMetrics(element.fontSize);
     const px = metrics.pixelSize;
     ctx.font = `${element.bold ? "bold " : ""}${px}px Geist, Arial, sans-serif`;
-    const maxWidth = Math.max(1, Number(element.width || 0));
-    const maxHeight = Math.max(metrics.charHeight, Number(element.height || metrics.charHeight));
+    // Kotak teks preview memakai padding 4px kiri, 12px kanan, 2px atas,
+    // dan 6px bawah. Terapkan content-box yang sama pada bitmap cetak.
+    const textX = x + 4;
+    const textY = y + 2;
+    const maxWidth = Math.max(1, Number(element.width || 0) - 16);
+    const maxHeight = Math.max(metrics.charHeight, Number(element.height || metrics.charHeight) - 8);
     const words = String(element.text).trim().split(/\s+/);
     const lines = [];
     let line = "";
@@ -6076,9 +6307,10 @@ async function encodeCupLabelBitmap(transaction, item, itemIndex, totalItems) {
     if (line) lines.push(line);
     const maxLines = Math.max(1, Math.floor(maxHeight / metrics.charHeight));
     lines.slice(0, maxLines).forEach((textLine, lineIndex) => {
-      ctx.fillText(textLine, x, y + lineIndex * metrics.charHeight);
+      ctx.fillText(textLine, textX, textY + lineIndex * metrics.charHeight);
     });
   });
+  ctx.restore();
 
   const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
   const widthBytes = Math.ceil(canvas.width / 8);
@@ -6113,7 +6345,7 @@ async function encodeCupLabelBitmap(transaction, item, itemIndex, totalItems) {
 
 
 async function printCupLabels(transaction) {
-  if (!state.labelPrinterCharacteristic) return; // Label printer opsional
+  if (!isLabelPrinterReady()) return false; // Label printer opsional
   // Expand items by qty and filter beverages only
   const labelItems = [];
   for (const item of (transaction.items || [])) {
@@ -6123,23 +6355,26 @@ async function printCupLabels(transaction) {
       labelItems.push(item);
     }
   }
-  if (!labelItems.length) return;
+  if (!labelItems.length) return true;
 
   const labelSettings = getLabelPrinterSettings();
   const delayMs = Math.max(1500, Number(labelSettings.labelDelay || 1500));
 
   try {
     for (let i = 0; i < labelItems.length; i++) {
+      if (!isLabelPrinterReady()) throw new Error("Koneksi label printer terputus.");
       const bytes = await encodeCupLabelBitmap(transaction, labelItems[i], i, labelItems.length);
       await writeLabelPrinterChunks(bytes);
       // Gap kecil/jeda antar label agar printer menyelesaikan feed sebelumnya
       await new Promise((resolve) => setTimeout(resolve, delayMs));
     }
     toast(`${labelItems.length} label cup dicetak.`);
+    return true;
   } catch (error) {
     state.labelPrinterCharacteristic = null;
     setLabelPrinterStatus("Terputus", "disconnected", "Label printer terputus. Sambungkan ulang.");
     toast(`Cetak label gagal: ${error.message}`);
+    return false;
   }
 }
 
@@ -6160,6 +6395,19 @@ function openItemCustomModal(itemId) {
     btn.classList.toggle("active", btn.dataset.value === (isHot ? "HOT" : "ICE"));
   });
 
+  // Level es hanya relevan untuk minuman dingin.
+  const iceValue = notesStr.includes("NO ICE")
+    ? "NO ICE"
+    : notesStr.includes("LESS ICE")
+      ? "LESS ICE"
+      : notesStr.includes("EXTRA ICE")
+        ? "EXTRA ICE"
+        : "NORMAL ICE";
+  els.customIce?.querySelectorAll("button").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.value === iceValue);
+  });
+  syncCustomIceVisibility();
+
   // Sugar
   let sugarVal = "NORMAL";
   if (notesStr.includes("LESS SUGAR")) sugarVal = "LESS SUGAR";
@@ -6176,7 +6424,7 @@ function openItemCustomModal(itemId) {
 
   // Custom text note
   let customText = (item.notes || "");
-  const standardTags = ["ICE", "HOT", "NORMAL", "LESS SUGAR", "NO SUGAR", "REGULAR", "LARGE"];
+  const standardTags = ["ICE", "HOT", "NORMAL ICE", "LESS ICE", "NO ICE", "EXTRA ICE", "NORMAL", "LESS SUGAR", "NO SUGAR", "REGULAR", "LARGE"];
   standardTags.forEach((tag) => {
     customText = customText.replace(new RegExp(`\\b${tag}\\b`, "gi"), "");
   });
@@ -6207,6 +6455,7 @@ function saveItemCustomization(event) {
 
   // Get active choices
   const tempBtn = els.customTemp?.querySelector("button.active");
+  const iceBtn = els.customIce?.querySelector("button.active");
   const sugarBtn = els.customSugar?.querySelector("button.active");
   const sizeBtn = els.customSize?.querySelector("button.active");
   const customText = els.customTextNote?.value.trim();
@@ -6214,6 +6463,9 @@ function saveItemCustomization(event) {
   // Combine into formatted string
   const tags = [];
   if (tempBtn && tempBtn.dataset.value) tags.push(tempBtn.dataset.value);
+  if (tempBtn?.dataset.value === "ICE" && iceBtn?.dataset.value && iceBtn.dataset.value !== "NORMAL ICE") {
+    tags.push(iceBtn.dataset.value);
+  }
   if (sugarBtn && sugarBtn.dataset.value) tags.push(sugarBtn.dataset.value);
   if (sizeBtn && sizeBtn.dataset.value) tags.push(sizeBtn.dataset.value);
   if (customText) tags.push(customText.toUpperCase());
@@ -8514,8 +8766,14 @@ const handleSegmentedClick = (event) => {
   if (!btn) return;
   const parent = btn.parentElement;
   parent.querySelectorAll("button").forEach((b) => b.classList.toggle("active", b === btn));
+  if (parent.id === "customTemp") syncCustomIceVisibility();
 };
+function syncCustomIceVisibility() {
+  const isIce = els.customTemp?.querySelector("button.active")?.dataset.value === "ICE";
+  if (els.customIceGroup) els.customIceGroup.hidden = !isIce;
+}
 els.customTemp?.addEventListener("click", handleSegmentedClick);
+els.customIce?.addEventListener("click", handleSegmentedClick);
 els.customSugar?.addEventListener("click", handleSegmentedClick);
 els.customSize?.addEventListener("click", handleSegmentedClick);
 
@@ -8720,7 +8978,7 @@ els.orderList?.addEventListener("click", (event) => {
     const source = kind === "bill" ? getOrderDrafts() : getHistory();
     const transaction = source.find((entry) => entry.id === id);
     if (transaction) {
-      if (!state.labelPrinterCharacteristic) {
+      if (!isLabelPrinterReady()) {
         toast("Printer Label belum tersambung.");
       } else {
         printCupLabels(transaction);
@@ -8988,6 +9246,9 @@ const bindSettingListeners = (key) => {
 els.labelCustomTextValue?.addEventListener("input", saveLabelPrinterSettingsFromUI);
 els.labelBarcodeEnabled?.addEventListener("change", saveLabelPrinterSettingsFromUI);
 els.labelLogoEnabled?.addEventListener("change", saveLabelPrinterSettingsFromUI);
+els.labelCustomImageEnabled?.addEventListener("change", saveLabelPrinterSettingsFromUI);
+els.labelCustomImageFile?.addEventListener("change", handleLabelCustomImageUpload);
+els.removeLabelCustomImage?.addEventListener("click", removeLabelCustomImage);
 els.labelServiceTypeEnabled?.addEventListener("change", saveLabelPrinterSettingsFromUI);
 els.labelServiceTypeFontSize?.addEventListener("input", saveLabelPrinterSettingsFromUI);
 els.labelDrinkNameHeight?.addEventListener("input", () => {

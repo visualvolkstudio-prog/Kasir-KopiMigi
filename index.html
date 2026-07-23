@@ -192,6 +192,10 @@
                 <input id="checkoutWifiReceipt" type="checkbox" />
                 Cetak QR WiFi di struk
               </label>
+              <div class="checkout-printer-warning" id="labelPrinterCheckoutWarning" role="status" hidden>
+                <i class="ph ph-warning-circle" aria-hidden="true"></i>
+                <span>Label printer belum tersambung. Order tetap dapat diproses; label bisa dicetak ulang dari tab Order.</span>
+              </div>
             </div>
           </section>
         </div>
@@ -1115,6 +1119,7 @@
                     <div id="labelReadOnlyPreviewPaper" style="background: #e2e8f0; width: 384px; height: 160px; position: relative; border: 1px dashed #cbd5e1; border-radius: 6px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05); overflow: hidden; transform-origin: center center;">
                       <div id="labelReadOnlyPreviewSticker" style="background: #ffffff; width: 320px; height: 160px; position: absolute; left: 8px; top: 0; border-radius: 4px; box-shadow: 0 4px 10px rgba(0,0,0,0.08); box-sizing: border-box; color: #000000; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.25; overflow: hidden; user-select: none;">
                         <div id="labelReadOnlyPreviewLogo" style="position: absolute; left: 12px; top: 12px; width: 32px; height: 32px; border-radius: 3px; overflow: hidden; box-sizing: border-box; display: none;"><img src="assets/logo-migi-print.png" alt="Logo Migi" style="width: 100%; height: 100%; object-fit: contain; filter: grayscale(1) contrast(1.8);"></div>
+                        <div id="labelReadOnlyPreviewCustomImage" style="position: absolute; left: 260px; top: 12px; width: 48px; height: 48px; border-radius: 3px; overflow: hidden; box-sizing: border-box; display: none;"><img alt="Gambar dekorasi label" style="width: 100%; height: 100%; object-fit: contain; filter: grayscale(1) contrast(1.8);"></div>
                         
                         <div id="labelReadOnlyPreviewDrinkName" style="position: absolute; left: 12px; top: 12px; padding: 2px 4px; border-radius: 3px; overflow: hidden; max-height: 48px; word-break: break-word; box-sizing: border-box;">
                           Kopi Susu Migi
@@ -1210,6 +1215,17 @@
               <button type="button" data-value="HOT">Panas (Hot)</button>
             </div>
           </div>
+
+          <!-- Level Es (hanya untuk minuman dingin) -->
+          <div class="custom-group" id="customIceGroup">
+            <p class="custom-label">Level Es</p>
+            <div class="segmented" role="radiogroup" id="customIce">
+              <button type="button" class="active" data-value="NORMAL ICE">Normal</button>
+              <button type="button" data-value="LESS ICE">Less Ice</button>
+              <button type="button" data-value="NO ICE">No Ice</button>
+              <button type="button" data-value="EXTRA ICE">Extra Ice</button>
+            </div>
+          </div>
           
           <!-- Pilihan Gula -->
           <div class="custom-group">
@@ -1267,6 +1283,9 @@
                   <div id="labelPreviewLogo" style="position: absolute; left: 12px; top: 12px; width: 32px; height: 32px; cursor: move; border: 1px dashed rgba(59, 130, 246, 0.3); border-radius: 3px; overflow: hidden; box-sizing: border-box; display: none;">
                     <img src="assets/logo-migi-print.png" alt="Logo Migi" style="width: 100%; height: 100%; object-fit: contain; filter: grayscale(1) contrast(1.8);">
                   </div>
+                  <div id="labelPreviewCustomImage" style="position: absolute; left: 260px; top: 12px; width: 48px; height: 48px; cursor: move; border: 1px dashed rgba(59, 130, 246, 0.3); border-radius: 3px; overflow: hidden; box-sizing: border-box; display: none;">
+                    <img alt="Gambar dekorasi label" style="width: 100%; height: 100%; object-fit: contain; filter: grayscale(1) contrast(1.8); pointer-events: none;">
+                  </div>
                   
                   <div id="labelPreviewDrinkName" style="position: absolute; left: 12px; top: 12px; cursor: move; border: 1px dashed rgba(59, 130, 246, 0.3); padding: 2px 12px 6px 4px; border-radius: 3px; overflow: hidden; word-break: break-word; box-sizing: border-box;">
                     Kopi Susu Migi
@@ -1316,8 +1335,9 @@
                 </div>
               </div>
             </div>
-          </div>
+            </div>
             <span id="labelPreviewCaption" style="font-size: 11px; color: var(--muted); margin-top: 6px; text-align: center;">Abu-abu = area printer 58 mm, putih = stiker 40 × 20 mm.</span>
+            <span id="labelLayoutCollisionWarning" style="display: none; font-size: 11px; color: var(--danger); margin-top: 4px; text-align: center; font-weight: 700;"></span>
           </div>
 
           <!-- Konfigurasi Global -->
@@ -1527,6 +1547,20 @@
                 <input type="checkbox" id="labelLogoEnabled" style="width: 15px; height: 15px; min-height: 15px; min-width: 15px; max-width: 15px; max-height: 15px; margin: 0; cursor: pointer; accent-color: var(--accent);"> Logo Migi (hitam)
               </label>
               <input type="hidden" id="labelLogoWidth" value="32">
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 8px; padding: 8px; border: 1px solid var(--border); border-radius: 6px; background: rgba(0,0,0,0.01);">
+              <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; cursor: pointer; user-select: none; margin: 0;">
+                <input type="checkbox" id="labelCustomImageEnabled" style="width: 15px; height: 15px; min-height: 15px; min-width: 15px; max-width: 15px; max-height: 15px; margin: 0; cursor: pointer; accent-color: var(--accent);"> Gambar Lucu / Dekorasi
+              </label>
+              <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                <label class="secondary-button compact" style="cursor: pointer; margin: 0;">
+                  Pilih Gambar
+                  <input type="file" id="labelCustomImageFile" accept="image/png,image/jpeg,image/webp" hidden>
+                </label>
+                <button class="secondary-button compact danger-text" id="removeLabelCustomImage" type="button">Hapus Gambar</button>
+              </div>
+              <small id="labelCustomImageHint" style="color: var(--muted); line-height: 1.4;">PNG/JPG/WebP maks. 5 MB. Gambar otomatis diperkecil dan dicetak hitam-putih.</small>
+              <input type="hidden" id="labelCustomImageWidth" value="48">
             </div>
           </div>
         </div>
