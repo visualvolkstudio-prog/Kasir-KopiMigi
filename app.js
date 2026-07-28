@@ -117,6 +117,10 @@ const state = {
   labelPrinterCharacteristic: null,
 };
 
+// Semua sumber cetak label (checkout, cetak ulang, dan test) wajib melewati
+// antrean yang sama agar byte raster tidak pernah saling berselingan.
+let labelPrintQueue = Promise.resolve();
+
 const bleServiceUuids = [
   "000018f0-0000-1000-8000-00805f9b34fb",
   "49535343-fe7d-4ae5-8fa9-9fafd205e455",
@@ -3845,8 +3849,11 @@ async function testLabelPrint() {
       name: "KOPI SUSU MIGI",
       notes: "ICE · REGULAR · LESS SUGAR"
     };
-    const bytes = await encodeCupLabelBitmap(mockTransaction, mockItem, 0, 1);
-    await writeLabelPrinterChunks(bytes);
+    await enqueueLabelPrint(async () => {
+      if (!isLabelPrinterReady()) throw new Error("Koneksi label printer terputus.");
+      const bytes = await encodeCupLabelBitmap(mockTransaction, mockItem, 0, 1);
+      await writeLabelPrinterChunks(bytes);
+    });
     toast(activeCartItem
       ? `Test label ${activeCartItem.name}${activeCartItem.notes ? ` · ${activeCartItem.notes}` : ""} dikirim ke printer.`
       : "Test label contoh dikirim ke printer.");
@@ -5849,7 +5856,13 @@ async function encodeEscPosReceipt(transaction, kind) {
   }
 }
 
-async function writePrinterChunks(bytes, characteristic = state.printerCharacteristic, chunkDelayMs = 18, preferResponse = false) {
+async function writePrinterChunks(
+  bytes,
+  characteristic = state.printerCharacteristic,
+  chunkDelayMs = 18,
+  preferResponse = false,
+  { burstEvery = 0, burstPauseMs = 0 } = {},
+) {
   if (!characteristic) return;
   // Gunakan chunk kecil (20 byte) agar kompatibel dengan semua printer BLE
   const chunkSize = 20;
@@ -5868,19 +5881,71 @@ async function writePrinterChunks(bytes, characteristic = state.printerCharacter
     } else {
       throw new Error("Characteristic printer tidak mendukung write.");
     }
-    // ACK sudah menjadi flow-control; delay penuh hanya diperlukan pada
-    // characteristic tanpa respons.
-    const effectiveDelay = preferResponse && canWriteWithResponse ? 1 : chunkDelayMs;
+    // ACK BLE hanya memastikan modul Bluetooth menerima paket; buffer UART
+    // menuju printer tetap dapat penuh. Hormati delay juga pada write-response.
+    const effectiveDelay = chunkDelayMs;
     if (effectiveDelay > 0) {
       await new Promise((resolve) => setTimeout(resolve, effectiveDelay));
+    }
+    const chunkNumber = Math.floor(index / chunkSize) + 1;
+    if (burstEvery > 0 && burstPauseMs > 0 && chunkNumber % burstEvery === 0) {
+      await new Promise((resolve) => setTimeout(resolve, burstPauseMs));
     }
   }
 }
 
 async function writeLabelPrinterChunks(bytes) {
-  // Prefer acknowledged writes for raster data. A missing first chunk contains
-  // the ESC/POS header; without it, bitmap bytes can be printed as binary text.
-  return writePrinterChunks(bytes, state.labelPrinterCharacteristic, 12, true);
+  const characteristic = state.labelPrinterCharacteristic;
+  if (!characteristic || !isLabelPrinterReady()) {
+    throw new Error("Koneksi label printer tidak siap.");
+  }
+
+  // Reset parser sebagai paket tersendiri, lalu beri waktu firmware masuk ke
+  // mode ESC/POS sebelum header raster dikirim. Ini mencegah byte bitmap
+  // dibaca sebagai karakter saat printer baru menyala atau buffer belum stabil.
+  await writePrinterChunks(
+    new Uint8Array([0x1b, 0x40, 0x1b, 0x61, 0x00]),
+    characteristic,
+    20,
+    true,
+  );
+  await new Promise((resolve) => setTimeout(resolve, 250));
+
+  // Header GS v 0 sepanjang 13 byte dikirim terpisah agar parser sudah
+  // mengunci ukuran raster sebelum aliran piksel dimulai.
+  const rasterHeaderLength = (
+    bytes.length >= 13 &&
+    bytes[0] === 0x1b && bytes[1] === 0x40 &&
+    bytes[5] === 0x1d && bytes[6] === 0x76 && bytes[7] === 0x30
+  ) ? 13 : 0;
+  if (rasterHeaderLength) {
+    await writePrinterChunks(bytes.slice(0, rasterHeaderLength), characteristic, 10, true);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+
+  // Mode adaptif: characteristic dengan ACK dapat memakai aliran lebih cepat.
+  // Printer tanpa ACK tetap diberi pacing konservatif. Jeda per burst menjaga
+  // buffer UART/firmware tidak meluber pada raster berukuran besar.
+  const hasWriteResponse = Boolean(characteristic.properties.write);
+  const transportDelayMs = hasWriteResponse ? 10 : 18;
+  const burstPauseMs = hasWriteResponse ? 50 : 80;
+  await writePrinterChunks(
+    rasterHeaderLength ? bytes.slice(rasterHeaderLength) : bytes,
+    characteristic,
+    transportDelayMs,
+    true,
+    { burstEvery: 24, burstPauseMs },
+  );
+  await new Promise((resolve) => setTimeout(resolve, 150));
+}
+
+function enqueueLabelPrint(task) {
+  const job = labelPrintQueue
+    .catch(() => null)
+    .then(task);
+  // Tail tidak boleh berhenti permanen bila satu job gagal.
+  labelPrintQueue = job.catch(() => null);
+  return job;
 }
 
 // Kategori yang TIDAK perlu cetak label cup (makanan, non-minuman)
@@ -6344,7 +6409,7 @@ async function encodeCupLabelBitmap(transaction, item, itemIndex, totalItems) {
 }
 
 
-async function printCupLabels(transaction) {
+async function performCupLabelPrint(transaction) {
   if (!isLabelPrinterReady()) return false; // Label printer opsional
   // Expand items by qty and filter beverages only
   const labelItems = [];
@@ -6376,6 +6441,10 @@ async function printCupLabels(transaction) {
     toast(`Cetak label gagal: ${error.message}`);
     return false;
   }
+}
+
+function printCupLabels(transaction) {
+  return enqueueLabelPrint(() => performCupLabelPrint(transaction));
 }
 
 let currentCustomizingItemId = "";
