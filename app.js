@@ -3766,15 +3766,32 @@ async function connectLabelPrinter() {
     }
     if (!service) throw new Error("Service label printer tidak ditemukan.");
 
-    let characteristic = null;
+    const characteristicCandidates = [];
     for (const uuid of bleCharacteristicUuids) {
-      try { characteristic = await service.getCharacteristic(uuid); break; } catch {}
+      try {
+        const candidate = await service.getCharacteristic(uuid);
+        if (candidate.properties.write || candidate.properties.writeWithoutResponse) {
+          characteristicCandidates.push(candidate);
+        }
+      } catch {}
     }
+    const serviceCharacteristics = await service.getCharacteristics().catch(() => []);
+    serviceCharacteristics.forEach((candidate) => {
+      if (
+        (candidate.properties.write || candidate.properties.writeWithoutResponse) &&
+        !characteristicCandidates.some((entry) => entry.uuid === candidate.uuid)
+      ) {
+        characteristicCandidates.push(candidate);
+      }
+    });
+    // ACK/write-with-response jauh lebih aman untuk bitmap besar. Jangan
+    // memilih characteristic pertama bila service menyediakan jalur ACK lain.
+    const characteristic = characteristicCandidates.find((entry) => entry.properties.write)
+      || characteristicCandidates.find((entry) => entry.properties.writeWithoutResponse)
+      || null;
     if (!characteristic) {
-      const chars = await service.getCharacteristics();
-      characteristic = chars.find((entry) => entry.properties.write || entry.properties.writeWithoutResponse);
+      throw new Error("Characteristic label printer tidak ditemukan.");
     }
-    if (!characteristic) throw new Error("Characteristic label printer tidak ditemukan.");
 
     state.labelPrinterCharacteristic = characteristic;
     // Reset the command parser only after Bluetooth is fully connected. Using
@@ -3786,9 +3803,14 @@ async function connectLabelPrinter() {
       12,
       true,
     );
-    await new Promise((resolve) => setTimeout(resolve, 250));
-    setLabelPrinterStatus("Tersambung", "connected", `${state.labelPrinterDevice.name || "Label Printer"} siap cetak label cup.`);
-    toast("Label printer tersambung.");
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    const transportMode = characteristic.properties.write ? "ACK aman" : "tanpa ACK · mode ekstra aman";
+    setLabelPrinterStatus(
+      "Tersambung",
+      "connected",
+      `${state.labelPrinterDevice.name || "Label Printer"} siap · ${transportMode}.`,
+    );
+    toast(`Label printer tersambung (${transportMode}).`);
   } catch (error) {
     state.labelPrinterCharacteristic = null;
     setLabelPrinterStatus("Terputus", "disconnected", "Koneksi gagal atau dibatalkan. Coba sambungkan lagi.");
@@ -5861,15 +5883,16 @@ async function writePrinterChunks(
   characteristic = state.printerCharacteristic,
   chunkDelayMs = 18,
   preferResponse = false,
-  { burstEvery = 0, burstPauseMs = 0 } = {},
+  { burstEvery = 0, burstPauseMs = 0, chunkSize = 20 } = {},
 ) {
   if (!characteristic) return;
-  // Gunakan chunk kecil (20 byte) agar kompatibel dengan semua printer BLE
-  const chunkSize = 20;
+  // Maksimum umum BLE adalah 20 byte; mode tanpa ACK dapat memakai paket
+  // lebih kecil agar bridge UART tidak kehilangan bagian awal raster.
+  const safeChunkSize = Math.max(8, Math.min(20, Number(chunkSize || 20)));
   const canWriteWithResponse = characteristic.properties.write;
   const canWriteWithoutResponse = characteristic.properties.writeWithoutResponse;
-  for (let index = 0; index < bytes.length; index += chunkSize) {
-    const chunk = bytes.slice(index, index + chunkSize);
+  for (let index = 0; index < bytes.length; index += safeChunkSize) {
+    const chunk = bytes.slice(index, index + safeChunkSize);
     if (preferResponse && canWriteWithResponse) {
       // ACK per chunk prevents large raster jobs from overflowing the BLE buffer.
       await characteristic.writeValueWithResponse(chunk);
@@ -5887,7 +5910,7 @@ async function writePrinterChunks(
     if (effectiveDelay > 0) {
       await new Promise((resolve) => setTimeout(resolve, effectiveDelay));
     }
-    const chunkNumber = Math.floor(index / chunkSize) + 1;
+    const chunkNumber = Math.floor(index / safeChunkSize) + 1;
     if (burstEvery > 0 && burstPauseMs > 0 && chunkNumber % burstEvery === 0) {
       await new Promise((resolve) => setTimeout(resolve, burstPauseMs));
     }
@@ -5909,7 +5932,8 @@ async function writeLabelPrinterChunks(bytes) {
     20,
     true,
   );
-  await new Promise((resolve) => setTimeout(resolve, 250));
+  const hasWriteResponse = Boolean(characteristic.properties.write);
+  await new Promise((resolve) => setTimeout(resolve, hasWriteResponse ? 400 : 700));
 
   // Header GS v 0 sepanjang 13 byte dikirim terpisah agar parser sudah
   // mengunci ukuran raster sebelum aliran piksel dimulai.
@@ -5919,24 +5943,34 @@ async function writeLabelPrinterChunks(bytes) {
     bytes[5] === 0x1d && bytes[6] === 0x76 && bytes[7] === 0x30
   ) ? 13 : 0;
   if (rasterHeaderLength) {
-    await writePrinterChunks(bytes.slice(0, rasterHeaderLength), characteristic, 10, true);
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    await writePrinterChunks(
+      bytes.slice(0, rasterHeaderLength),
+      characteristic,
+      hasWriteResponse ? 20 : 50,
+      true,
+      { chunkSize: hasWriteResponse ? 20 : 13 },
+    );
+    await new Promise((resolve) => setTimeout(resolve, hasWriteResponse ? 180 : 400));
   }
 
-  // Mode adaptif: characteristic dengan ACK dapat memakai aliran lebih cepat.
-  // Printer tanpa ACK tetap diberi pacing konservatif. Jeda per burst menjaga
-  // buffer UART/firmware tidak meluber pada raster berukuran besar.
-  const hasWriteResponse = Boolean(characteristic.properties.write);
-  const transportDelayMs = hasWriteResponse ? 10 : 18;
-  const burstPauseMs = hasWriteResponse ? 50 : 80;
+  // Setelah bukti overflow di perangkat fisik, ACK tetap diberi pacing aman.
+  // Tanpa ACK memakai paket 16 byte dan jeda ekstra; lebih lambat tetapi
+  // mencegah header/piksel hilang dan tercetak menjadi karakter acak.
+  const transportDelayMs = hasWriteResponse ? 18 : 30;
+  const burstEvery = hasWriteResponse ? 16 : 8;
+  const burstPauseMs = hasWriteResponse ? 100 : 150;
   await writePrinterChunks(
     rasterHeaderLength ? bytes.slice(rasterHeaderLength) : bytes,
     characteristic,
     transportDelayMs,
     true,
-    { burstEvery: 24, burstPauseMs },
+    {
+      burstEvery,
+      burstPauseMs,
+      chunkSize: hasWriteResponse ? 20 : 16,
+    },
   );
-  await new Promise((resolve) => setTimeout(resolve, 150));
+  await new Promise((resolve) => setTimeout(resolve, hasWriteResponse ? 350 : 700));
 }
 
 function enqueueLabelPrint(task) {
