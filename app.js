@@ -3750,7 +3750,11 @@ async function connectLabelPrinter() {
     });
 
     state.labelPrinterDevice.addEventListener("gattserverdisconnected", () => {
-      state.labelPrinterCharacteristic = null;
+      // Tandai printer terputus agar isLabelPrinterReady() mengembalikan false,
+      // tapi JANGAN null-kan characteristic di sini — job yang sedang berjalan
+      // dalam antrian perlu mendeteksi ini sendiri (lewat gatt.connected) agar
+      // tidak mendapat null-ref di tengah pengiriman byte.
+      // characteristic di-null setelah job aktif selesai (lewat catch di performCupLabelPrint).
       setLabelPrinterStatus("Terputus", "disconnected", "Label printer terputus. Sambungkan ulang.");
       toast("Label printer Bluetooth terputus.");
     });
@@ -3794,16 +3798,18 @@ async function connectLabelPrinter() {
     }
 
     state.labelPrinterCharacteristic = characteristic;
-    // Reset the command parser only after Bluetooth is fully connected. Using
-    // acknowledged writes here prevents a just-powered-on printer from missing
-    // the ESC/POS header and treating later bitmap bytes as plain text.
-    await writePrinterChunks(
-      new Uint8Array([0x1b, 0x40, 0x1b, 0x61, 0x00]),
-      state.labelPrinterCharacteristic,
-      12,
-      true,
-    );
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    // Kirim ESC @ melalui antrian agar tidak memotong job label yang sedang
+    // berjalan. Jika antrian kosong, task ini langsung dieksekusi.
+    await enqueueLabelPrint(async () => {
+      if (!state.labelPrinterCharacteristic) return;
+      await writePrinterChunks(
+        new Uint8Array([0x1b, 0x40, 0x1b, 0x61, 0x00]),
+        state.labelPrinterCharacteristic,
+        12,
+        true,
+      );
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    });
     const transportMode = characteristic.properties.write ? "ACK aman" : "tanpa ACK · mode ekstra aman";
     setLabelPrinterStatus(
       "Tersambung",
@@ -6470,8 +6476,15 @@ async function performCupLabelPrint(transaction) {
     toast(`${labelItems.length} label cup dicetak.`);
     return true;
   } catch (error) {
-    state.labelPrinterCharacteristic = null;
-    setLabelPrinterStatus("Terputus", "disconnected", "Label printer terputus. Sambungkan ulang.");
+    console.warn("[Label] Cetak label gagal:", error);
+    // Null-kan characteristic hanya jika GATT memang sudah terputus.
+    // Error sementara (timeout, buffer penuh) tidak perlu mematikan printer —
+    // ini mencegah job berikutnya di antrian di-skip hanya karena gangguan sesaat.
+    const gattDisconnected = !state.labelPrinterDevice?.gatt?.connected;
+    if (gattDisconnected) {
+      state.labelPrinterCharacteristic = null;
+      setLabelPrinterStatus("Terputus", "disconnected", "Label printer terputus. Sambungkan ulang.");
+    }
     toast(`Cetak label gagal: ${error.message}`);
     return false;
   }
