@@ -5227,6 +5227,7 @@ function addToCart(id) {
 async function startOrder(event) {
   event.preventDefault();
   if (state.orderProcessing) return;
+  const isPayingUnpaidOrder = Boolean(state.activeDraftId);
   setOrderProcessing(true, "Mencetak...");
   try {
     if (!state.cart.length) return;
@@ -5270,9 +5271,11 @@ async function startOrder(event) {
     await saveOfflineTransaction(offlineRecord).catch(() => null);
     if (navigator.onLine) await syncPendingTransactions({ pull: false }).catch(() => null);
     
-    // Auto-print struk & label setelah bayar
+    // Order baru mencetak struk dan label. Saat bill dari tab Belum Dibayar
+    // dilunasi, label sudah dicetak ketika bill dibuat sehingga tidak dicetak
+    // otomatis lagi. Cetak ulang tetap tersedia lewat tombol Cetak Label Cup.
     const printed = await printReceipt(transaction, "paid");
-    printCupLabels(transaction).catch(() => null);
+    if (!isPayingUnpaidOrder) printCupLabels(transaction).catch(() => null);
     
     transaction.printStatus = printed ? "PRINTED" : "PRINT_FAILED";
     patchLocalHistoryTransaction(transaction.id, { printStatus: transaction.printStatus });
@@ -5939,7 +5942,7 @@ async function writeLabelPrinterChunks(bytes) {
     true,
   );
   const hasWriteResponse = Boolean(characteristic.properties.write);
-  await new Promise((resolve) => setTimeout(resolve, hasWriteResponse ? 400 : 700));
+  await new Promise((resolve) => setTimeout(resolve, hasWriteResponse ? 150 : 350));
 
   // Header GS v 0 sepanjang 13 byte dikirim terpisah agar parser sudah
   // mengunci ukuran raster sebelum aliran piksel dimulai.
@@ -5956,15 +5959,15 @@ async function writeLabelPrinterChunks(bytes) {
       true,
       { chunkSize: hasWriteResponse ? 20 : 13 },
     );
-    await new Promise((resolve) => setTimeout(resolve, hasWriteResponse ? 180 : 400));
+    await new Promise((resolve) => setTimeout(resolve, hasWriteResponse ? 60 : 200));
   }
 
   // Setelah bukti overflow di perangkat fisik, ACK tetap diberi pacing aman.
   // Tanpa ACK memakai paket 16 byte dan jeda ekstra; lebih lambat tetapi
   // mencegah header/piksel hilang dan tercetak menjadi karakter acak.
-  const transportDelayMs = hasWriteResponse ? 18 : 30;
-  const burstEvery = hasWriteResponse ? 16 : 8;
-  const burstPauseMs = hasWriteResponse ? 100 : 150;
+  const transportDelayMs = hasWriteResponse ? 8 : 20;
+  const burstEvery = hasWriteResponse ? 20 : 12;
+  const burstPauseMs = hasWriteResponse ? 50 : 100;
   await writePrinterChunks(
     rasterHeaderLength ? bytes.slice(rasterHeaderLength) : bytes,
     characteristic,
@@ -5976,7 +5979,7 @@ async function writeLabelPrinterChunks(bytes) {
       chunkSize: hasWriteResponse ? 20 : 16,
     },
   );
-  await new Promise((resolve) => setTimeout(resolve, hasWriteResponse ? 350 : 700));
+  await new Promise((resolve) => setTimeout(resolve, hasWriteResponse ? 150 : 400));
 }
 
 function enqueueLabelPrint(task) {
@@ -6463,7 +6466,7 @@ async function performCupLabelPrint(transaction) {
   if (!labelItems.length) return true;
 
   const labelSettings = getLabelPrinterSettings();
-  const delayMs = Math.max(1500, Number(labelSettings.labelDelay || 1500));
+  const delayMs = Math.max(800, Number(labelSettings.labelDelay || 800));
 
   try {
     for (let i = 0; i < labelItems.length; i++) {
@@ -6727,7 +6730,11 @@ async function printBill() {
     clearActiveOrder({ silent: true });
     renderOrders();
     renderPendingSync();
-    
+
+    // Cetak label cup otomatis saat bill dibuat agar barista bisa langsung
+    // memproses minuman sebelum pelanggan membayar.
+    printCupLabels(draft).catch((err) => console.warn("[Label] Cetak label bill gagal:", err));
+
     toast("Bill disimpan ke daftar Order Belum Dibayar.");
     completeDeferredShiftLogout();
   } finally {
