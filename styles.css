@@ -3720,3 +3720,158 @@ body.locked .login-screen { display: grid; }
   white-space: normal;
   overflow-wrap: anywhere;
 }
+
+/* ═══════════════════════════════════════════════
+   TAB CREW — Kehadiran & Absensi
+═══════════════════════════════════════════════ */
+
+.staff-full-col { grid-column: 1 / -1; }
+
+.staff-today-date {
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+/* ─── Tabel Kehadiran ─── */
+.attendance-table {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+  margin-top: 4px;
+}
+.attendance-header,
+.attendance-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr 1.4fr;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+}
+.attendance-header {
+  background: var(--paper);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  border-bottom: 1px solid var(--line);
+}
+.attendance-row {
+  font-size: 13px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+  transition: background 0.15s;
+}
+.attendance-row:last-child { border-bottom: none; }
+.attendance-row:hover { background: var(--soft); }
+.att-name { font-weight: 600; color: var(--ink); }
+
+.att-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.att-badge--present { background: rgba(0,52,155,.10); color: var(--accent); }
+.att-badge--leave   { background: var(--amber-soft);  color: var(--amber); }
+.att-badge--absent  { background: var(--danger-soft);  color: var(--danger); }
+
+/* ─── Rekap Range Controls ─── */
+.staff-range-controls {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.staff-range-controls label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+}
+.staff-range-controls input[type="date"] {
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-family: var(--font-body);
+  font-size: 13px;
+  background: var(--panel);
+  color: var(--ink);
+}
+.staff-period-label {
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 500;
+  margin-bottom: 12px;
+}
+
+/* ─── Kartu Rekap Per Karyawan ─── */
+.staff-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+}
+.staff-summary-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  transition: box-shadow 0.15s;
+}
+.staff-summary-card:hover { box-shadow: 0 4px 16px rgba(0,52,155,.08); }
+.staff-summary-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.staff-summary-name i { font-size: 20px; color: var(--accent); }
+.staff-summary-stats {
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+}
+.staff-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  flex: 1;
+  background: var(--soft);
+  border-radius: 8px;
+  padding: 8px 4px;
+}
+.staff-stat-value {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--accent);
+  line-height: 1;
+}
+.staff-stat-label {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--muted);
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+@media (max-width: 700px) {
+  .attendance-header,
+  .attendance-row { grid-template-columns: 1.5fr 1fr 1fr 1fr 1.2fr; font-size: 12px; padding: 8px 10px; }
+  .staff-summary-grid { grid-template-columns: 1fr 1fr; }
+}

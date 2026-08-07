@@ -49,7 +49,7 @@
           <label id="loginDutyRoleWrap">
             Tugas
             <select id="loginDutyRole">
-              <option value="karyawan">Karyawan</option>
+              <option value="karyawan">Crew</option>
               <option value="helper">Helper</option>
             </select>
           </label>
@@ -91,7 +91,7 @@
                 <button class="active" data-order-type="normal" type="button">Normal</button>
                 <button data-order-type="staff_drink" type="button">Staff Drink</button>
               </div>
-              <p class="staff-drink-info" id="staffDrinkInfo" hidden>Staff Drink hanya bisa digunakan 1 kali per hari per karyawan dan maksimal 1 item.</p>
+              <p class="staff-drink-info" id="staffDrinkInfo" hidden>Staff Drink hanya bisa digunakan 1 kali per hari per crew dan maksimal 1 item.</p>
             </div>
             <div class="dine-take-box" id="dineTakeBox">
               <p class="eyebrow">Penyajian</p>
@@ -202,7 +202,7 @@
         <div class="modal-actions">
           <button class="secondary-button" id="clearCart" type="button">Batalkan</button>
           <div class="modal-action-primary">
-            <button class="secondary-button" id="billOrderBtn" type="button">Cetak Bill</button>
+            <button class="secondary-button" id="billOrderBtn" type="button">Bayar Nanti</button>
             <button class="primary-button" type="submit">Bayar & Cetak</button>
           </div>
         </div>
@@ -289,19 +289,19 @@
       </form>
     </section>
 
-    <section class="order-modal employee-delete-modal" id="employeeDeleteModal" aria-label="Konfirmasi hapus karyawan" aria-hidden="true">
+    <section class="order-modal employee-delete-modal" id="employeeDeleteModal" aria-label="Konfirmasi hapus crew" aria-hidden="true">
       <form class="order-card confirm-card" id="employeeDeleteForm">
         <div class="modal-head">
           <div>
-            <p class="eyebrow">Karyawan</p>
-            <h2>Hapus Karyawan?</h2>
+            <p class="eyebrow">Crew</p>
+            <h2>Hapus Crew?</h2>
           </div>
           <button class="icon-button modal-close" id="cancelEmployeeDelete" type="button" title="Batal hapus">
             <i class="ph ph-x" aria-hidden="true"></i>
           </button>
         </div>
         <div class="confirm-body">
-          <p>Apakah kamu yakin ingin menghapus karyawan ini?</p>
+          <p>Apakah kamu yakin ingin menghapus crew ini?</p>
           <strong id="employeeDeleteName">-</strong>
         </div>
         <div class="modal-actions">
@@ -448,6 +448,12 @@
               <i class="ph ph-chart-bar"></i>
             </span>
             <span class="nav-label">Analitik</span>
+          </button>
+          <button class="nav-tab owner-only" data-view="staff" type="button">
+            <span class="tab-icon" aria-hidden="true">
+              <i class="ph ph-users-three"></i>
+            </span>
+            <span class="nav-label">Crew</span>
           </button>
           <button class="nav-tab" data-view="settings" type="button">
             <span class="tab-icon" aria-hidden="true">
@@ -993,8 +999,45 @@
           </section>
         </section>
 
-        <section class="view-panel" id="view-settings" style="padding-bottom: 100px;">
+        <!-- ============ TAB CREW ============ -->
+        <section class="view-panel" id="view-staff" style="padding-bottom: 100px;">
           <div class="management-grid">
+
+            <!-- Kehadiran Hari Ini -->
+            <section class="settings-panel staff-full-col">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">Absensi</p>
+                  <h3>Kehadiran Hari Ini</h3>
+                </div>
+                <span class="staff-today-date" id="staffTodayDate"></span>
+              </div>
+              <div id="staffTodayTable"></div>
+            </section>
+
+            <!-- Rekap 2 Mingguan -->
+            <section class="settings-panel staff-full-col">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">Penggajian</p>
+                  <h3>Rekap Kehadiran</h3>
+                </div>
+              </div>
+              <div class="staff-range-controls">
+                <label>
+                  Dari
+                  <input type="date" id="staffDateFrom" />
+                </label>
+                <label>
+                  Sampai
+                  <input type="date" id="staffDateTo" />
+                </label>
+                <button class="secondary-button compact" id="staffRangeBtn" type="button">Tampilkan</button>
+              </div>
+              <div id="staffSummaryTable"></div>
+            </section>
+
+            <!-- Manajemen Petugas -->
             <section class="settings-panel">
               <div class="section-heading">
                 <div>
@@ -1002,28 +1045,18 @@
                   <h3>Pengaturan Petugas</h3>
                 </div>
               </div>
-              <div class="employee-active-box">
-                <div>
-                  <span>Petugas aktif</span>
-                  <strong id="employeeName">Admin</strong>
-                </div>
-                <span class="employee-status-badge" id="employeeStatusBadge">Aktif</span>
-              </div>
-              <p class="employee-active-note" id="employeeActiveNote">Transaksi berikutnya akan memakai nama petugas aktif ini.</p>
               <form class="employee-add-form" id="employeeAddForm">
                 <label>
                   Tambah petugas
-                  <input id="employeeNewName" type="text" placeholder="Nama karyawan/helper" />
+                  <input id="employeeNewName" type="text" placeholder="Nama crew/helper" />
                 </label>
                 <button class="secondary-button" type="submit">Tambah</button>
               </form>
               <div class="employee-list" id="employeeList"></div>
-              <button class="secondary-button" id="logoutBtn" type="button">
-                <i class="ph ph-sign-out" aria-hidden="true"></i>
-                Logout
-              </button>
             </section>
-            <section class="settings-panel owner-analytics-only">
+
+            <!-- Pengaturan Role -->
+            <section class="settings-panel">
               <div class="section-heading">
                 <div>
                   <p class="eyebrow">Akses kasir</p>
@@ -1038,6 +1071,34 @@
                 <button class="secondary-button" type="submit">Tambah</button>
               </form>
               <div class="employee-list" id="roleList"></div>
+            </section>
+
+          </div>
+        </section>
+        <!-- ============ AKHIR TAB CREW ============ -->
+
+        <section class="view-panel" id="view-settings" style="padding-bottom: 100px;">
+          <div class="management-grid">
+            <!-- Sesi Aktif: accessible untuk owner & cashier -->
+            <section class="settings-panel">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">Akun kasir</p>
+                  <h3>Sesi Aktif</h3>
+                </div>
+              </div>
+              <div class="employee-active-box">
+                <div>
+                  <span>Petugas aktif</span>
+                  <strong id="employeeName">Admin</strong>
+                </div>
+                <span class="employee-status-badge" id="employeeStatusBadge">Aktif</span>
+              </div>
+              <p class="employee-active-note" id="employeeActiveNote">Transaksi berikutnya akan memakai nama petugas aktif ini.</p>
+              <button class="secondary-button" id="logoutBtn" type="button">
+                <i class="ph ph-sign-out" aria-hidden="true"></i>
+                Logout
+              </button>
             </section>
             <section class="settings-panel">
               <div class="section-heading">

@@ -695,8 +695,8 @@ function normalizeDutyRole(value, date = new Date()) {
 
 function dutyRoleLabel(value = currentDutyRole()) {
   if (value === "helper") return "Helper";
-  if (value === "karyawan") return "Karyawan";
-  return value ? value.charAt(0).toUpperCase() + value.slice(1) : "Karyawan";
+  if (value === "karyawan") return "Crew";
+  return value ? value.charAt(0).toUpperCase() + value.slice(1) : "Crew";
 }
 
 function orderSequenceFromId(id, prefix) {
@@ -872,7 +872,7 @@ function renderEmployeeRolesControls() {
   els.roleList.innerHTML = roles
     .map((role) => {
       const isDefault = role === "karyawan" || role === "helper";
-      const displayLabel = role === "karyawan" ? "Karyawan" : role === "helper" ? "Helper" : (role.charAt(0).toUpperCase() + role.slice(1));
+      const displayLabel = role === "karyawan" ? "Crew" : role === "helper" ? "Helper" : (role.charAt(0).toUpperCase() + role.slice(1));
       const statusLabel = isDefault ? "Default" : "Kustom";
       const statusClass = isDefault ? "active" : "";
       
@@ -1028,8 +1028,8 @@ function setLoginEmployeeStep(active) {
     els.loginHint.style.color = "";
     els.loginHint.textContent = active
       ? isHelperDay()
-        ? "Pilih karyawan dan tugas Karyawan/Helper, lalu masuk dashboard."
-        : "Pilih karyawan yang bertugas, lalu masuk dashboard."
+        ? "Pilih crew dan tugas Crew/Helper, lalu masuk dashboard."
+        : "Pilih crew yang bertugas, lalu masuk dashboard."
       : "Shift mengikuti jam operasional.";
   }
 }
@@ -1073,7 +1073,7 @@ function renderEmployeeControls() {
     ? state.activeCashier.employee || "Belum ada kasir aktif"
     : active
       ? activeEmployeeDisplayName(active, selectedDutyRole)
-      : "Belum ada karyawan";
+      : "Belum ada crew";
   const badgeLabel = owner
     ? state.activeCashier.online
       ? "Online"
@@ -1132,7 +1132,7 @@ function renderEmployeeControls() {
           option.disabled = disabled;
           return option;
         })
-      : [new Option("Belum ada karyawan", "")];
+      : [new Option("Belum ada crew", "")];
     if (!roster.length) options[0].disabled = true;
     els.loginEmployee.replaceChildren(...options);
     const selectable = options.find((option) => !option.disabled);
@@ -1144,7 +1144,7 @@ function renderEmployeeControls() {
   if (els.loginDutyRoleWrap) els.loginDutyRoleWrap.hidden = !showDutyRole;
   if (els.loginDutyRole) {
     const options = roles.map((role) => {
-      const label = role === "helper" ? "Helper" : role === "karyawan" ? "Karyawan" : (role.charAt(0).toUpperCase() + role.slice(1));
+      const label = role === "helper" ? "Helper" : role === "karyawan" ? "Crew" : (role.charAt(0).toUpperCase() + role.slice(1));
       return new Option(label, role);
     });
     const currentVal = els.loginDutyRole.value || selectedDutyRole;
@@ -1223,16 +1223,16 @@ async function preloadEmployeesForLogin() {
 async function finishLogin(role, employee, shift, dutyRole = "karyawan", token = "") {
   const normalizedDutyRole = role === "cashier" ? normalizeDutyRole(dutyRole) : "owner";
   if (role === "cashier" && !employee) {
-    toast("Pilih karyawan dulu. Jika kosong, tambahkan dari akun Owner.");
+    toast("Pilih crew dulu. Jika kosong, tambahkan dari akun Owner.");
     return false;
   }
   if (role === "cashier" && isEmployeeOnLeave(employee)) {
-    toast(`${employee} sedang libur. Pilih karyawan lain.`);
+    toast(`${employee} sedang libur. Pilih crew lain.`);
     renderEmployeeControls();
     return false;
   }
   if (role === "cashier" && isEmployeeUsedInOtherShift(employee, shift)) {
-    toast(`${employee} sudah bertugas di ${usedShiftForEmployee(employee)} hari ini. Pilih karyawan lain.`);
+    toast(`${employee} sudah bertugas di ${usedShiftForEmployee(employee)} hari ini. Pilih crew lain.`);
     renderEmployeeControls();
     return false;
   }
@@ -1280,13 +1280,13 @@ async function login(event) {
       return;
     }
 
-    els.loginSubmitBtn.textContent = "Memuat karyawan...";
+    els.loginSubmitBtn.textContent = "Memuat crew...";
     state.pendingLogin = { role: "cashier", token, checkedAt: new Date().toISOString() };
     await preloadEmployeesForLogin();
     renderEmployeeControls();
     setLoginEmployeeStep(true);
     if (!els.loginEmployee?.value) {
-      toast("Daftar karyawan belum tersedia. Tambahkan karyawan dari akun Owner.");
+      toast("Daftar crew belum tersedia. Tambahkan crew dari akun Owner.");
       renderEmployeeControls();
     }
     return;
@@ -1346,7 +1346,7 @@ function enforceCurrentEmployeeAvailability() {
   if (!auth?.loggedIn || auth.role !== "cashier") return false;
   const employeeAvailable = auth.employee && getEmployeeRoster().includes(auth.employee) && !isEmployeeOnLeave(auth.employee);
   if (employeeAvailable) return false;
-  const employee = auth.employee || "Karyawan";
+  const employee = auth.employee || "Crew";
   logout({ remote: true });
   toast(`${employee} dinonaktifkan atau dijadwalkan libur oleh Owner. Silakan login dengan petugas aktif.`);
   return true;
@@ -1564,13 +1564,15 @@ function applyAccessControls() {
   document.body.classList.toggle("role-cashier", isLoggedIn() && isCashier());
   document.querySelector('[data-view="cashflow"]')?.classList.toggle("owner-only", !owner);
   document.querySelector("#view-cashflow")?.classList.toggle("owner-only", !owner);
+  document.querySelector('[data-view="staff"]')?.classList.toggle("owner-only", !owner);
   document.querySelector("#view-stock .inventory-grid > .settings-panel")?.classList.toggle("owner-only", !owner);
   els.employeeAddForm?.classList.toggle("owner-only", !owner);
   els.employeeList?.classList.toggle("owner-only", !owner);
 
-  // Hanya blok akses ke view-cashflow jika bukan owner
-  if (!owner && document.querySelector("#view-cashflow")?.classList.contains("active")) {
-    setActiveView("pos");
+  // Blok akses ke view-cashflow dan view-staff jika bukan owner
+  if (!owner) {
+    if (document.querySelector("#view-cashflow")?.classList.contains("active")) setActiveView("pos");
+    if (document.querySelector("#view-staff")?.classList.contains("active")) setActiveView("pos");
   }
 }
 
@@ -4177,7 +4179,7 @@ function syncOrderTypeUi() {
   if (els.staffDrinkInfo) {
     els.staffDrinkInfo.hidden = !staffDrinkActive && (staffDrinkAvailable || !state.cart.length);
     els.staffDrinkInfo.textContent = staffDrinkAvailable
-      ? "Staff Drink hanya bisa digunakan 1 kali per hari per karyawan dan maksimal 1 item."
+      ? "Staff Drink hanya bisa digunakan 1 kali per hari per crew dan maksimal 1 item."
       : "Staff Drink hanya bisa dipilih untuk tepat 1 item.";
   }
   if (els.discountBox) els.discountBox.hidden = !canUseDiscount();
@@ -4550,7 +4552,7 @@ function closeStockEditModal() {
 
 function openEmployeeDeleteModal(name) {
   if (!isOwner()) {
-    toast("Hapus karyawan hanya untuk Owner.");
+    toast("Hapus crew hanya untuk Owner.");
     return;
   }
   state.pendingEmployeeDelete = name;
@@ -4569,13 +4571,13 @@ async function confirmEmployeeDelete() {
   const name = state.pendingEmployeeDelete;
   if (!name) return;
   if (!navigator.onLine) {
-    toast("Hapus karyawan membutuhkan koneksi internet agar data Supabase tetap konsisten.");
+    toast("Hapus crew membutuhkan koneksi internet agar data Supabase tetap konsisten.");
     return;
   }
   try {
     await deleteEmployeeInCloud(name);
   } catch {
-    toast("Karyawan belum terhapus. Coba lagi saat koneksi stabil.");
+    toast("Crew belum terhapus. Coba lagi saat koneksi stabil.");
     return;
   }
   rememberDeletedEmployee(name);
@@ -4598,7 +4600,7 @@ async function confirmEmployeeDelete() {
     loadCloudData(),
   ]);
   renderEmployeeControls();
-  toast(`${name} dihapus dari daftar karyawan.`);
+  toast(`${name} dihapus dari daftar crew.`);
 }
 
 async function toggleEmployeeLeave(name) {
@@ -5628,7 +5630,7 @@ function receiptHtml(transaction, kind = "paid") {
   return `
     <img class="receipt-logo" src="/assets/logo-migi.png" alt="Logo Kopi Migi" />
     <h2>Kopi Migi</h2>
-    ${kind === "bill" ? "" : staffDrink ? "<p>STAFF DRINK / JATAH KARYAWAN</p>" : "<p>LUNAS</p>"}
+    ${kind === "bill" ? "" : staffDrink ? "<p>STAFF DRINK / JATAH CREW</p>" : "<p>LUNAS</p>"}
     <p>Kode: ${displayCode}</p>
     <p>${escapeHtml(new Date(transaction.createdAt).toLocaleString("id-ID"))}</p>
     <p>Kasir: ${escapeHtml(transactionEmployeeDisplay(transaction))} (${escapeHtml(transactionShift(transaction))})</p>
@@ -6651,7 +6653,7 @@ function setOrderProcessing(active, label = "Memproses...") {
     }
   }
   if (els.billOrderBtn) {
-    els.billOrderBtn.textContent = active ? "Menyimpan..." : "Cetak Bill";
+    els.billOrderBtn.textContent = active ? "Menyimpan..." : "Bayar Nanti";
   }
 }
 
@@ -6735,7 +6737,7 @@ async function printBill() {
     // memproses minuman sebelum pelanggan membayar.
     printCupLabels(draft).catch((err) => console.warn("[Label] Cetak label bill gagal:", err));
 
-    toast("Bill disimpan ke daftar Order Belum Dibayar.");
+    toast("Order disimpan ke daftar Belum Dibayar.");
     completeDeferredShiftLogout();
   } finally {
     setOrderProcessing(false);
@@ -7598,7 +7600,7 @@ function editDraftOrder(id) {
   const draft = loadDraftToCart(id);
   if (!draft) return;
   setActiveView("pos");
-  toast("Order belum dibayar dimuat. Tambahkan menu lalu cetak bill baru.");
+  toast("Order belum dibayar dimuat. Tambahkan menu lalu tekan Bayar Nanti.");
 }
 
 function selectedMonth() {
@@ -7657,7 +7659,7 @@ function dailyReportText(todayTransactions, reportDateValue = selectedDailyDate(
     `Kas Harian untuk Kembalian: ${dailyCash ? money(dailyCash.amount) : "-"}`,
     ...(dailyCash?.employee ? [`Dicatat oleh: ${dailyCash.employee}`] : []),
     "",
-    "Konsumsi Karyawan:",
+    "Konsumsi Crew:",
     ...(staffDrinks.length ? staffDrinks.map((entry) => `- ${transactionEmployeeDisplay(entry)}: ${staffDrinkItemsLabel(entry)} (${money(entry.originalTotal || entry.subtotal || 0)})`) : ["- Belum ada Staff Drink"]),
     `Nilai konsumsi: ${money(staffValue)}`,
     "",
@@ -7714,7 +7716,7 @@ function renderDailySummary(todayTransactions, reportDateValue = selectedDailyDa
     <article><span>Item terjual</span><strong>${items}</strong></article>
     <article><span>Menu paling jalan</span><strong>${topItem ? `${topItem.name} (${topItem.qty})` : "-"}</strong></article>
     <article><span>Total diskon</span><strong>${money(discountTotal)}</strong></article>
-    <article><span>Konsumsi karyawan</span><strong>${staffDrinks.length} staff drink</strong><small>${money(staffValue)}</small></article>
+    <article><span>Konsumsi crew</span><strong>${staffDrinks.length} staff drink</strong><small>${money(staffValue)}</small></article>
     <article class="daily-cash-summary">
       <span>Kas harian untuk kembalian</span>
       <strong>${dailyCash ? money(dailyCash.amount) : "-"}</strong>
@@ -8427,12 +8429,12 @@ function renderInsights({ history, bestsellers, revenue, itemCount, staffDrinks 
         { label: "Menu terkuat", value: top.name, detail: `${top.qty} terjual dengan omset ${money(top.revenue)}.` },
         { label: "Rata-rata transaksi", value: money(avgTransaction), detail: `${history.length} transaksi dari ${activeDays || 0} hari jualan.` },
         { label: "Kontribusi photobooth", value: `${boothCount} transaksi`, detail: boothCount ? "Kode akses otomatis dibuat saat checkout." : "Belum ada sesi photobooth di bulan ini." },
-        { label: "Konsumsi karyawan", value: `${staffDrinks.length} Staff Drink`, detail: `${money(staffValue)} nilai konsumsi, tidak masuk omzet.` },
+        { label: "Konsumsi crew", value: `${staffDrinks.length} Staff Drink`, detail: `${money(staffValue)} nilai konsumsi, tidak masuk omzet.` },
       ]
     : [
         { label: "Belum ada data", value: "Mulai checkout", detail: "Best seller dan evaluasi akan muncul setelah ada transaksi." },
         { label: "Item terjual", value: String(itemCount), detail: "Jumlah item mengikuti semua transaksi bulan terpilih." },
-        { label: "Konsumsi karyawan", value: `${staffDrinks.length} Staff Drink`, detail: `${money(staffValue)} nilai konsumsi, tidak masuk omzet.` },
+        { label: "Konsumsi crew", value: `${staffDrinks.length} Staff Drink`, detail: `${money(staffValue)} nilai konsumsi, tidak masuk omzet.` },
       ];
 
   els.insightList.innerHTML = insights
@@ -8508,9 +8510,14 @@ async function persistMenuSettings() {
     toast("Menu tersimpan lokal. Akan sync saat online.");
     return false;
   }
-  await syncSettingsToCloud({ force: true });
-  await pullSettingsFromSupabase({ render: false });
-  return true;
+  const synced = await syncSettingsToCloud({ force: true });
+  // Hanya pull dari cloud jika berhasil sync (owner online).
+  // Jika bukan owner, cloud belum terupdate — pull justru akan
+  // menimpa menu yang baru saja disimpan dengan data cloud lama.
+  if (synced) {
+    await pullSettingsFromSupabase({ render: false });
+  }
+  return synced;
 }
 
 async function saveMenu(event) {
@@ -8813,8 +8820,162 @@ function registerServiceWorker() {
   });
 }
 
+// ─── Kehadiran & Absensi Crew ───────────────────────────────────────────
+
+function shiftEndTime(shift) {
+  return normalizeShift(shift) === "Shift 1" ? "17:00" : "22:00";
+}
+
+function shiftStartTime(shift) {
+  return normalizeShift(shift) === "Shift 1" ? "10:00" : "17:00";
+}
+
+function getAttendanceForDate(dateStr) {
+  const roster = getEmployeeRoster();
+  const assignments = todayShiftAssignments(dateStr);
+  return roster.map((name) => {
+    const employeeId = assignmentEmployeeId(name);
+    const assignment = assignments.find(
+      (a) => (a.employeeId || assignmentEmployeeId(a.employee)) === employeeId,
+    );
+    const onLeave = isEmployeeOnLeave(name);
+    return {
+      name,
+      shift: assignment?.shift || "",
+      loginAt: assignment?.loginAt || "",
+      dutyRole: assignment?.dutyRole || "",
+      status: assignment ? "hadir" : onLeave ? "libur" : "belum",
+    };
+  });
+}
+
+function getAttendanceSummary(startDate, endDate) {
+  const roster = getEmployeeRoster();
+  const summary = Object.fromEntries(
+    roster.map((name) => [name, { name, shift1: 0, shift2: 0, total: 0 }]),
+  );
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  end.setHours(23, 59, 59);
+  if (isNaN(start) || isNaN(end) || start > end) return Object.values(summary);
+  const cursor = new Date(start);
+  while (cursor <= end) {
+    const dateStr = dateKey(cursor);
+    getAttendanceForDate(dateStr).forEach(({ name, shift, status }) => {
+      if (!summary[name] || status !== "hadir") return;
+      summary[name].total++;
+      if (normalizeShift(shift) === "Shift 1") summary[name].shift1++;
+      else summary[name].shift2++;
+    });
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return Object.values(summary);
+}
+
+function initStaffDateRange() {
+  const fromInput = document.querySelector("#staffDateFrom");
+  const toInput = document.querySelector("#staffDateTo");
+  if (!fromInput || !toInput || (fromInput.value && toInput.value)) return;
+  const today = new Date();
+  const twoWeeksAgo = new Date(today);
+  twoWeeksAgo.setDate(today.getDate() - 13);
+  fromInput.value = dateKey(twoWeeksAgo);
+  toInput.value = dateKey(today);
+}
+
+function renderStaffTodayAttendance() {
+  const container = document.querySelector("#staffTodayTable");
+  const todayLabel = document.querySelector("#staffTodayDate");
+  if (!container) return;
+  const today = dateKey();
+  if (todayLabel) {
+    todayLabel.textContent = new Date().toLocaleDateString("id-ID", {
+      weekday: "long", year: "numeric", month: "long", day: "numeric",
+    });
+  }
+  const attendance = getAttendanceForDate(today);
+  if (!attendance.length) {
+    container.innerHTML = `<div class="empty-state">Belum ada crew terdaftar.</div>`;
+    return;
+  }
+  container.innerHTML = `
+    <div class="attendance-table">
+      <div class="attendance-header">
+        <span>Crew</span><span>Shift</span><span>Jam Masuk</span><span>Jam Keluar</span><span>Status</span>
+      </div>
+      ${attendance.map(({ name, shift, loginAt, status }) => {
+        const loginTime = loginAt
+          ? new Date(loginAt).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })
+          : "-";
+        const outTime = shift ? shiftEndTime(shift) : "-";
+        const badgeMap = { hadir: ["att-badge--present", shift || "Hadir"], libur: ["att-badge--leave", "Libur"], belum: ["att-badge--absent", "Belum masuk"] };
+        const [cls, label] = badgeMap[status] || badgeMap.belum;
+        return `<div class="attendance-row">
+          <span class="att-name">${escapeHtml(name)}</span>
+          <span>${shift ? escapeHtml(shift) : "-"}</span>
+          <span>${loginTime}</span>
+          <span>${outTime}</span>
+          <span class="att-badge ${cls}">${escapeHtml(label)}</span>
+        </div>`;
+      }).join("")}
+    </div>
+  `;
+}
+
+function renderStaffSummary() {
+  const container = document.querySelector("#staffSummaryTable");
+  if (!container) return;
+  const fromInput = document.querySelector("#staffDateFrom");
+  const toInput = document.querySelector("#staffDateTo");
+  if (!fromInput?.value || !toInput?.value) {
+    container.innerHTML = `<div class="empty-state">Pilih rentang tanggal lalu tekan Tampilkan.</div>`;
+    return;
+  }
+  const summary = getAttendanceSummary(fromInput.value, toInput.value);
+  if (!summary.length) {
+    container.innerHTML = `<div class="empty-state">Belum ada crew terdaftar.</div>`;
+    return;
+  }
+  const fromLabel = new Date(fromInput.value).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" });
+  const toLabel = new Date(toInput.value).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" });
+  container.innerHTML = `
+    <p class="staff-period-label">${fromLabel} – ${toLabel}</p>
+    <div class="staff-summary-grid">
+      ${summary.map(({ name, shift1, shift2, total }) => `
+        <div class="staff-summary-card">
+          <div class="staff-summary-name">
+            <i class="ph ph-user-circle" aria-hidden="true"></i>
+            ${escapeHtml(name)}
+          </div>
+          <div class="staff-summary-stats">
+            <div class="staff-stat">
+              <span class="staff-stat-value">${total}</span>
+              <span class="staff-stat-label">Total Shift</span>
+            </div>
+            <div class="staff-stat">
+              <span class="staff-stat-value">${shift1}</span>
+              <span class="staff-stat-label">Shift 1</span>
+            </div>
+            <div class="staff-stat">
+              <span class="staff-stat-value">${shift2}</span>
+              <span class="staff-stat-label">Shift 2</span>
+            </div>
+          </div>
+        </div>
+      `).join("")}
+    </div>
+  `;
+}
+
+function renderStaffView() {
+  renderStaffTodayAttendance();
+  renderStaffSummary();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 function setActiveView(viewName, { persist = true } = {}) {
-  if (viewName === "cashflow" && !isOwner()) {
+  if ((viewName === "cashflow" || viewName === "staff") && !isOwner()) {
     viewName = "pos";
   }
   const target = document.querySelector(`#view-${viewName}`);
@@ -8832,6 +8993,10 @@ function setActiveView(viewName, { persist = true } = {}) {
     refreshCashflowSalesForSelection({ silent: true }).then((loaded) => {
       if (!loaded) renderCashflow();
     });
+  }
+  if (viewName === "staff") {
+    initStaffDateRange();
+    renderStaffView();
   }
   return true;
 }
@@ -9245,19 +9410,19 @@ els.boothPackage.addEventListener("change", () => {
 els.employeeAddForm?.addEventListener("submit", async (event) => {
   event.preventDefault();
   if (!isOwner()) {
-    toast("Tambah karyawan hanya untuk Owner.");
+    toast("Tambah crew hanya untuk Owner.");
     return;
   }
   const name = els.employeeNewName?.value.trim();
   if (!name) return;
   if (!navigator.onLine) {
-    toast("Tambah karyawan membutuhkan koneksi internet agar tersimpan di Supabase.");
+    toast("Tambah crew membutuhkan koneksi internet agar tersimpan di Supabase.");
     return;
   }
   try {
     await addEmployeeInCloud(name);
   } catch {
-    toast("Karyawan belum tersimpan. Coba lagi saat koneksi stabil.");
+    toast("Crew belum tersimpan. Coba lagi saat koneksi stabil.");
     return;
   }
   forgetDeletedEmployee(name);
@@ -9269,7 +9434,7 @@ els.employeeAddForm?.addEventListener("submit", async (event) => {
   if (els.employeeNewName) els.employeeNewName.value = "";
   await loadCloudData().catch(() => null);
   renderEmployeeControls();
-  toast(`${name} ditambahkan ke daftar karyawan.`);
+  toast(`${name} ditambahkan ke daftar crew.`);
 });
 els.employeeList?.addEventListener("click", (event) => {
   const leaveButton = event.target.closest("button[data-toggle-employee-leave]");
@@ -9285,7 +9450,7 @@ els.employeeList?.addEventListener("click", (event) => {
   }
   if (deleteButton) {
     if (!isOwner()) {
-      toast("Hapus karyawan hanya untuk Owner.");
+      toast("Hapus role hanya untuk Owner.");
       return;
     }
     const name = decodeURIComponent(deleteButton.dataset.deleteEmployee);
@@ -9849,6 +10014,7 @@ document.addEventListener("visibilitychange", () => {
     if (document.querySelector("#view-cashflow")?.classList.contains("active")) refreshActiveCashflowSales();
   }
 });
+document.querySelector("#staffRangeBtn")?.addEventListener("click", renderStaffSummary);
 restoreActiveView();
 applyAccessControls();
 renderAll();
