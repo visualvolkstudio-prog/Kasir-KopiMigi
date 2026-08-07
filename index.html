@@ -1015,7 +1015,7 @@
               <div id="staffTodayTable"></div>
             </section>
 
-            <!-- Rekap 2 Mingguan -->
+            <!-- Rekap Kehadiran / Penggajian -->
             <section class="settings-panel staff-full-col">
               <div class="section-heading">
                 <div>
@@ -1024,15 +1024,31 @@
                 </div>
               </div>
               <div class="staff-range-controls">
-                <label>
-                  Dari
-                  <input type="date" id="staffDateFrom" />
-                </label>
-                <label>
-                  Sampai
-                  <input type="date" id="staffDateTo" />
-                </label>
-                <button class="secondary-button compact" id="staffRangeBtn" type="button">Tampilkan</button>
+                <div class="staff-quick-presets">
+                  <button class="staff-preset-btn active" data-range-preset="2weeks" type="button">2 Minggu (Standard)</button>
+                  <button class="staff-preset-btn" data-range-preset="month" type="button">Bulan Ini</button>
+                  <button class="staff-preset-btn" data-range-preset="7days" type="button">7 Hari Terakhir</button>
+                </div>
+                <div class="staff-date-inputs">
+                  <label>
+                    <span>Dari</span>
+                    <div class="input-with-icon">
+                      <i class="ph ph-calendar-blank"></i>
+                      <input type="date" id="staffDateFrom" />
+                    </div>
+                  </label>
+                  <label>
+                    <span>Sampai</span>
+                    <div class="input-with-icon">
+                      <i class="ph ph-calendar-blank"></i>
+                      <input type="date" id="staffDateTo" />
+                    </div>
+                  </label>
+                  <button class="primary-button compact-btn" id="staffRangeBtn" type="button">
+                    <i class="ph ph-funnel"></i>
+                    Tampilkan
+                  </button>
+                </div>
               </div>
               <div id="staffSummaryTable"></div>
             </section>

@@ -8883,6 +8883,29 @@ function initStaffDateRange() {
   toInput.value = dateKey(today);
 }
 
+function applyStaffPresetRange(preset) {
+  const fromInput = document.querySelector("#staffDateFrom");
+  const toInput = document.querySelector("#staffDateTo");
+  if (!fromInput || !toInput) return;
+  const today = new Date();
+  let fromDate = new Date(today);
+  if (preset === "7days") {
+    fromDate.setDate(today.getDate() - 6);
+  } else if (preset === "month") {
+    fromDate = new Date(today.getFullYear(), today.getMonth(), 1);
+  } else {
+    // 2weeks default
+    fromDate.setDate(today.getDate() - 13);
+  }
+  fromInput.value = dateKey(fromDate);
+  toInput.value = dateKey(today);
+
+  document.querySelectorAll(".staff-preset-btn").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.rangePreset === preset);
+  });
+  renderStaffSummary();
+}
+
 function renderStaffTodayAttendance() {
   const container = document.querySelector("#staffTodayTable");
   const todayLabel = document.querySelector("#staffTodayDate");
@@ -8901,21 +8924,39 @@ function renderStaffTodayAttendance() {
   container.innerHTML = `
     <div class="attendance-table">
       <div class="attendance-header">
-        <span>Crew</span><span>Shift</span><span>Jam Masuk</span><span>Jam Keluar</span><span>Status</span>
+        <span><i class="ph ph-user"></i> Crew</span>
+        <span><i class="ph ph-calendar-check"></i> Shift</span>
+        <span><i class="ph ph-sign-in"></i> Jam Masuk</span>
+        <span><i class="ph ph-sign-out"></i> Jam Keluar</span>
+        <span><i class="ph ph-shield-check"></i> Status</span>
       </div>
       ${attendance.map(({ name, shift, loginAt, status }) => {
+        const initial = escapeHtml((name || "?").charAt(0).toUpperCase());
         const loginTime = loginAt
           ? new Date(loginAt).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })
           : "-";
         const outTime = shift ? shiftEndTime(shift) : "-";
-        const badgeMap = { hadir: ["att-badge--present", shift || "Hadir"], libur: ["att-badge--leave", "Libur"], belum: ["att-badge--absent", "Belum masuk"] };
-        const [cls, label] = badgeMap[status] || badgeMap.belum;
+        
+        let badgeHtml = "";
+        if (status === "libur") {
+          badgeHtml = `<span class="att-badge att-badge--leave"><i class="ph ph-palm-tree"></i> Libur</span>`;
+        } else if (status === "hadir") {
+          const shiftCls = normalizeShift(shift) === "Shift 1" ? "att-badge--shift1" : "att-badge--shift2";
+          const iconCls = normalizeShift(shift) === "Shift 1" ? "ph-sun" : "ph-moon";
+          badgeHtml = `<span class="att-badge ${shiftCls}"><i class="ph ${iconCls}"></i> ${escapeHtml(shift || "Hadir")}</span>`;
+        } else {
+          badgeHtml = `<span class="att-badge att-badge--absent"><i class="ph ph-clock"></i> Belum masuk</span>`;
+        }
+
         return `<div class="attendance-row">
-          <span class="att-name">${escapeHtml(name)}</span>
-          <span>${shift ? escapeHtml(shift) : "-"}</span>
-          <span>${loginTime}</span>
-          <span>${outTime}</span>
-          <span class="att-badge ${cls}">${escapeHtml(label)}</span>
+          <div class="att-user-cell">
+            <span class="att-avatar">${initial}</span>
+            <span class="att-name">${escapeHtml(name)}</span>
+          </div>
+          <span class="att-shift-text">${shift ? escapeHtml(shift) : "-"}</span>
+          <span class="att-time-text">${loginTime}</span>
+          <span class="att-time-text">${outTime}</span>
+          <div>${badgeHtml}</div>
         </div>`;
       }).join("")}
     </div>
@@ -8939,30 +8980,44 @@ function renderStaffSummary() {
   const fromLabel = new Date(fromInput.value).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" });
   const toLabel = new Date(toInput.value).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" });
   container.innerHTML = `
-    <p class="staff-period-label">${fromLabel} – ${toLabel}</p>
+    <div class="staff-period-bar">
+      <i class="ph ph-calendar"></i>
+      <span>Periode Rekap: <strong>${fromLabel} – ${toLabel}</strong></span>
+    </div>
     <div class="staff-summary-grid">
-      ${summary.map(({ name, shift1, shift2, total }) => `
+      ${summary.map(({ name, shift1, shift2, total }) => {
+        const initial = escapeHtml((name || "?").charAt(0).toUpperCase());
+        return `
         <div class="staff-summary-card">
-          <div class="staff-summary-name">
-            <i class="ph ph-user-circle" aria-hidden="true"></i>
-            ${escapeHtml(name)}
+          <div class="staff-summary-head">
+            <div class="staff-summary-user">
+              <span class="staff-avatar">${initial}</span>
+              <strong class="staff-summary-name">${escapeHtml(name)}</strong>
+            </div>
+            <div class="staff-total-pill" title="Total Shift Bertugas">
+              <i class="ph ph-check-square-offset"></i> ${total} Shift
+            </div>
           </div>
           <div class="staff-summary-stats">
-            <div class="staff-stat">
+            <div class="staff-stat staff-stat--total">
+              <i class="ph ph-calendar-check"></i>
               <span class="staff-stat-value">${total}</span>
               <span class="staff-stat-label">Total Shift</span>
             </div>
-            <div class="staff-stat">
+            <div class="staff-stat staff-stat--shift1">
+              <i class="ph ph-sun"></i>
               <span class="staff-stat-value">${shift1}</span>
               <span class="staff-stat-label">Shift 1</span>
             </div>
-            <div class="staff-stat">
+            <div class="staff-stat staff-stat--shift2">
+              <i class="ph ph-moon"></i>
               <span class="staff-stat-value">${shift2}</span>
               <span class="staff-stat-label">Shift 2</span>
             </div>
           </div>
         </div>
-      `).join("")}
+      `;
+      }).join("")}
     </div>
   `;
 }
@@ -10015,6 +10070,12 @@ document.addEventListener("visibilitychange", () => {
   }
 });
 document.querySelector("#staffRangeBtn")?.addEventListener("click", renderStaffSummary);
+document.addEventListener("click", (event) => {
+  const presetBtn = event.target.closest(".staff-preset-btn");
+  if (presetBtn) {
+    applyStaffPresetRange(presetBtn.dataset.rangePreset);
+  }
+});
 restoreActiveView();
 applyAccessControls();
 renderAll();

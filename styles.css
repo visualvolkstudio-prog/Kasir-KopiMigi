@@ -3722,156 +3722,404 @@ body.locked .login-screen { display: grid; }
 }
 
 /* ═══════════════════════════════════════════════
-   TAB CREW — Kehadiran & Absensi
+   TAB CREW — Kehadiran & Absensi (Premium UI)
 ═══════════════════════════════════════════════ */
 
 .staff-full-col { grid-column: 1 / -1; }
 
 .staff-today-date {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--muted);
-  font-weight: 500;
+  font-weight: 600;
   white-space: nowrap;
+  background: var(--paper);
+  padding: 6px 14px;
+  border-radius: 20px;
+  border: 1px solid var(--line);
 }
 
 /* ─── Tabel Kehadiran ─── */
 .attendance-table {
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--line);
-  border-radius: 10px;
+  border: 1px solid rgba(0, 52, 155, 0.10);
+  border-radius: 14px;
   overflow: hidden;
-  margin-top: 4px;
+  margin-top: 8px;
+  background: #ffffff;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.03);
 }
+
 .attendance-header,
 .attendance-row {
   display: grid;
-  grid-template-columns: 2fr 1fr 1fr 1fr 1.4fr;
+  grid-template-columns: 2.2fr 1.1fr 1.1fr 1.1fr 1.4fr;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 18px;
+}
+
+.attendance-header {
+  background: #f8fafc;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  border-bottom: 1px solid var(--line);
+}
+
+.attendance-header i {
+  font-size: 14px;
+  color: var(--accent);
+  margin-right: 4px;
+  vertical-align: -1px;
+}
+
+.attendance-row {
+  font-size: 13px;
+  border-bottom: 1px solid var(--line);
+  background: #ffffff;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.attendance-row:last-child {
+  border-bottom: none;
+}
+
+.attendance-row:hover {
+  background: rgba(0, 52, 155, 0.02);
+  transform: translateX(2px);
+}
+
+/* User cell & Avatar */
+.att-user-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.att-avatar,
+.staff-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent) 0%, #1e52bf 100%);
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0, 52, 155, 0.25);
+  flex-shrink: 0;
+}
+
+.att-name {
+  font-weight: 700;
+  color: var(--ink);
+  font-size: 14px;
+}
+
+.att-shift-text,
+.att-time-text {
+  font-size: 13px;
+  color: var(--ink-2);
+  font-weight: 500;
+  font-family: var(--font-mono);
+}
+
+/* Badges Status */
+.att-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: transform 0.15s;
+}
+
+.att-badge i {
+  font-size: 13px;
+}
+
+.att-badge--shift1 {
+  background: rgba(245, 158, 11, 0.12);
+  color: #b45309;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.att-badge--shift2 {
+  background: rgba(124, 58, 237, 0.12);
+  color: #6d28d9;
+  border: 1px solid rgba(124, 58, 237, 0.3);
+}
+
+.att-badge--present {
+  background: rgba(0, 52, 155, 0.10);
+  color: var(--accent);
+  border: 1px solid rgba(0, 52, 155, 0.25);
+}
+
+.att-badge--leave {
+  background: var(--amber-soft);
+  color: var(--amber);
+  border: 1px solid rgba(201, 134, 30, 0.3);
+}
+
+.att-badge--absent {
+  background: var(--danger-soft);
+  color: var(--danger);
+  border: 1px solid rgba(184, 64, 64, 0.25);
+}
+
+/* ─── Rekap Range Controls & Quick Presets ─── */
+.staff-range-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-bottom: 18px;
+  background: #f8fafc;
+  border: 1px solid var(--line);
+  padding: 14px 16px;
+  border-radius: 14px;
+}
+
+.staff-quick-presets {
+  display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 14px;
+  flex-wrap: wrap;
 }
-.attendance-header {
-  background: var(--paper);
+
+.staff-preset-btn {
+  padding: 6px 14px;
+  border-radius: 20px;
+  border: 1px solid var(--line);
+  background: #ffffff;
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.staff-preset-btn:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: rgba(0, 52, 155, 0.3);
+}
+
+.staff-preset-btn.active {
+  background: var(--accent);
+  color: #ffffff;
+  border-color: var(--accent);
+  box-shadow: 0 3px 10px rgba(0, 52, 155, 0.25);
+}
+
+.staff-date-inputs {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.staff-date-inputs label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
   font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--muted);
-  border-bottom: 1px solid var(--line);
 }
-.attendance-row {
-  font-size: 13px;
-  border-bottom: 1px solid var(--line);
-  background: var(--panel);
-  transition: background 0.15s;
-}
-.attendance-row:last-child { border-bottom: none; }
-.attendance-row:hover { background: var(--soft); }
-.att-name { font-weight: 600; color: var(--ink); }
 
-.att-badge {
-  display: inline-flex;
+.input-with-icon {
+  position: relative;
+  display: flex;
   align-items: center;
-  padding: 3px 10px;
-  border-radius: 20px;
-  font-size: 11px;
-  font-weight: 600;
 }
-.att-badge--present { background: rgba(0,52,155,.10); color: var(--accent); }
-.att-badge--leave   { background: var(--amber-soft);  color: var(--amber); }
-.att-badge--absent  { background: var(--danger-soft);  color: var(--danger); }
 
-/* ─── Rekap Range Controls ─── */
-.staff-range-controls {
-  display: flex;
-  align-items: flex-end;
-  gap: 10px;
-  flex-wrap: wrap;
-  margin-bottom: 16px;
-}
-.staff-range-controls label {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  font-size: 12px;
-  font-weight: 500;
+.input-with-icon i {
+  position: absolute;
+  left: 10px;
   color: var(--muted);
+  font-size: 15px;
+  pointer-events: none;
 }
-.staff-range-controls input[type="date"] {
-  padding: 8px 10px;
+
+.input-with-icon input[type="date"] {
+  padding: 8px 12px 8px 32px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 10px;
   font-family: var(--font-body);
   font-size: 13px;
-  background: var(--panel);
+  font-weight: 600;
+  background: #ffffff;
   color: var(--ink);
-}
-.staff-period-label {
-  font-size: 12px;
-  color: var(--muted);
-  font-weight: 500;
-  margin-bottom: 12px;
+  outline: none;
+  transition: all 0.2s ease;
 }
 
-/* ─── Kartu Rekap Per Karyawan ─── */
-.staff-summary-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 12px;
+.input-with-icon input[type="date"]:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(0, 52, 155, 0.12);
 }
-.staff-summary-card {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  transition: box-shadow 0.15s;
+
+.staff-date-inputs .compact-btn {
+  height: 37px;
+  padding: 0 16px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
 }
-.staff-summary-card:hover { box-shadow: 0 4px 16px rgba(0,52,155,.08); }
-.staff-summary-name {
+
+.staff-period-bar {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 14px;
+  font-size: 13px;
+  color: var(--ink-2);
+  margin-bottom: 14px;
+  padding: 8px 12px;
+  background: rgba(0, 52, 155, 0.04);
+  border-radius: 8px;
+  border-left: 3px solid var(--accent);
+}
+
+.staff-period-bar i {
+  color: var(--accent);
+  font-size: 16px;
+}
+
+/* ─── Kartu Rekap Per Crew ─── */
+.staff-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 16px;
+}
+
+.staff-summary-card {
+  background: #ffffff;
+  border: 1px solid rgba(0, 52, 155, 0.10);
+  border-radius: 16px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.03);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.staff-summary-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 30px rgba(0, 52, 155, 0.12);
+  border-color: rgba(0, 52, 155, 0.3);
+}
+
+.staff-summary-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-bottom: 12px;
+  border-bottom: 1px dashed var(--line);
+}
+
+.staff-summary-user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.staff-summary-name {
+  font-size: 15px;
   font-weight: 700;
   color: var(--ink);
 }
-.staff-summary-name i { font-size: 20px; color: var(--accent); }
-.staff-summary-stats {
-  display: flex;
-  gap: 8px;
-  justify-content: space-between;
+
+.staff-total-pill {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 12px;
+  background: rgba(0, 52, 155, 0.08);
+  color: var(--accent);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
+
+.staff-summary-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+}
+
 .staff-stat {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
-  flex: 1;
-  background: var(--soft);
-  border-radius: 8px;
-  padding: 8px 4px;
+  gap: 4px;
+  border-radius: 10px;
+  padding: 10px 4px;
+  transition: transform 0.15s;
 }
-.staff-stat-value {
-  font-size: 22px;
-  font-weight: 800;
+
+.staff-stat:hover {
+  transform: scale(1.04);
+}
+
+.staff-stat i {
+  font-size: 14px;
+  margin-bottom: 2px;
+}
+
+.staff-stat--total {
+  background: rgba(0, 52, 155, 0.06);
   color: var(--accent);
-  line-height: 1;
 }
+
+.staff-stat--shift1 {
+  background: rgba(245, 158, 11, 0.08);
+  color: #b45309;
+}
+
+.staff-stat--shift2 {
+  background: rgba(124, 58, 237, 0.08);
+  color: #6d28d9;
+}
+
+.staff-stat-value {
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1;
+  font-family: var(--font-mono);
+}
+
 .staff-stat-label {
-  font-size: 10px;
-  font-weight: 500;
-  color: var(--muted);
-  text-align: center;
+  font-size: 9px;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.04em;
+  opacity: 0.85;
 }
 
 @media (max-width: 700px) {
   .attendance-header,
-  .attendance-row { grid-template-columns: 1.5fr 1fr 1fr 1fr 1.2fr; font-size: 12px; padding: 8px 10px; }
-  .staff-summary-grid { grid-template-columns: 1fr 1fr; }
+  .attendance-row {
+    grid-template-columns: 1.8fr 1fr 1fr 1fr 1.2fr;
+    font-size: 12px;
+    padding: 10px;
+  }
+  .staff-summary-grid {
+    grid-template-columns: 1fr 1fr;
+  }
 }
+
