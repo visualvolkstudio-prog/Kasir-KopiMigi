@@ -245,6 +245,7 @@ const els = {
   printerPanelLabel: document.querySelector("#printerPanelLabel"),
   labelPrinterStatus: document.querySelector("#labelPrinterStatus"),
   labelPrinterCheckoutWarning: document.querySelector("#labelPrinterCheckoutWarning"),
+  labelPrinterPrintEngine: document.querySelector("#labelPrinterPrintEngine"),
   labelPrinterPaperSize: document.querySelector("#labelPrinterPaperSize"),
   labelPrinterFeedMethod: document.querySelector("#labelPrinterFeedMethod"),
   labelPrinterManualSettings: document.querySelector("#labelPrinterManualSettings"),
@@ -2651,11 +2652,12 @@ function syncLabelOffsetLimit(settings = getLabelPrinterSettings()) {
 
 function getLabelPrinterSettings() {
   const fallback = {
+    printEngine: "bitmap",
     paperSize: "40x20mm",
     feedMethod: "gap",
     pitch: 160,
     lineSpacing: 20,
-    labelDelay: 1200,
+    labelDelay: 300,
     labelMargin: 8,
     labelSpaces: 0,
     stickerOffsetX: 64,
@@ -2904,11 +2906,12 @@ function saveLabelPrinterSettingsFromUI() {
 
   const settings = {
     ...previousSettings,
+    printEngine: els.labelPrinterPrintEngine?.value || "bitmap",
     paperSize,
     feedMethod: els.labelPrinterFeedMethod?.value || "gap",
     pitch,
     lineSpacing: Number(els.labelPrinterLineSpacing?.value || 20),
-    labelDelay: Number(els.labelPrinterDelay?.value || 1200),
+    labelDelay: Number(els.labelPrinterDelay?.value || 300),
     labelMargin: Number(els.labelPrinterMargin?.value || 8),
     labelSpaces: Number(els.labelPrinterSpaces?.value || 0),
     stickerOffsetX: syncLabelOffsetLimit({ paperSize }),
@@ -3622,6 +3625,7 @@ function initPrinterSettings() {
   if (els.printerPaperSize) els.printerPaperSize.value = printerSize;
 
   const labelSettings = getLabelPrinterSettings();
+  if (els.labelPrinterPrintEngine) els.labelPrinterPrintEngine.value = labelSettings.printEngine || "bitmap";
   if (els.labelPrinterPaperSize) {
     els.labelPrinterPaperSize.value = labelSettings.paperSize;
   }
@@ -5964,12 +5968,11 @@ async function writeLabelPrinterChunks(bytes) {
     await new Promise((resolve) => setTimeout(resolve, hasWriteResponse ? 60 : 200));
   }
 
-  // Setelah bukti overflow di perangkat fisik, ACK tetap diberi pacing aman.
-  // Tanpa ACK memakai paket 16 byte dan jeda ekstra; lebih lambat tetapi
-  // mencegah header/piksel hilang dan tercetak menjadi karakter acak.
-  const transportDelayMs = hasWriteResponse ? 8 : 20;
-  const burstEvery = hasWriteResponse ? 20 : 12;
-  const burstPauseMs = hasWriteResponse ? 50 : 100;
+  // BLE pacing teroptimasi: writeWithResponse sudah mendapat ACK GATT dari printer,
+  // sehingga delay antar-chunk cukup 2ms agar cetak jauh lebih cepat dan hemat baterai.
+  const transportDelayMs = hasWriteResponse ? 2 : 20;
+  const burstEvery = hasWriteResponse ? 30 : 12;
+  const burstPauseMs = hasWriteResponse ? 15 : 100;
   await writePrinterChunks(
     rasterHeaderLength ? bytes.slice(rasterHeaderLength) : bytes,
     characteristic,
@@ -5981,7 +5984,7 @@ async function writeLabelPrinterChunks(bytes) {
       chunkSize: hasWriteResponse ? 20 : 16,
     },
   );
-  await new Promise((resolve) => setTimeout(resolve, hasWriteResponse ? 150 : 400));
+  await new Promise((resolve) => setTimeout(resolve, hasWriteResponse ? 40 : 300));
 }
 
 function enqueueLabelPrint(task) {
@@ -6436,21 +6439,44 @@ async function encodeCupLabelBitmap(transaction, item, itemIndex, totalItems) {
       raster.push(byte);
     }
   }
+
+  // Deteksi baris piksel terendah yang memiliki konten (non-zero byte)
+  let lastActiveRow = -1;
+  for (let y = canvas.height - 1; y >= 0; y -= 1) {
+    let rowHasPixel = false;
+    for (let xByte = 0; xByte < widthBytes; xByte += 1) {
+      if (raster[y * widthBytes + xByte] !== 0) {
+        rowHasPixel = true;
+        break;
+      }
+    }
+    if (rowHasPixel) {
+      lastActiveRow = y;
+      break;
+    }
+  }
+
+  // Pangkas baris kosong di bagian bawah (beri margin aman 5 piksel)
+  const trimmedHeight = Math.min(canvas.height, Math.max(1, lastActiveRow + 5));
+  const trimmedRaster = raster.slice(0, trimmedHeight * widthBytes);
+
   const xL = widthBytes & 0xff;
   const xH = (widthBytes >> 8) & 0xff;
-  const yL = canvas.height & 0xff;
-  const yH = (canvas.height >> 8) & 0xff;
-  // Die-cut roll: let the printer's gap sensor find the next label.
+  const yL = trimmedHeight & 0xff;
+  const yH = (trimmedHeight >> 8) & 0xff;
+  const remainingPitch = Math.max(0, Number(settings.pitch || stickerHeight) - trimmedHeight);
+
+  // Feed stiker: Menggunakan perintah hardware gap sensor (0x1d 0x0c) atau ESC J feed yang instan.
   const feedBytes = settings.feedMethod === "manual"
     ? (() => {
         const bytes = [];
-        let remaining = Math.max(0, Number(settings.pitch || stickerHeight) - canvas.height);
+        let remaining = remainingPitch;
         while (remaining > 255) { bytes.push(0x1b, 0x4a, 255); remaining -= 255; }
         if (remaining > 0) bytes.push(0x1b, 0x4a, remaining);
         return bytes;
       })()
     : [0x1d, 0x0c];
-  return new Uint8Array([0x1b, 0x40, 0x1b, 0x61, 0x00, 0x1d, 0x76, 0x30, 0x00, xL, xH, yL, yH, ...raster, ...feedBytes]);
+  return new Uint8Array([0x1b, 0x40, 0x1b, 0x61, 0x00, 0x1d, 0x76, 0x30, 0x00, xL, xH, yL, yH, ...trimmedRaster, ...feedBytes]);
 }
 
 
@@ -6468,15 +6494,20 @@ async function performCupLabelPrint(transaction) {
   if (!labelItems.length) return true;
 
   const labelSettings = getLabelPrinterSettings();
-  const delayMs = Math.max(800, Number(labelSettings.labelDelay || 800));
+  const delayMs = Math.max(100, Number(labelSettings.labelDelay ?? 300));
+  const printEngine = labelSettings.printEngine || "bitmap";
 
   try {
     for (let i = 0; i < labelItems.length; i++) {
       if (!isLabelPrinterReady()) throw new Error("Koneksi label printer terputus.");
-      const bytes = await encodeCupLabelBitmap(transaction, labelItems[i], i, labelItems.length);
+      const bytes = printEngine === "native"
+        ? await encodeCupLabel(transaction, labelItems[i], i, labelItems.length)
+        : await encodeCupLabelBitmap(transaction, labelItems[i], i, labelItems.length);
       await writeLabelPrinterChunks(bytes);
       // Gap kecil/jeda antar label agar printer menyelesaikan feed sebelumnya
-      await new Promise((resolve) => setTimeout(resolve, delayMs));
+      if (i < labelItems.length - 1) {
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+      }
     }
     toast(`${labelItems.length} label cup dicetak.`);
     return true;
@@ -8877,9 +8908,8 @@ function initStaffDateRange() {
   const toInput = document.querySelector("#staffDateTo");
   if (!fromInput || !toInput || (fromInput.value && toInput.value)) return;
   const today = new Date();
-  const twoWeeksAgo = new Date(today);
-  twoWeeksAgo.setDate(today.getDate() - 13);
-  fromInput.value = dateKey(twoWeeksAgo);
+  const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+  fromInput.value = dateKey(firstOfMonth);
   toInput.value = dateKey(today);
 }
 
@@ -8891,11 +8921,9 @@ function applyStaffPresetRange(preset) {
   let fromDate = new Date(today);
   if (preset === "7days") {
     fromDate.setDate(today.getDate() - 6);
-  } else if (preset === "month") {
-    fromDate = new Date(today.getFullYear(), today.getMonth(), 1);
   } else {
-    // 2weeks default
-    fromDate.setDate(today.getDate() - 13);
+    // month default
+    fromDate = new Date(today.getFullYear(), today.getMonth(), 1);
   }
   fromInput.value = dateKey(fromDate);
   toInput.value = dateKey(today);
@@ -9574,6 +9602,7 @@ els.saveLabelSettingsBtn?.addEventListener("click", async () => {
   toast(synced ? "Tata letak stiker tersimpan dan tersinkron." : "Tata letak stiker tersimpan lokal; sync cloud akan dicoba lagi.");
 });
 
+els.labelPrinterPrintEngine?.addEventListener("change", saveLabelPrinterSettingsFromUI);
 els.labelPrinterPaperSize?.addEventListener("change", saveLabelPrinterSettingsFromUI);
 els.labelPrinterFeedMethod?.addEventListener("change", saveLabelPrinterSettingsFromUI);
 els.labelPrinterPitch?.addEventListener("input", saveLabelPrinterSettingsFromUI);
