@@ -11,7 +11,7 @@ const CASHIER_ALIASES = (process.env.CASHIER_ALIASES || "").split(",").map((entr
 const CASHIER_PASSWORD = process.env.CASHIER_PASSWORD;
 
 const activeWindowMs = 2 * 60 * 1000;
-const transactionCacheLimit = 2000;
+const transactionCacheLimit = 300;
 const supabasePageSize = 1000;
 const archiveMaxRows = 50000;
 
@@ -193,8 +193,9 @@ async function fetchDeletedTransactionRows({ startDate = "", endDate = "", limit
 }
 
 async function fetchItemsByTransactionIds(ids = []) {
+  const safeIds = ids.slice(0, 300);
   const chunks = [];
-  for (let index = 0; index < ids.length; index += 100) chunks.push(ids.slice(index, index + 100));
+  for (let index = 0; index < safeIds.length; index += 100) chunks.push(safeIds.slice(index, index + 100));
   const pages = await Promise.all(
     chunks.map((chunk) => supabaseFetchPaged(
       ({ limit, offset }) => `transaction_items?select=*&transaction_id=in.(${chunk.map(encodeURIComponent).join(",")})&limit=${limit}${offset ? `&offset=${offset}` : ""}`,

@@ -10114,8 +10114,11 @@ restoreActiveView();
 applyAccessControls();
 renderAll();
 updateConnectionStatus();
-if (navigator.onLine) pullTransactionsFromSupabase({ render: true }).catch(() => null);
+if (isLoggedIn()) {
+  syncCloudData();
+} else if (navigator.onLine) {
+  pullTransactionsFromSupabase({ render: true }).catch(() => null);
+}
 if (navigator.onLine) pullSettingsFromSupabase({ render: true }).catch(() => null);
 if (navigator.onLine) refreshActiveCashierPresence().catch(() => null);
 if (navigator.onLine) checkRemoteLogout().catch(() => null);
-if (isLoggedIn()) syncCloudData();
