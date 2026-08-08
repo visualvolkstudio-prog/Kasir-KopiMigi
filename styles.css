@@ -2,9 +2,21 @@
    KASIR MIGI — Landscape Edition
    Accent: Kopi Migi Blue #00349b
    Layout: Compact sidebar, wide workspace
-═══════════════════════════════════════════════ */
+═══════════════════════════════════════════════ */@font-face {
+  font-family: "Geist";
+  src: url("./assets/fonts/Geist[wght].woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
 
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300..900;1,9..40,300..900&family=DM+Mono:wght@400;500&display=swap');
+@font-face {
+  font-family: "Geist";
+  src: url("./assets/fonts/Geist-Italic[wght].woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: italic;
+  font-display: swap;
+}
 
 :root {
   color-scheme: light;

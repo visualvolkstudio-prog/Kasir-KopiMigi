@@ -9077,6 +9077,11 @@ function setActiveView(viewName, { persist = true } = {}) {
       if (!loaded) renderCashflow();
     });
   }
+  if (viewName === "analytics") {
+    refreshAnalyticsPeriod({ silent: true }).then((loaded) => {
+      if (!loaded) renderAnalytics();
+    });
+  }
   if (viewName === "staff") {
     initStaffDateRange();
     renderStaffView();
@@ -10110,7 +10115,6 @@ applyAccessControls();
 renderAll();
 updateConnectionStatus();
 if (navigator.onLine) pullTransactionsFromSupabase({ render: true }).catch(() => null);
-if (navigator.onLine) refreshAnalyticsPeriod({ silent: true }).catch(() => null);
 if (navigator.onLine) pullSettingsFromSupabase({ render: true }).catch(() => null);
 if (navigator.onLine) refreshActiveCashierPresence().catch(() => null);
 if (navigator.onLine) checkRemoteLogout().catch(() => null);
