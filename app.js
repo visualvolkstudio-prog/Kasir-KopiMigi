@@ -856,6 +856,15 @@ function saveEmployeeRoster(names, { dirty = false } = {}) {
   return roster;
 }
 
+// Khusus untuk data yang datang dari cloud — tulis langsung tanpa filter lokal
+// karena cloud sudah mengembalikan data yang sudah bersih (active=true, deleted_at=null)
+function applyCloudEmployeeRoster(names) {
+  if (!Array.isArray(names) || !names.length) return;
+  const unique = [...new Set(names.map((n) => String(n || "").trim()).filter(Boolean))];
+  writeJson(storageKeys.employees, unique);
+}
+
+
 function getEmployeeRoles() {
   const roles = readJson(storageKeys.employeeRoles, []);
   return roles.length ? roles : ["karyawan", "helper"];
@@ -1214,9 +1223,7 @@ async function preloadEmployeesForLogin() {
   if (!navigator.onLine) return false;
   try {
     const data = await postSupabaseAction("bootstrap-data");
-    if (Array.isArray(data?.employees)) {
-      saveEmployeeRoster(data.employees);
-    }
+    if (Array.isArray(data?.employees)) applyCloudEmployeeRoster(data.employees);
     if (data?.settingsFound && data.settings && typeof data.settings === "object") {
       applyCloudSettings(data.settings);
       clearSettingsDirty();
@@ -1949,7 +1956,7 @@ function applyCloudSettings(settings) {
     changed = true;
   }
   if (Array.isArray(settings.employees) && settings.employees.length > 0) {
-    saveEmployeeRoster(settings.employees);
+    applyCloudEmployeeRoster(settings.employees);
     changed = true;
   }
   return changed;
@@ -7496,7 +7503,7 @@ async function loadCloudData() {
   if (Array.isArray(data.history)) await cacheCloudTransactionsWithPending(data.history);
   if (Array.isArray(data.cashflowExpenses)) writeJson(storageKeys.cashflowExpenses, data.cashflowExpenses.slice(0, 2000));
   if (data.inventory && typeof data.inventory === "object") applyCloudInventory(data.inventory);
-  if (Array.isArray(data.employees)) saveEmployeeRoster(data.employees);
+  if (Array.isArray(data.employees)) applyCloudEmployeeRoster(data.employees);
   if (data.settingsFound && (!hasDirtySettings() || !isOwner())) {
     applyCloudSettings(data.settings);
     if (!isOwner()) clearSettingsDirty();
