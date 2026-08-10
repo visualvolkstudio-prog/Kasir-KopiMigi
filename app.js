@@ -7604,13 +7604,15 @@ async function checkRemoteLogout() {
   const markerTime = new Date(marker.at).getTime();
   const authTime = new Date(auth.at || 0).getTime();
   const lastSeen = Number(localStorage.getItem(storageKeys.lastRemoteLogout) || 0);
+  const isTargetDevice = marker.targetDeviceId && marker.targetDeviceId === ensureDeviceId();
   const sameSession = (!marker.role || marker.role === auth.role) && (!marker.employee || marker.employee === auth.employee);
-  if (!sameSession || !markerTime || markerTime <= authTime || markerTime <= lastSeen) return;
+  if ((!sameSession && !isTargetDevice) || !markerTime || markerTime <= authTime || markerTime <= lastSeen) return;
   localStorage.setItem(storageKeys.lastRemoteLogout, String(markerTime));
   recordLogoutSession(auth).catch(() => null);
   logout({ remote: true });
-  toast("Sesi logout dari device lain.");
+  toast(isTargetDevice ? "Sesi Anda telah dikeluarkan (force logout) oleh Owner." : "Sesi logout dari device lain.");
 }
+
 
 async function clearDevicePresence() {
   if (!navigator.onLine) return;
@@ -9106,6 +9108,102 @@ function renderStaffView() {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
+async function renderDeviceMonitor() {
+  const container = document.querySelector("#activeDevicesContainer");
+  if (!container || !isOwner()) return;
+
+  container.innerHTML = `<div class="empty-state">Memuat perangkat terhubung...</div>`;
+  try {
+    const result = await postSupabaseAction("list-devices");
+    if (!result?.success || !Array.isArray(result.devices)) {
+      container.innerHTML = `<div class="empty-state">Gagal memuat perangkat: ${escapeHtml(result?.error || "Koneksi bermasalah")}</div>`;
+      return;
+    }
+
+    const currentDevId = ensureDeviceId();
+    const now = Date.now();
+    const devices = result.devices;
+
+    if (!devices.length) {
+      container.innerHTML = `<div class="empty-state">Tidak ada perangkat aktif lain yang terdeteksi.</div>`;
+      return;
+    }
+
+    container.innerHTML = `
+      <div class="attendance-table">
+        <div class="attendance-header" style="grid-template-columns: 2fr 1.5fr 1.5fr 1fr;">
+          <span><i class="ph ph-desktop"></i> Perangkat / Device</span>
+          <span><i class="ph ph-user"></i> Petugas</span>
+          <span><i class="ph ph-clock"></i> Terakhir Aktif</span>
+          <span><i class="ph ph-gear"></i> Aksi</span>
+        </div>
+        ${devices.map((dev) => {
+          const isCurrent = dev.deviceId === currentDevId;
+          const lastSeenDate = dev.lastSeenAt ? new Date(dev.lastSeenAt) : null;
+          const diffMinutes = lastSeenDate ? Math.floor((now - lastSeenDate.getTime()) / 60000) : 999;
+          const isOnline = diffMinutes < 3;
+          const timeText = lastSeenDate
+            ? diffMinutes < 1
+              ? "Baru saja"
+              : `${diffMinutes} menit lalu`
+            : "-";
+          
+          let uaShort = "Perangkat Web";
+          if (dev.userAgent) {
+            if (/android/i.test(dev.userAgent)) uaShort = "Android Phone/Tablet";
+            else if (/iphone|ipad|ipod/i.test(dev.userAgent)) uaShort = "iPhone / iPad";
+            else if (/mac/i.test(dev.userAgent)) uaShort = "Mac / macOS";
+            else if (/windows/i.test(dev.userAgent)) uaShort = "Windows PC";
+          }
+
+          const statusDot = isOnline ? "🟢 Online" : "⚪ Offline";
+
+          return `
+            <div class="attendance-row" style="grid-template-columns: 2fr 1.5fr 1.5fr 1fr;">
+              <div class="att-user-cell">
+                <span class="att-avatar"><i class="ph ph-device-mobile"></i></span>
+                <div>
+                  <strong class="att-name" style="font-size: 13px;">${escapeHtml(uaShort)}</strong>
+                  <span style="font-size: 10px; color: var(--muted); display: block;">ID: ${escapeHtml((dev.deviceId || "").slice(0, 12))}... ${isCurrent ? "(Perangkat Ini)" : ""}</span>
+                </div>
+              </div>
+              <span class="att-shift-text">${escapeHtml(dev.employee || "Tanpa Nama")}</span>
+              <div>
+                <span class="att-time-text" style="display: block;">${timeText}</span>
+                <small style="font-size: 10px; color: var(--muted);">${statusDot}</small>
+              </div>
+              <div>
+                ${isCurrent 
+                  ? `<span class="att-badge att-badge--shift1">Device Anda</span>` 
+                  : `<button type="button" class="secondary-button compact danger-text" data-force-logout="${escapeHtml(dev.deviceId)}"><i class="ph ph-power"></i> Keluar</button>`}
+              </div>
+            </div>
+          `;
+        }).join("")}
+      </div>
+    `;
+  } catch (err) {
+    container.innerHTML = `<div class="empty-state">Gagal memuat data perangkat: ${escapeHtml(err.message)}</div>`;
+  }
+}
+
+async function forceLogoutDeviceAction(deviceId) {
+  if (!isOwner() || !deviceId) return;
+  if (!confirm("Apakah Anda yakin ingin mengeluarkan (force logout) perangkat ini?")) return;
+
+  try {
+    const result = await postSupabaseAction("force-logout-device", { deviceId });
+    if (result?.success) {
+      toast("Perangkat berhasil dikeluarkan.");
+      renderDeviceMonitor();
+    } else {
+      toast(result?.error || "Gagal mengeluarkan perangkat.");
+    }
+  } catch (err) {
+    toast(`Gagal force logout: ${err.message}`);
+  }
+}
+
 function setActiveView(viewName, { persist = true } = {}) {
   if ((viewName === "cashflow" || viewName === "staff") && !isOwner()) {
     viewName = "pos";
@@ -9120,6 +9218,7 @@ function setActiveView(viewName, { persist = true } = {}) {
   if (persist) localStorage.setItem(storageKeys.activeView, viewName);
   if (viewName === "settings") {
     updateLabelPreview();
+    if (isOwner()) renderDeviceMonitor();
   }
   if (viewName === "cashflow") {
     refreshCashflowSalesForSelection({ silent: true }).then((loaded) => {
@@ -10174,6 +10273,13 @@ document.addEventListener("visibilitychange", () => {
   }
 });
 document.querySelector("#staffRangeBtn")?.addEventListener("click", renderStaffSummary);
+document.querySelector("#refreshDevicesBtn")?.addEventListener("click", renderDeviceMonitor);
+document.querySelector("#activeDevicesContainer")?.addEventListener("click", (event) => {
+  const forceLogoutBtn = event.target.closest("button[data-force-logout]");
+  if (forceLogoutBtn) {
+    forceLogoutDeviceAction(forceLogoutBtn.dataset.forceLogout);
+  }
+});
 document.addEventListener("click", (event) => {
   const presetBtn = event.target.closest(".staff-preset-btn");
   if (presetBtn) {

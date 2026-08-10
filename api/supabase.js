@@ -747,6 +747,33 @@ async function deleteEmployee(body) {
   return { status: 200, payload: { success: true, name, employee: Array.isArray(rows) ? rows[0] : null } };
 }
 
+async function getDeviceList() {
+  const rows = await supabaseFetch("app_settings?select=*&key=eq.device_list&limit=1").catch(() => []);
+  const value = Array.isArray(rows) ? rows[0]?.value : null;
+  return Array.isArray(value) ? value : [];
+}
+
+async function saveDeviceList(list) {
+  await supabaseFetch("app_settings?on_conflict=key", {
+    method: "POST",
+    prefer: "resolution=merge-duplicates,return=representation",
+    body: [{ key: "device_list", value: list.slice(0, 50), updated_at: toIso() }],
+  });
+}
+
+async function upsertDeviceList(device) {
+  const list = await getDeviceList();
+  const idx = list.findIndex((d) => d.deviceId === device.deviceId);
+  if (idx >= 0) list[idx] = { ...list[idx], ...device };
+  else list.unshift(device);
+  await saveDeviceList(list);
+}
+
+async function removeFromDeviceList(deviceId) {
+  const list = await getDeviceList();
+  await saveDeviceList(list.filter((d) => d.deviceId !== deviceId));
+}
+
 async function devicePresence(body, req) {
   const deviceId = String(body.deviceId || "").trim();
   const employee = String(body.employee || "").trim();
@@ -765,58 +792,31 @@ async function devicePresence(body, req) {
     await supabaseFetch("app_settings?on_conflict=key", {
       method: "POST",
       prefer: "resolution=merge-duplicates,return=representation",
-      body: [
-        {
-          key: "logout_marker",
-          value: {
-            deviceId,
-            employee,
-            role: body.role || "",
-            at: toIso(),
-          },
-          updated_at: toIso(),
-        },
-      ],
+      body: [{ key: "logout_marker", value: { deviceId, employee, role: body.role || "", at: toIso() }, updated_at: toIso() }],
     });
     if (active?.deviceId === deviceId) {
       await supabaseFetch("app_settings?on_conflict=key", {
         method: "POST",
         prefer: "resolution=merge-duplicates,return=representation",
-        body: [
-          {
-            key: "active_device",
-            value: { deviceId: "", employee: "", userAgent: "", lastSeenAt: "1970-01-01T00:00:00.000Z" },
-            updated_at: toIso(),
-          },
-        ],
+        body: [{ key: "active_device", value: { deviceId: "", employee: "", userAgent: "", lastSeenAt: "1970-01-01T00:00:00.000Z" }, updated_at: toIso() }],
       });
     }
+    await removeFromDeviceList(deviceId).catch(() => null);
     return { status: 200, payload: { success: true, cleared: active?.deviceId === deviceId } };
   }
 
   if (body.checkOnly) {
-    return {
-      status: 200,
-      payload: { success: true, otherActive: Boolean(otherActive), activeDevice: otherActive ? active : null },
-    };
+    return { status: 200, payload: { success: true, otherActive: Boolean(otherActive), activeDevice: otherActive ? active : null } };
   }
 
   await supabaseFetch("app_settings?on_conflict=key", {
     method: "POST",
     prefer: "resolution=merge-duplicates,return=representation",
-    body: [
-      {
-        key: "active_device",
-        value: {
-          deviceId,
-          employee,
-          userAgent: req.headers["user-agent"] || "",
-          lastSeenAt: toIso(),
-        },
-        updated_at: toIso(),
-      },
-    ],
+    body: [{ key: "active_device", value: { deviceId, employee, userAgent: req.headers["user-agent"] || "", lastSeenAt: toIso() }, updated_at: toIso() }],
   });
+
+  // Simpan ke device list untuk monitoring Owner
+  await upsertDeviceList({ deviceId, employee, userAgent: req.headers["user-agent"] || "", lastSeenAt: toIso() }).catch(() => null);
 
   return {
     status: 200,
@@ -829,6 +829,42 @@ async function getLogoutState() {
   const marker = Array.isArray(rows) ? rows[0]?.value : null;
   return { status: 200, payload: { success: true, marker: marker || null } };
 }
+
+async function listDevices() {
+  const list = await getDeviceList();
+  const now = Date.now();
+  const validDevices = list.filter((d) => {
+    if (!d.lastSeenAt) return false;
+    const time = new Date(d.lastSeenAt).getTime();
+    return !isNaN(time) && (now - time) < 24 * 60 * 60 * 1000;
+  });
+  return { status: 200, payload: { success: true, devices: validDevices } };
+}
+
+async function forceLogoutDevice(body) {
+  const deviceId = String(body.deviceId || "").trim();
+  if (!deviceId) return { status: 400, payload: { success: false, error: "Device ID wajib ada." } };
+
+  await supabaseFetch("app_settings?on_conflict=key", {
+    method: "POST",
+    prefer: "resolution=merge-duplicates,return=representation",
+    body: [
+      {
+        key: "logout_marker",
+        value: {
+          targetDeviceId: deviceId,
+          at: toIso(),
+          by: "owner_force_logout",
+        },
+        updated_at: toIso(),
+      },
+    ],
+  });
+
+  await removeFromDeviceList(deviceId).catch(() => null);
+  return { status: 200, payload: { success: true, deviceId } };
+}
+
 
 async function dispatch(body, req) {
   if (body.action === "login") return login(body);
@@ -875,6 +911,12 @@ async function dispatch(body, req) {
       return devicePresence(body, req);
     case "logout-state":
       return getLogoutState();
+    case "list-devices":
+      if (role !== "owner") return { status: 403, payload: { success: false, error: "Hanya Owner yang bisa melihat daftar device." } };
+      return listDevices();
+    case "force-logout-device":
+      if (role !== "owner") return { status: 403, payload: { success: false, error: "Hanya Owner yang bisa force logout device." } };
+      return forceLogoutDevice(body);
     default:
       return { status: 400, payload: { success: false, error: "Action Supabase tidak dikenal." } };
   }
