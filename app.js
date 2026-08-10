@@ -236,8 +236,8 @@ const els = {
   printerStatus: document.querySelector("#printerStatus"),
   printerPaperSize: document.querySelector("#printerPaperSize"),
   connectPrinter: document.querySelector("#connectPrinter"),
-  receiptPrinterWarning: document.querySelector("#receiptPrinterWarning"),
-  receiptPrinterConnectBtn: document.querySelector("#receiptPrinterConnectBtn"),
+  receiptPrinterWarningBtn: document.querySelector("#receiptPrinterWarningBtn"),
+  labelPrinterWarningBtn: document.querySelector("#labelPrinterWarningBtn"),
   testLogoPrint: document.querySelector("#testLogoPrint"),
   printerHint: document.querySelector("#printerHint"),
   printerBadge: document.querySelector("#printerBadge"),
@@ -246,7 +246,7 @@ const els = {
   printerPanelKasir: document.querySelector("#printerPanelKasir"),
   printerPanelLabel: document.querySelector("#printerPanelLabel"),
   labelPrinterStatus: document.querySelector("#labelPrinterStatus"),
-  labelPrinterCheckoutWarning: document.querySelector("#labelPrinterCheckoutWarning"),
+  labelPrinterCheckoutWarning: null, // dipindahkan ke header icon #labelPrinterWarningBtn
   labelPrinterPrintEngine: document.querySelector("#labelPrinterPrintEngine"),
   labelPrinterPaperSize: document.querySelector("#labelPrinterPaperSize"),
   labelPrinterFeedMethod: document.querySelector("#labelPrinterFeedMethod"),
@@ -6038,16 +6038,14 @@ function updateLabelPrinterCheckoutWarning() {
   if (els.printerBadge) {
     els.printerBadge.classList.toggle("hidden", isLabelPrinterReady());
   }
-  if (!els.labelPrinterCheckoutWarning) return;
+  // Icon label printer di header modal
+  if (!els.labelPrinterWarningBtn) return;
   const count = labelItemCount();
   const show = count > 0 && !isLabelPrinterReady();
-  els.labelPrinterCheckoutWarning.hidden = !show;
+  els.labelPrinterWarningBtn.hidden = !show;
   if (show) {
     const noun = count === 1 ? "label" : `${count} label`;
-    const text = els.labelPrinterCheckoutWarning.querySelector("span");
-    if (text) {
-      text.textContent = `Label printer belum tersambung. Order tetap diproses; ${noun} dapat dicetak ulang dari tab Order.`;
-    }
+    els.labelPrinterWarningBtn.title = `Printer label belum tersambung. ${noun} bisa dicetak ulang dari tab Order.`;
   }
 }
 
@@ -6659,9 +6657,9 @@ function promptPrinterConnection() {
 }
 
 function syncReceiptPrinterWarning() {
-  if (!els.receiptPrinterWarning) return;
+  if (!els.receiptPrinterWarningBtn) return;
   const show = !state.printerCharacteristic;
-  els.receiptPrinterWarning.hidden = !show;
+  els.receiptPrinterWarningBtn.hidden = !show;
 }
 
 function ensurePrinterReadyForOrderPrint() {
@@ -9151,9 +9149,15 @@ document.addEventListener("click", () => {
 els.connectPrinter.addEventListener("click", connectPrinter);
 
 // Tombol Sambungkan Printer di dalam modal order \u2014 trigger koneksi lalu update banner
-els.receiptPrinterConnectBtn?.addEventListener("click", async () => {
+// Icon printer struk di header modal — klik untuk sambungkan
+els.receiptPrinterWarningBtn?.addEventListener("click", async () => {
   await connectPrinter();
   syncReceiptPrinterWarning();
+});
+
+// Icon printer label di header modal — informatif saja (cetak ulang dari tab Order)
+els.labelPrinterWarningBtn?.addEventListener("click", () => {
+  toast("Label bisa dicetak ulang dari tab Order setelah printer label tersambung.");
 });
 els.fullscreenToggle?.addEventListener("click", toggleFullscreen);
 document.addEventListener("fullscreenchange", syncFullscreenButton);

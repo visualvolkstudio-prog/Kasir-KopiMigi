@@ -67,9 +67,17 @@
             <p class="eyebrow">Process</p>
             <h2>Order Aktif</h2>
           </div>
-          <button class="icon-button modal-close" id="cancelOrderModal" type="button" title="Tutup order">
-            <i class="ph ph-x" aria-hidden="true"></i>
-          </button>
+          <div class="modal-head-actions">
+            <button class="modal-printer-icon" id="receiptPrinterWarningBtn" type="button" title="Printer struk belum tersambung — klik untuk sambungkan" hidden>
+              <i class="ph ph-printer" aria-hidden="true"></i>
+            </button>
+            <button class="modal-printer-icon modal-printer-icon--label" id="labelPrinterWarningBtn" type="button" title="Printer label belum tersambung" hidden>
+              <i class="ph ph-tag" aria-hidden="true"></i>
+            </button>
+            <button class="icon-button modal-close" id="cancelOrderModal" type="button" title="Tutup order">
+              <i class="ph ph-x" aria-hidden="true"></i>
+            </button>
+          </div>
         </div>
         <div class="order-modal-grid">
           <section class="order-summary-pane" aria-label="Ringkasan pesanan">
@@ -193,22 +201,8 @@
                 <input id="checkoutWifiReceipt" type="checkbox" />
                 Cetak QR WiFi di struk
               </label>
-              <div class="checkout-printer-warning" id="labelPrinterCheckoutWarning" role="status" hidden>
-                <i class="ph ph-warning-circle" aria-hidden="true"></i>
-                <span>Label printer belum tersambung. Order tetap dapat diproses; label bisa dicetak ulang dari tab Order.</span>
-              </div>
             </div>
           </section>
-        </div>
-        <div class="receipt-printer-warning" id="receiptPrinterWarning" hidden>
-          <div class="receipt-printer-warning-content">
-            <i class="ph ph-plugs" aria-hidden="true"></i>
-            <span>Printer struk belum tersambung. Sambungkan dulu agar struk bisa dicetak.</span>
-          </div>
-          <button class="receipt-printer-connect-btn" id="receiptPrinterConnectBtn" type="button">
-            <i class="ph ph-bluetooth" aria-hidden="true"></i>
-            Sambungkan Printer
-          </button>
         </div>
         <div class="modal-actions">
           <button class="secondary-button" id="clearCart" type="button">Batalkan</button>
