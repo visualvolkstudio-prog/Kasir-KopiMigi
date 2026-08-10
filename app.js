@@ -7546,7 +7546,10 @@ async function refreshOnlineData({ render = true } = {}) {
   await ensureJuneRecoveryImported().catch(() => null);
   await pullTransactionsFromSupabase({ render: false }).catch(() => null);
   await pullSettingsFromSupabase({ render: false }).catch(() => null);
-  if (render) renderAll();
+  if (render) {
+    renderAll();
+    renderEmployeeControls();
+  }
   return true;
 }
 
@@ -10148,6 +10151,15 @@ setInterval(() => {
     refreshActiveCashflowSales();
   }
 }, 120000);
+setInterval(() => {
+  if (document.visibilityState === "visible" && navigator.onLine && isLoggedIn()) {
+    // Sync karyawan setiap 5 menit agar semua device selalu up-to-date
+    pullSettingsFromSupabase({ render: false })
+      .then(() => renderEmployeeControls())
+      .catch(() => null);
+  }
+}, 300000);
+
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible") {
     refreshOnlineData({ render: true }).catch(() => null);
