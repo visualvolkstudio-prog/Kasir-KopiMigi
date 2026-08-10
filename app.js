@@ -236,6 +236,8 @@ const els = {
   printerStatus: document.querySelector("#printerStatus"),
   printerPaperSize: document.querySelector("#printerPaperSize"),
   connectPrinter: document.querySelector("#connectPrinter"),
+  receiptPrinterWarning: document.querySelector("#receiptPrinterWarning"),
+  receiptPrinterConnectBtn: document.querySelector("#receiptPrinterConnectBtn"),
   testLogoPrint: document.querySelector("#testLogoPrint"),
   printerHint: document.querySelector("#printerHint"),
   printerBadge: document.querySelector("#printerBadge"),
@@ -946,7 +948,9 @@ function todayShiftAssignments(today = dateKey()) {
       source: "transaction",
     }));
   const byKey = new Map();
-  [...assignments, ...transactionAssignments].forEach((entry) => {
+  // Proses transactionAssignments dulu (prioritas lebih rendah),
+  // lalu assignments resmi (yang punya loginAt) — agar loginAt tidak tertimpa data transaksi yang kosong.
+  [...transactionAssignments, ...assignments].forEach((entry) => {
     const employeeId = entry.employeeId || assignmentEmployeeId(entry.employee);
     if (!employeeId || !entry.employee || !entry.shift) return;
     byKey.set(`${employeeId}:${normalizeShift(entry.shift)}`, { ...entry, employeeId, shift: normalizeShift(entry.shift) });
@@ -5114,6 +5118,8 @@ function openOrderModal() {
   syncCheckoutWifiOption({ reset: true });
   syncOrderTypeUi();
   updateLabelPrinterCheckoutWarning();
+  // Tampilkan banner printer struk jika belum tersambung
+  syncReceiptPrinterWarning();
   els.modalOrderList.innerHTML = state.cart.length
     ? state.cart
         .map(
@@ -6643,15 +6649,27 @@ async function printThermalReceipt(transaction, kind = "paid") {
 }
 
 function promptPrinterConnection() {
-  setPrinterStatus("Belum tersambung", "disconnected", "Hei fokus, printernya belum nyambung. Sambungkan printer dulu lalu cetak ulang.");
-  togglePrinterDropdown(true);
-  window.alert("Hei fokus, printernya belum nyambung. Klik Sambungkan Printer dulu, lalu cetak ulang.");
+  setPrinterStatus("Belum tersambung", "disconnected", "Printer belum nyambung. Sambungkan dulu lalu cetak ulang.");
+  // Tampilkan banner di dalam modal order (jika sedang terbuka) — tidak pakai window.alert agar cart tidak hilang
+  syncReceiptPrinterWarning();
+  if (!els.orderModal?.classList.contains("open")) {
+    // Modal tidak terbuka — buka dropdown printer seperti biasa
+    togglePrinterDropdown(true);
+  }
+}
+
+function syncReceiptPrinterWarning() {
+  if (!els.receiptPrinterWarning) return;
+  const show = !state.printerCharacteristic;
+  els.receiptPrinterWarning.hidden = !show;
 }
 
 function ensurePrinterReadyForOrderPrint() {
   if (state.printerCharacteristic) return true;
-  promptPrinterConnection();
-  return false;
+  // Printer belum tersambung: tampilkan banner peringatan di modal, tapi tetap izinkan checkout
+  // agar cart tidak hilang. Crew bisa sambungkan printer lalu cetak ulang dari tab Order.
+  syncReceiptPrinterWarning();
+  return true;
 }
 
 function generateBoothCode() {
@@ -7613,6 +7631,23 @@ function loadDraftToCart(id) {
   if (els.orderShift) els.orderShift.value = draft.shift || currentShiftName(draft.createdAt);
   setOrderChannel(draft.channel || "Kasir");
   resetOrderAdjustments();
+  // Restore diskon yang sudah di-apply saat order di-save sebagai "Bayar Nanti"
+  if (draft.discountVoucherId) {
+    const voucher = voucherById(draft.discountVoucherId);
+    if (voucher) {
+      state.discountVoucherId = voucher.id;
+      state.discountType = voucher.type;
+      state.discountValue = Number(voucher.value || 0);
+      state.discountNote = draft.discountNote || `Voucher ${voucher.code}`;
+      if (els.discountVoucherSelect) els.discountVoucherSelect.value = voucher.id;
+    }
+  } else if (draft.discountType && draft.discountType !== "none" && Number(draft.discountTotal || 0) > 0) {
+    // Fallback: restore manual discount jika tidak pakai voucher
+    state.discountType = draft.discountType;
+    state.discountValue = Number(draft.discountValue || 0);
+    state.discountNote = draft.discountNote || "";
+  }
+  renderDiscountVoucherControls();
   state.serviceType = draft.serviceType || "dine_in";
   syncDineTakeUi();
   renderCart();
@@ -9114,6 +9149,12 @@ document.addEventListener("click", () => {
 });
 
 els.connectPrinter.addEventListener("click", connectPrinter);
+
+// Tombol Sambungkan Printer di dalam modal order \u2014 trigger koneksi lalu update banner
+els.receiptPrinterConnectBtn?.addEventListener("click", async () => {
+  await connectPrinter();
+  syncReceiptPrinterWarning();
+});
 els.fullscreenToggle?.addEventListener("click", toggleFullscreen);
 document.addEventListener("fullscreenchange", syncFullscreenButton);
 
