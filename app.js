@@ -849,9 +849,10 @@ function getEmployeeRoster() {
   return filterDeletedEmployees(readJson(storageKeys.employees, []));
 }
 
-function saveEmployeeRoster(names) {
+function saveEmployeeRoster(names, { dirty = false } = {}) {
   const roster = filterDeletedEmployees(names);
   writeJson(storageKeys.employees, roster);
+  if (dirty) markSettingsDirty();
   return roster;
 }
 
@@ -1896,6 +1897,7 @@ function getSettingsPayload() {
     wifiReceipt: getWifiReceiptSettings(),
     employeeRoles: getEmployeeRoles(),
     labelPrinter: getLabelPrinterSettings(),
+    employees: getEmployeeRoster(),
   };
 }
 
@@ -1944,6 +1946,10 @@ function applyCloudSettings(settings) {
   }
   if (settings.labelPrinter && typeof settings.labelPrinter === "object" && !Array.isArray(settings.labelPrinter)) {
     writeJson("kasir-migi-label-printer-settings", settings.labelPrinter);
+    changed = true;
+  }
+  if (Array.isArray(settings.employees) && settings.employees.length > 0) {
+    saveEmployeeRoster(settings.employees);
     changed = true;
   }
   return changed;
@@ -4590,7 +4596,7 @@ async function confirmEmployeeDelete() {
   }
   rememberDeletedEmployee(name);
   clearEmployeeLeaveStatus(name);
-  const roster = saveEmployeeRoster(getEmployeeRoster().filter((entry) => entry !== name));
+  const roster = saveEmployeeRoster(getEmployeeRoster().filter((entry) => entry !== name), { dirty: true });
   const fallback = roster.find((entry) => !isEmployeeOnLeave(entry)) || "";
   if (localStorage.getItem(storageKeys.employee) === name) {
     if (fallback) localStorage.setItem(storageKeys.employee, fallback);
@@ -9560,7 +9566,7 @@ els.employeeAddForm?.addEventListener("submit", async (event) => {
   }
   forgetDeletedEmployee(name);
   clearEmployeeLeaveStatus(name);
-  saveEmployeeRoster([...getEmployeeRoster(), name]);
+  saveEmployeeRoster([...getEmployeeRoster(), name], { dirty: true });
   localStorage.setItem(storageKeys.employee, name);
   const auth = readJson(storageKeys.auth, null);
   if (auth?.loggedIn) writeJson(storageKeys.auth, { ...auth, employee: name });
