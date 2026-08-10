@@ -1266,7 +1266,7 @@ async function finishLogin(role, employee, shift, dutyRole = "karyawan", token =
   els.loginPassword.value = "";
   setActiveView("pos");
   toast(role === "owner" ? "Masuk sebagai Owner." : `Masuk sebagai ${activeEmployeeDisplayName(employee, normalizedDutyRole)} · ${shift}.`);
-  if (role === "cashier") updateDevicePresence().catch(() => null);
+  updateDevicePresence().catch(() => null);
   if (role === "owner") refreshActiveCashierPresence().catch(() => null);
   syncCloudData();
   return true;
@@ -7561,19 +7561,26 @@ async function refreshOnlineData({ render = true } = {}) {
 }
 
 async function updateDevicePresence() {
-  if (!navigator.onLine || !isLoggedIn() || !isCashier()) return;
+  if (!navigator.onLine || !isLoggedIn()) return;
+  const auth = getAuth();
+  const employee = auth?.employee || (isOwner() ? "Owner" : activeEmployeeName() || "Kasir");
+  const role = currentRole();
+
   const result = await postSupabaseAction("device-presence", {
     deviceId: ensureDeviceId(),
-    employee: activeEmployeeName(),
+    employee,
+    role,
   });
-  if (!result?.otherActive) return;
 
-  const now = Date.now();
-  const lastWarning = Number(localStorage.getItem(storageKeys.lastDeviceWarning) || 0);
-  if (now - lastWarning < 5 * 60 * 1000) return;
-  localStorage.setItem(storageKeys.lastDeviceWarning, String(now));
-  const employee = result.activeDevice?.employee || "petugas lain";
-  window.alert(`Kasir juga sedang aktif di device lain oleh ${employee}. Pastikan hanya satu kasir yang mengambil transaksi utama.`);
+  if (isCashier() && result?.otherActive) {
+    const now = Date.now();
+    const lastWarning = Number(localStorage.getItem(storageKeys.lastDeviceWarning) || 0);
+    if (now - lastWarning >= 5 * 60 * 1000) {
+      localStorage.setItem(storageKeys.lastDeviceWarning, String(now));
+      const otherEmployee = result.activeDevice?.employee || "petugas lain";
+      window.alert(`Kasir juga sedang aktif di device lain oleh ${otherEmployee}. Pastikan hanya satu kasir yang mengambil transaksi utama.`);
+    }
+  }
 }
 
 async function refreshActiveCashierPresence() {
@@ -9114,6 +9121,9 @@ async function renderDeviceMonitor() {
 
   container.innerHTML = `<div class="empty-state">Memuat perangkat terhubung...</div>`;
   try {
+    // Pastikan presence device sendiri ter-update sebelum mengambil daftar terbaru
+    await updateDevicePresence().catch(() => null);
+
     const result = await postSupabaseAction("list-devices");
     if (!result?.success || !Array.isArray(result.devices)) {
       container.innerHTML = `<div class="empty-state">Gagal memuat perangkat: ${escapeHtml(result?.error || "Koneksi bermasalah")}</div>`;
@@ -9125,7 +9135,7 @@ async function renderDeviceMonitor() {
     const devices = result.devices;
 
     if (!devices.length) {
-      container.innerHTML = `<div class="empty-state">Tidak ada perangkat aktif lain yang terdeteksi.</div>`;
+      container.innerHTML = `<div class="empty-state">Tidak ada perangkat aktif terdeteksi.</div>`;
       return;
     }
 
@@ -9145,18 +9155,27 @@ async function renderDeviceMonitor() {
           const timeText = lastSeenDate
             ? diffMinutes < 1
               ? "Baru saja"
-              : `${diffMinutes} menit lalu`
+              : `${diffMinutes} mnt lalu`
             : "-";
           
           let uaShort = "Perangkat Web";
           if (dev.userAgent) {
-            if (/android/i.test(dev.userAgent)) uaShort = "Android Phone/Tablet";
-            else if (/iphone|ipad|ipod/i.test(dev.userAgent)) uaShort = "iPhone / iPad";
-            else if (/mac/i.test(dev.userAgent)) uaShort = "Mac / macOS";
-            else if (/windows/i.test(dev.userAgent)) uaShort = "Windows PC";
+            const ua = dev.userAgent;
+            const isAndroid = /android/i.test(ua);
+            const isIOS = /iphone|ipad|ipod/i.test(ua);
+            const isMac = /mac/i.test(ua);
+            const isWin = /windows/i.test(ua);
+            const isChrome = /chrome|crios/i.test(ua) && !/edg/i.test(ua);
+            const isSafari = /safari/i.test(ua) && !/chrome/i.test(ua);
+            const isFirefox = /firefox|fxios/i.test(ua);
+            
+            const b = isChrome ? "Chrome" : isSafari ? "Safari" : isFirefox ? "Firefox" : "Browser";
+            const os = isAndroid ? "Android" : isIOS ? "iOS" : isMac ? "macOS" : isWin ? "Windows" : "";
+            uaShort = [b, os].filter(Boolean).join(" · ") || "Perangkat Web";
           }
 
           const statusDot = isOnline ? "🟢 Online" : "⚪ Offline";
+          const roleLabel = dev.role === "owner" ? `<span style="color:var(--accent); font-weight:bold; font-size:11px;"> (Owner)</span>` : "";
 
           return `
             <div class="attendance-row" style="grid-template-columns: 2fr 1.5fr 1.5fr 1fr;">
@@ -9164,17 +9183,17 @@ async function renderDeviceMonitor() {
                 <span class="att-avatar"><i class="ph ph-device-mobile"></i></span>
                 <div>
                   <strong class="att-name" style="font-size: 13px;">${escapeHtml(uaShort)}</strong>
-                  <span style="font-size: 10px; color: var(--muted); display: block;">ID: ${escapeHtml((dev.deviceId || "").slice(0, 12))}... ${isCurrent ? "(Perangkat Ini)" : ""}</span>
+                  <span style="font-size: 10px; color: var(--muted); display: block;">ID: ${escapeHtml((dev.deviceId || "").slice(0, 12))}... ${isCurrent ? "(Device Ini)" : ""}</span>
                 </div>
               </div>
-              <span class="att-shift-text">${escapeHtml(dev.employee || "Tanpa Nama")}</span>
+              <span class="att-shift-text">${escapeHtml(dev.employee || "Tanpa Nama")}${roleLabel}</span>
               <div>
                 <span class="att-time-text" style="display: block;">${timeText}</span>
                 <small style="font-size: 10px; color: var(--muted);">${statusDot}</small>
               </div>
               <div>
                 ${isCurrent 
-                  ? `<span class="att-badge att-badge--shift1">Device Anda</span>` 
+                  ? `<span class="att-badge att-badge--shift1">Device Ini</span>` 
                   : `<button type="button" class="secondary-button compact danger-text" data-force-logout="${escapeHtml(dev.deviceId)}"><i class="ph ph-power"></i> Keluar</button>`}
               </div>
             </div>

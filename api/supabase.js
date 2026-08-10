@@ -777,7 +777,17 @@ async function removeFromDeviceList(deviceId) {
 async function devicePresence(body, req) {
   const deviceId = String(body.deviceId || "").trim();
   const employee = String(body.employee || "").trim();
+  const role = String(body.role || "").trim();
   if (!deviceId) return { status: 400, payload: { success: false, error: "Device id wajib ada." } };
+
+  // Selalu catat/update device ini di daftar device terhubung
+  await upsertDeviceList({
+    deviceId,
+    employee: employee || (role === "owner" ? "Owner" : "Kasir"),
+    role: role || "cashier",
+    userAgent: req.headers["user-agent"] || "",
+    lastSeenAt: toIso(),
+  }).catch(() => null);
 
   const rows = await supabaseFetch("app_settings?select=*&key=eq.active_device&limit=1");
   const active = Array.isArray(rows) ? rows[0]?.value : null;
@@ -814,9 +824,6 @@ async function devicePresence(body, req) {
     prefer: "resolution=merge-duplicates,return=representation",
     body: [{ key: "active_device", value: { deviceId, employee, userAgent: req.headers["user-agent"] || "", lastSeenAt: toIso() }, updated_at: toIso() }],
   });
-
-  // Simpan ke device list untuk monitoring Owner
-  await upsertDeviceList({ deviceId, employee, userAgent: req.headers["user-agent"] || "", lastSeenAt: toIso() }).catch(() => null);
 
   return {
     status: 200,
