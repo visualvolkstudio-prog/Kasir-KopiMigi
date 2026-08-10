@@ -1066,7 +1066,7 @@ function transactionEmployeeDisplay(transaction) {
 function renderEmployeeControls() {
   const roster = getEmployeeRoster();
   const availableRoster = roster.filter((name) => !isEmployeeOnLeave(name));
-  const selectedLoginShift = autoShiftName();
+  const selectedLoginShift = defaultLoginShift();
   const helperDay = isHelperDay();
   const selectedDutyRole = normalizeDutyRole(els.loginDutyRole?.value || "karyawan");
   const activeCandidate = availableRoster.includes(activeEmployeeName()) ? activeEmployeeName() : availableRoster[0] || "";
@@ -1268,7 +1268,7 @@ async function login(event) {
   event.preventDefault();
   if (state.pendingLogin?.role === "cashier") {
     const employee = els.loginEmployee?.value || getEmployeeRoster()[0] || "";
-    await finishLogin("cashier", employee, autoShiftName(), els.loginDutyRole?.value || "karyawan", state.pendingLogin.token || "");
+    await finishLogin("cashier", employee, els.loginShift?.value || defaultLoginShift(), els.loginDutyRole?.value || "karyawan", state.pendingLogin.token || "");
     return;
   }
 
@@ -1661,7 +1661,7 @@ function updateClock() {
     return;
   }
   runShiftScheduleChecks(now);
-  if (els.loginShift && !isLoggedIn()) els.loginShift.value = autoShiftName(now);
+  if (els.loginShift && !isLoggedIn()) els.loginShift.value = defaultLoginShift();
   const shifted = syncActiveShiftWithClock(now);
   if (els.orderShift && !state.activeDraftId && !els.orderModal?.classList.contains("open")) {
     els.orderShift.value = currentShiftName();
