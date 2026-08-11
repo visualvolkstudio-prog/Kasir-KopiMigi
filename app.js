@@ -4774,8 +4774,9 @@ async function refreshCashflowSalesPeriod({ month = selectedCashflowMonth(), ren
     });
     if (!result?.success || !Array.isArray(result.transactions)) throw new Error(result?.error || "Ambil arsip arus kas gagal.");
     if (requestId !== state.cashflowSalesRequestId) return false;
+    await cacheCloudTransactionsWithPending(result.transactions);
     state.cashflowSalesPeriodKey = periodKey;
-    state.cashflowSalesTransactions = result.transactions;
+    state.cashflowSalesTransactions = null;
     if (Array.isArray(result.deletedTransactions)) mergeDeletedTransactionTombstones(result.deletedTransactions);
     if (render) renderCashflow();
     return true;
@@ -8102,8 +8103,9 @@ async function refreshAnalyticsPeriod({ render = true, month = selectedMonth(), 
     });
     if (!result?.success || !Array.isArray(result.transactions)) throw new Error(result?.error || "Ambil arsip analitik gagal.");
     if (requestId !== state.analyticsPeriodRequestId) return false;
+    await cacheCloudTransactionsWithPending(result.transactions);
     state.analyticsPeriodKey = periodKey;
-    state.analyticsPeriodTransactions = result.transactions;
+    state.analyticsPeriodTransactions = null;
     state.analyticsLoadError = "";
     state.analyticsLoadErrorPeriodKey = "";
     if (Array.isArray(result.deletedTransactions)) mergeDeletedTransactionTombstones(result.deletedTransactions);
