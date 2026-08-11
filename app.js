@@ -4764,6 +4764,7 @@ async function refreshCashflowSalesPeriod({ month = selectedCashflowMonth(), ren
   const requestId = state.cashflowSalesRequestId + 1;
   state.cashflowSalesRequestId = requestId;
   const periodKey = `month:${month}`;
+  if (render) renderCashflow();
   try {
     const { startDate, endDate } = monthDateRange(month);
     const result = await postSupabaseAction("get-transactions", {
@@ -8089,6 +8090,10 @@ async function refreshAnalyticsPeriod({ render = true, month = selectedMonth(), 
   state.analyticsPeriodRequestId = requestId;
   state.analyticsPeriodLoading = true;
   const periodKey = range === "daily" ? `month:${month}` : `year:${selectedAnalyticsYear()}`;
+  if (render) {
+    renderAnalytics();
+    renderHistory();
+  }
   try {
     const { startDate, endDate } = range === "daily" ? monthDateRange(month) : yearDateRange(selectedAnalyticsYear());
     const result = await postSupabaseAction("get-transactions", {
