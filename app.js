@@ -8984,11 +8984,13 @@ function getAttendanceSummary(startDate, endDate) {
 function initStaffDateRange() {
   const fromInput = document.querySelector("#staffDateFrom");
   const toInput = document.querySelector("#staffDateTo");
-  if (!fromInput || !toInput || (fromInput.value && toInput.value)) return;
-  const today = new Date();
-  const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+  if (!fromInput || !toInput) return;
+  const history = getHistory();
+  const latestDateStr = (history.length > 0 && history[0]) ? (transactionReportDate(history[0]) || dateKey()) : dateKey();
+  const latestDate = new Date(`${latestDateStr}T12:00:00`);
+  const firstOfMonth = new Date(latestDate.getFullYear(), latestDate.getMonth(), 1);
   fromInput.value = dateKey(firstOfMonth);
-  toInput.value = dateKey(today);
+  toInput.value = dateKey(latestDate);
 }
 
 function applyStaffPresetRange(preset) {

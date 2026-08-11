@@ -1,4 +1,4 @@
-const CACHE_NAME = "kasir-migi-v142";
+const CACHE_NAME = "kasir-migi-v143";
 const APP_SHELL = [
   "/",
   "/index.html",
