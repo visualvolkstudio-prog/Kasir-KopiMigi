@@ -7527,6 +7527,12 @@ async function syncCloudData({ refresh = true } = {}) {
   if (cloudSyncPromise) return cloudSyncPromise;
 
   cloudSyncPromise = (async () => {
+    if (refresh) {
+      await loadCloudData().catch(() => null);
+      await ensureJuneRecoveryImported().catch(() => null);
+      await pullTransactionsFromSupabase({ render: true }).catch(() => null);
+      renderAll();
+    }
     await Promise.allSettled([
       processPendingDeletes(),
       syncPendingTransactions(),
@@ -7534,12 +7540,6 @@ async function syncCloudData({ refresh = true } = {}) {
       syncInventoryToCloud(),
       syncSettingsToCloud(),
     ]);
-    if (refresh) {
-      await loadCloudData();
-      await ensureJuneRecoveryImported().catch(() => null);
-      await pullTransactionsFromSupabase({ render: false }).catch(() => null);
-      renderAll();
-    }
   })()
     .catch(() => null)
     .finally(() => {
