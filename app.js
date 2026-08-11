@@ -10312,7 +10312,7 @@ setInterval(() => {
 
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible") {
-    refreshOnlineData({ render: true }).catch(() => null);
+    refreshOnlineData({ render: false }).catch(() => null);
     if (document.querySelector("#view-cashflow")?.classList.contains("active")) refreshActiveCashflowSales();
   }
 });
