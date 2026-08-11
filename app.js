@@ -10263,12 +10263,33 @@ els.roleList?.addEventListener("click", async (event) => {
 els.orderForm.addEventListener("submit", startOrder);
 els.cancelOrderModal.addEventListener("click", closeOrderModal);
 
-els.analyticsMonth.value = monthKey();
-if (els.analyticsDate) els.analyticsDate.value = dateKey();
-if (els.analyticsYear) els.analyticsYear.value = String(new Date().getFullYear());
-if (els.paidOrderDate) els.paidOrderDate.value = dateKey();
-if (els.cashflowMonth) els.cashflowMonth.value = monthKey();
-if (els.cashflowDate) els.cashflowDate.value = dateKey();
+function latestTransactionDate() {
+  const history = getHistory();
+  if (history.length > 0 && history[0]) {
+    const date = transactionReportDate(history[0]);
+    if (date) return date;
+  }
+  return dateKey();
+}
+
+function latestTransactionMonth() {
+  const history = getHistory();
+  if (history.length > 0 && history[0]) {
+    const month = transactionReportMonth(history[0]);
+    if (month) return month;
+  }
+  return monthKey();
+}
+
+const defaultDate = getHistory().some((entry) => transactionReportDate(entry) === dateKey()) ? dateKey() : latestTransactionDate();
+const defaultMonth = getHistory().some((entry) => transactionReportMonth(entry) === monthKey()) ? monthKey() : latestTransactionMonth();
+
+els.analyticsMonth.value = defaultMonth;
+if (els.analyticsDate) els.analyticsDate.value = defaultDate;
+if (els.analyticsYear) els.analyticsYear.value = defaultMonth.slice(0, 4);
+if (els.paidOrderDate) els.paidOrderDate.value = defaultDate;
+if (els.cashflowMonth) els.cashflowMonth.value = defaultMonth;
+if (els.cashflowDate) els.cashflowDate.value = defaultDate;
 if (state.payment === "Kartu") state.payment = "Tunai";
 syncCfExpenseNoteField();
 renderAnalyticsControls();
