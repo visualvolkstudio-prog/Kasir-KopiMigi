@@ -1910,6 +1910,7 @@ function getSettingsPayload() {
     employeeRoles: getEmployeeRoles(),
     labelPrinter: getLabelPrinterSettings(),
     employees: getEmployeeRoster(),
+    shiftAssignments: getShiftAssignments(),
   };
 }
 
@@ -1962,6 +1963,10 @@ function applyCloudSettings(settings) {
   }
   if (Array.isArray(settings.employees) && settings.employees.length > 0) {
     applyCloudEmployeeRoster(settings.employees);
+    changed = true;
+  }
+  if (Array.isArray(settings.shiftAssignments)) {
+    saveShiftAssignments(settings.shiftAssignments);
     changed = true;
   }
   return changed;
