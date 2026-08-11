@@ -996,9 +996,12 @@ function registerShiftAssignment(employee, shift, dutyRole = "karyawan") {
 }
 
 function activeEmployeeName() {
+  if (!isLoggedIn()) return "";
   if (currentRole() === "owner") return "Owner";
+  const auth = getAuth();
+  if (auth?.employee) return auth.employee;
   const saved = localStorage.getItem(storageKeys.employee) || "";
-  if (saved && !isEmployeeOnLeave(saved) && getEmployeeRoster().includes(saved)) return saved;
+  if (saved && !isEmployeeOnLeave(saved)) return saved;
   return getEmployeeRoster().find((name) => !isEmployeeOnLeave(name)) || "";
 }
 
@@ -1075,14 +1078,16 @@ function renderEmployeeControls() {
   const selectedLoginShift = els.loginShift?.value || defaultLoginShift();
   const helperDay = isHelperDay();
   const selectedDutyRole = normalizeDutyRole(els.loginDutyRole?.value || "karyawan");
-  const activeCandidate = availableRoster.includes(activeEmployeeName()) ? activeEmployeeName() : availableRoster[0] || "";
+  const activeCandidate = activeEmployeeName() || availableRoster[0] || "";
   const active = activeCandidate;
   const owner = isLoggedIn() && isOwner();
-  const displayName = owner
-    ? state.activeCashier.employee || "Belum ada kasir aktif"
-    : active
-      ? activeEmployeeDisplayName(active, selectedDutyRole)
-      : "Belum ada crew";
+  const displayName = !isLoggedIn()
+    ? "Belum login"
+    : owner
+      ? state.activeCashier.employee || "Belum ada kasir aktif"
+      : active
+        ? activeEmployeeDisplayName(active, selectedDutyRole)
+        : "Belum ada crew";
   const badgeLabel = owner
     ? state.activeCashier.online
       ? "Online"
@@ -1557,7 +1562,13 @@ function updateEmployeeHeaderState(now = new Date()) {
   els.activeEmployeeCard.classList.toggle("owner-mode", isLoggedIn() && isOwner());
   els.activeEmployeeCard.classList.toggle("cashier-online", false);
   els.activeEmployeeCard.classList.toggle("cashier-offline", false);
-  if (els.activeEmployeeHeader) els.activeEmployeeHeader.textContent = isCashier() ? activeEmployeeDisplayName() : activeEmployeeName();
+  if (els.activeEmployeeHeader) {
+    if (!isLoggedIn()) {
+      els.activeEmployeeHeader.textContent = "-";
+    } else {
+      els.activeEmployeeHeader.textContent = isCashier() ? (activeEmployeeDisplayName() || activeEmployeeName() || "Kasir") : activeEmployeeName();
+    }
+  }
   els.activeEmployeeCard.title = isOwner()
     ? "Owner"
     : active
@@ -3961,7 +3972,7 @@ function boothPhotoCount(packageName = els.boothPackage.value) {
 }
 
 function employeeIdFromName(name) {
-  return stableIdFromName(name || "Admin");
+  return stableIdFromName(name || "Kasir");
 }
 
 function activeEmployeeId() {

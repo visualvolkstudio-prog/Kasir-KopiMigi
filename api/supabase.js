@@ -315,7 +315,7 @@ function toLocalTransaction(row, items) {
     shift: raw.shift || row.shift || "Shift 1",
     channel: raw.channel || row.channel || "Kasir",
     status: raw.status || row.status || "paid",
-    employee: raw.employee || row.employee || "Admin",
+    employee: raw.employee || row.employee || "Kasir",
     payment: raw.payment || row.payment || "",
     paid: Number(row.paid || 0),
     change: Number(row.change || 0),
