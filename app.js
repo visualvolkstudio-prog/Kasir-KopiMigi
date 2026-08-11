@@ -7424,12 +7424,12 @@ async function pullSettingsFromSupabase({ render = false } = {}) {
   if (!navigator.onLine) return false;
   const result = await postSupabaseAction("get-settings");
   if (!result?.success) throw new Error(result?.error || "Pull setting gagal.");
-  if (result.found && (!hasDirtySettings() || !isOwner())) {
+  if (result.found && result.settings) {
     applyCloudSettings(result.settings);
-    if (!isOwner()) clearSettingsDirty();
+    clearSettingsDirty();
     enforceCurrentEmployeeAvailability();
     if (render) renderAll();
-  } else if (isOwner() && (!result.found || hasDirtySettings())) {
+  } else if (isOwner() && !result.found) {
     await syncSettingsToCloud({ force: true });
   }
   return true;
@@ -7515,11 +7515,11 @@ async function loadCloudData() {
   if (Array.isArray(data.cashflowExpenses)) writeJson(storageKeys.cashflowExpenses, data.cashflowExpenses.slice(0, 2000));
   if (data.inventory && typeof data.inventory === "object") applyCloudInventory(data.inventory);
   if (Array.isArray(data.employees)) applyCloudEmployeeRoster(data.employees);
-  if (data.settingsFound && (!hasDirtySettings() || !isOwner())) {
+  if (data.settingsFound && data.settings) {
     applyCloudSettings(data.settings);
-    if (!isOwner()) clearSettingsDirty();
+    clearSettingsDirty();
     enforceCurrentEmployeeAvailability();
-  } else if (isOwner() && (!data.settingsFound || hasDirtySettings())) {
+  } else if (isOwner() && !data.settingsFound) {
     await syncSettingsToCloud({ force: true }).catch(() => null);
   }
   return true;
