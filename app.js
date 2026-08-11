@@ -4770,8 +4770,7 @@ async function refreshCashflowSalesPeriod({ month = selectedCashflowMonth(), ren
     const result = await postSupabaseAction("get-transactions", {
       startDate,
       endDate,
-      fullArchive: true,
-      limit: 50000,
+      limit: 5000,
     });
     if (!result?.success || !Array.isArray(result.transactions)) throw new Error(result?.error || "Ambil arsip arus kas gagal.");
     if (requestId !== state.cashflowSalesRequestId) return false;
@@ -8099,8 +8098,7 @@ async function refreshAnalyticsPeriod({ render = true, month = selectedMonth(), 
     const result = await postSupabaseAction("get-transactions", {
       startDate,
       endDate,
-      fullArchive: true,
-      limit: 50000,
+      limit: 5000,
     });
     if (!result?.success || !Array.isArray(result.transactions)) throw new Error(result?.error || "Ambil arsip analitik gagal.");
     if (requestId !== state.analyticsPeriodRequestId) return false;
