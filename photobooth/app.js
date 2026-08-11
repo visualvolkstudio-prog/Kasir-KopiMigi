@@ -149,15 +149,18 @@ syncChannel.onmessage = function(e) {
 async function requestInitialSync() {
   loadLocalSessions();
   syncChannel.postMessage({ action: 'request_sync', sender: 'booth' });
+  isServerMode = false;
+  setSyncBadge('Local Sync', 'status-dot local-only');
+  if (!ENABLE_SERVER_SYNC) return;
 
   try {
     const res = await fetch('/api/sessions', { cache: 'no-store' });
     if (res.ok) {
       sessions = await res.json();
       localStorage.setItem('pb_sessions', JSON.stringify(sessions));
-      isServerMode = true;
-      setSyncBadge('Server Sync', 'status-dot online');
-      setInterval(fetchSessionsFromServer, 3000);
+      setInterval(() => {
+        if (document.visibilityState === 'visible') fetchSessionsFromServer();
+      }, 10000);
       return;
     }
   } catch (err) {

@@ -11,7 +11,7 @@ const CASHIER_ALIASES = (process.env.CASHIER_ALIASES || "").split(",").map((entr
 const CASHIER_PASSWORD = process.env.CASHIER_PASSWORD;
 
 const activeWindowMs = 2 * 60 * 1000;
-const transactionCacheLimit = 300;
+const transactionCacheLimit = 50;
 const supabasePageSize = 1000;
 const archiveMaxRows = 50000;
 
@@ -538,9 +538,11 @@ async function getTransactions(body = {}) {
   const fullArchive = body.fullArchive === true || body.archive === true;
   const startDate = body.startDate || body.from || "";
   const endDate = body.endDate || body.to || "";
-  const limit = fullArchive || startDate || endDate
-    ? clampNumber(body.limit, archiveMaxRows, 1, archiveMaxRows)
-    : transactionCacheLimit;
+  const limit = body.limit
+    ? clampNumber(body.limit, transactionCacheLimit, 1, archiveMaxRows)
+    : (fullArchive || startDate || endDate
+      ? archiveMaxRows
+      : transactionCacheLimit);
   const [transactions, deletedTransactions] = await Promise.all([
     fetchTransactionRows({ startDate, endDate, limit, fullArchive }),
     fetchDeletedTransactionRows({ startDate, endDate, limit, fullArchive }),
@@ -582,7 +584,7 @@ async function bootstrapData() {
   const [transactions, deletedTransactions, expenses, inventory, employees, settingsRows, deletedEmployeeRows] = await Promise.all([
     fetchTransactionRows({ limit: transactionCacheLimit }),
     fetchDeletedTransactionRows({ limit: transactionCacheLimit }),
-    supabaseFetch("cashflow_expenses?select=*&order=created_at.desc&limit=2000"),
+    supabaseFetch("cashflow_expenses?select=*&order=created_at.desc&limit=150"),
     supabaseFetch("inventory?select=*&order=name.asc"),
     supabaseFetch("employees?select=*&active=eq.true&deleted_at=is.null&order=name.asc"),
     supabaseFetch("app_settings?select=*&key=eq.global&limit=1").catch(() => []),

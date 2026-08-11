@@ -150,11 +150,12 @@
     // ── DATABASE & SYNC STATE ──
     let sessions = [];
     const syncChannel = new BroadcastChannel('photobooth-sync');
+    const ENABLE_SERVER_SYNC = false;
     let isServerMode = false;
     let serverUrl = '';
 
     // Detect if we are hosted on a server or file system
-    if (window.location.protocol !== 'file:') {
+    if (ENABLE_SERVER_SYNC && window.location.protocol !== 'file:') {
       isServerMode = true;
       serverUrl = window.location.origin; // Same origin
       document.getElementById('status-text').textContent = 'Network Sync (Wi-Fi)';
@@ -713,9 +714,13 @@
     // Periodically poll server if in server mode
     if (isServerMode) {
       syncWithServer();
-      setInterval(syncWithServer, 2000); // Poll every 2 seconds
+      setInterval(() => {
+        if (document.visibilityState === 'visible') syncWithServer();
+      }, 8000);
       fetchPrintJobs();
-      setInterval(fetchPrintJobs, 2000);
+      setInterval(() => {
+        if (document.visibilityState === 'visible') fetchPrintJobs();
+      }, 8000);
     }
   </script>
 </body>

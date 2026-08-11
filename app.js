@@ -7457,9 +7457,10 @@ async function cacheCloudTransactionsWithPending(transactions = []) {
   cacheCloudTransactions(transactions, pending);
 }
 
-async function pullTransactionsFromSupabase({ render = true } = {}) {
+async function pullTransactionsFromSupabase({ render = true, limit } = {}) {
   if (!navigator.onLine) return false;
-  const result = await postSupabaseAction("get-transactions");
+  const payload = limit ? { limit } : {};
+  const result = await postSupabaseAction("get-transactions", payload);
   if (!result?.success || !Array.isArray(result.transactions)) {
     throw new Error(result?.error || "Pull transaksi gagal.");
   }
@@ -10257,15 +10258,20 @@ initAuth();
 initPrinterSettings();
 updateClock();
 setInterval(updateClock, 1000);
-setInterval(() => updateDevicePresence().catch(() => null), 60000);
-setInterval(() => refreshActiveCashierPresence().catch(() => null), 60000);
-setInterval(() => checkRemoteLogout().catch(() => null), 60000);
+setInterval(() => {
+  if (document.visibilityState === "visible") updateDevicePresence().catch(() => null);
+}, 60000);
+setInterval(() => {
+  if (document.visibilityState === "visible") refreshActiveCashierPresence().catch(() => null);
+}, 60000);
+setInterval(() => {
+  if (document.visibilityState === "visible") checkRemoteLogout().catch(() => null);
+}, 60000);
 setInterval(() => {
   if (document.visibilityState === "visible") {
-    // Refresh ringan di background: jangan muat bootstrap dan arsip analitik
-    // puluhan ribu transaksi setiap 30 detik saat kasir sedang bekerja.
+    // Refresh ringan di background: hanya tarik 30 transaksi terbaru setiap 10 menit saat kasir sedang bekerja
     syncPendingTransactions({ pull: false })
-      .then(() => pullTransactionsFromSupabase({ render: false }))
+      .then(() => pullTransactionsFromSupabase({ render: false, limit: 30 }))
       .then(() => {
         renderHistory();
         renderOrders();
@@ -10275,7 +10281,7 @@ setInterval(() => {
       .catch(() => null);
     refreshActiveCashflowSales();
   }
-}, 120000);
+}, 600000);
 setInterval(() => {
   if (document.visibilityState === "visible" && navigator.onLine && isLoggedIn()) {
     // Sync karyawan setiap 5 menit agar semua device selalu up-to-date
