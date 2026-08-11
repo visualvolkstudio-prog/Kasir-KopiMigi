@@ -4803,7 +4803,7 @@ function renderCashflow() {
   if (els.cashflowDate) els.cashflowDate.hidden = !isDaily;
   const periodLabel = isDaily ? "tanggal ini" : "bulan ini";
   const isInPeriod = (entry) => {
-    const entryDate = dateKey(entry.createdAt);
+    const entryDate = dateKey(entry.createdAt || entry.created_at);
     return isDaily ? entryDate === selectedDateValue : entryDate.slice(0, 7) === selectedMonthValue;
   };
   const isSaleInPeriod = (entry) => {
@@ -4826,18 +4826,18 @@ function renderCashflow() {
 
   const activeFilter = els.cfFilterTabs?.querySelector("button.active")?.dataset?.cfFilter || "all";
   const salesList = periodSales
-    .map((entry) => ({ type: "in", category: "Masuk", label: `Penjualan · ${paidOrderDisplayCode(entry, periodSales)}`, amount: entry.grandTotal, note: entry.customer, createdAt: entry.createdAt, reportDate: transactionReportDate(entry) }));
+    .map((entry) => ({ type: "in", category: "Masuk", label: `Penjualan · ${paidOrderDisplayCode(entry, periodSales)}`, amount: entry.grandTotal, note: entry.customer, createdAt: entry.createdAt || entry.created_at, reportDate: transactionReportDate(entry) }));
   const expenseList = periodExpenses.map((entry) => ({
     type: "out",
     category: entry.category || "Lain-lain",
     label: entry.note,
     amount: entry.amount,
     note: `${entry.category}${entry.qty ? ` · ${Number(entry.qty).toLocaleString("id-ID")} ${entry.unit || ""}` : ""}`,
-    createdAt: entry.createdAt,
+    createdAt: entry.createdAt || entry.created_at,
     id: entry.id,
   }));
 
-  let combined = [...salesList, ...expenseList].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  let combined = [...salesList, ...expenseList].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
   if (activeFilter === "in") combined = combined.filter((entry) => entry.type === "in");
   if (!["all", "in"].includes(activeFilter)) combined = combined.filter((entry) => entry.type === "out" && entry.category === activeFilter);
 
