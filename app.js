@@ -975,14 +975,10 @@ function usedShiftForEmployee(name, today = dateKey()) {
 }
 
 function isEmployeeUsedInOtherShift(name, shift = getActiveShift(), today = dateKey()) {
-  const usedShift = usedShiftForEmployee(name, today);
-  return Boolean(usedShift && usedShift !== normalizeShift(shift));
+  return false;
 }
 
 function defaultLoginShift() {
-  const shifts = new Set(todayShiftAssignments().map((entry) => entry.shift));
-  if (shifts.has("Shift 1") && !shifts.has("Shift 2")) return "Shift 2";
-  if (shifts.has("Shift 2") && !shifts.has("Shift 1")) return "Shift 1";
   return getActiveShift();
 }
 
@@ -1076,13 +1072,11 @@ function transactionEmployeeDisplay(transaction) {
 function renderEmployeeControls() {
   const roster = getEmployeeRoster();
   const availableRoster = roster.filter((name) => !isEmployeeOnLeave(name));
-  const selectedLoginShift = defaultLoginShift();
+  const selectedLoginShift = els.loginShift?.value || defaultLoginShift();
   const helperDay = isHelperDay();
   const selectedDutyRole = normalizeDutyRole(els.loginDutyRole?.value || "karyawan");
   const activeCandidate = availableRoster.includes(activeEmployeeName()) ? activeEmployeeName() : availableRoster[0] || "";
-  const active = isEmployeeUsedInOtherShift(activeCandidate, selectedLoginShift)
-    ? availableRoster.find((name) => !isEmployeeUsedInOtherShift(name, selectedLoginShift)) || activeCandidate
-    : activeCandidate;
+  const active = activeCandidate;
   const owner = isLoggedIn() && isOwner();
   const displayName = owner
     ? state.activeCashier.employee || "Belum ada kasir aktif"
@@ -1141,8 +1135,8 @@ function renderEmployeeControls() {
       ? roster.map((name) => {
           const usedShift = usedShiftForEmployee(name);
           const onLeave = isEmployeeOnLeave(name);
-          const disabled = onLeave || Boolean(usedShift && usedShift !== selectedLoginShift);
-          const label = onLeave ? `${name} (libur)` : disabled ? `${name} (Sudah bertugas di ${usedShift})` : name;
+          const disabled = onLeave;
+          const label = onLeave ? `${name} (libur)` : (usedShift && usedShift !== selectedLoginShift ? `${name} (${usedShift})` : name);
           const option = new Option(label, name);
           option.disabled = disabled;
           return option;
@@ -1167,7 +1161,7 @@ function renderEmployeeControls() {
     els.loginDutyRole.value = roles.includes(currentVal) ? currentVal : "karyawan";
     els.loginDutyRole.disabled = false;
   }
-  if (els.loginShift) els.loginShift.value = selectedLoginShift;
+  if (els.loginShift && (!els.loginShift.value || document.activeElement !== els.loginShift)) els.loginShift.value = selectedLoginShift;
 }
 
 function initAuth() {
@@ -1669,7 +1663,7 @@ function updateClock() {
     return;
   }
   runShiftScheduleChecks(now);
-  if (els.loginShift && !isLoggedIn()) els.loginShift.value = defaultLoginShift();
+  if (els.loginShift && !isLoggedIn() && document.activeElement !== els.loginShift && !els.loginShift.value) els.loginShift.value = defaultLoginShift();
   const shifted = syncActiveShiftWithClock(now);
   if (els.orderShift && !state.activeDraftId && !els.orderModal?.classList.contains("open")) {
     els.orderShift.value = currentShiftName();
@@ -8923,20 +8917,34 @@ function shiftStartTime(shift) {
 function getAttendanceForDate(dateStr) {
   const roster = getEmployeeRoster();
   const assignments = todayShiftAssignments(dateStr);
-  return roster.map((name) => {
+  const result = [];
+  roster.forEach((name) => {
     const employeeId = assignmentEmployeeId(name);
-    const assignment = assignments.find(
+    const empAssignments = assignments.filter(
       (a) => (a.employeeId || assignmentEmployeeId(a.employee)) === employeeId,
     );
     const onLeave = isEmployeeOnLeave(name);
-    return {
-      name,
-      shift: assignment?.shift || "",
-      loginAt: assignment?.loginAt || "",
-      dutyRole: assignment?.dutyRole || "",
-      status: assignment ? "hadir" : onLeave ? "libur" : "belum",
-    };
+    if (empAssignments.length > 0) {
+      empAssignments.forEach((assignment) => {
+        result.push({
+          name,
+          shift: assignment.shift || "",
+          loginAt: assignment.loginAt || "",
+          dutyRole: assignment.dutyRole || "",
+          status: "hadir",
+        });
+      });
+    } else {
+      result.push({
+        name,
+        shift: "",
+        loginAt: "",
+        dutyRole: "",
+        status: onLeave ? "libur" : "belum",
+      });
+    }
   });
+  return result;
 }
 
 function getAttendanceSummary(startDate, endDate) {
