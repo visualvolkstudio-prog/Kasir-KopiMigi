@@ -949,12 +949,12 @@ function assignmentEmployeeId(name) {
 function todayShiftAssignments(today = dateKey()) {
   const assignments = getShiftAssignments().filter((entry) => entry.date === today);
   const transactionAssignments = getHistory()
-    .filter((entry) => dateKey(entry.createdAt) === today && entry.employee && entry.employee !== "Owner" && entry.shift)
+    .filter((entry) => transactionReportDate(entry) === today && entry.employee && entry.employee !== "Owner")
     .map((entry) => ({
       date: today,
       employee: entry.employee,
       employeeId: entry.employeeId || assignmentEmployeeId(entry.employee),
-      shift: normalizeShift(entry.shift),
+      shift: normalizeShift(entry.shift || "Shift 1"),
       source: "transaction",
     }));
   const byKey = new Map();
