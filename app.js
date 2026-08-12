@@ -126,6 +126,8 @@ const bleServiceUuids = [
   "49535343-fe7d-4ae5-8fa9-9fafd205e455",
   "0000ff00-0000-1000-8000-00805f9b34fb",
   "e7810a71-73ae-499d-8c15-faa9aef0c3f2",
+  "0000ffe0-0000-1000-8000-00805f9b34fb",
+  "0000af00-0000-1000-8000-00805f9b34fb",
 ];
 
 const bleCharacteristicUuids = [
@@ -133,6 +135,9 @@ const bleCharacteristicUuids = [
   "49535343-8841-43f4-a8d4-ecbe34729bb3",
   "0000ff02-0000-1000-8000-00805f9b34fb",
   "bef8d6c9-9c21-4c9e-b632-bd58c1009f9f",
+  "0000ffe1-0000-1000-8000-00805f9b34fb",
+  "0000af01-0000-1000-8000-00805f9b34fb",
+  "0000af02-0000-1000-8000-00805f9b34fb",
 ];
 
 const rupiah = new Intl.NumberFormat("id-ID", {
@@ -336,6 +341,9 @@ const els = {
   itemCustomSaveBtn: document.querySelector("#itemCustomSaveBtn"),
   itemCustomNoteOptions: document.querySelector("#itemCustomNoteOptions"),
 
+  customApplyGroup: document.querySelector("#customApplyGroup"),
+  customApplyTarget: document.querySelector("#customApplyTarget"),
+  customApplyAllBtn: document.querySelector("#customApplyAllBtn"),
   customTemp: document.querySelector("#customTemp"),
   customIce: document.querySelector("#customIce"),
   customIceGroup: document.querySelector("#customIceGroup"),
@@ -3760,10 +3768,17 @@ async function connectPrinter() {
     setPrinterStatus("Tersambung", "connected", `${state.printerDevice.name || "Printer ESC/POS"} siap untuk cetak struk.`);
     toast("Printer termal tersambung.");
   } catch (error) {
+    console.error("Printer connection error:", error);
     state.printerCharacteristic = null;
-    setPrinterStatus("Terputus", "disconnected", "Koneksi gagal atau dibatalkan. Coba sambungkan lagi.");
-    if (!String(error.message).toLowerCase().includes("cancel")) {
-      toast(`Koneksi printer gagal: ${error.message}`);
+    const msg = String(error?.message || error || "");
+    const isCancel = msg.toLowerCase().includes("cancel") || msg.toLowerCase().includes("dibatalkan");
+    setPrinterStatus(
+      "Terputus",
+      "disconnected",
+      isCancel ? "Koneksi dibatalkan. Coba sambungkan lagi." : `Koneksi gagal: ${msg}`,
+    );
+    if (!isCancel) {
+      toast(`Koneksi printer gagal: ${msg}. Pastikan printer tipe BLE dan tidak terhubung ke HP lain.`);
     }
   }
 }
@@ -3851,10 +3866,17 @@ async function connectLabelPrinter() {
     );
     toast(`Label printer tersambung (${transportMode}).`);
   } catch (error) {
+    console.error("Label printer connection error:", error);
     state.labelPrinterCharacteristic = null;
-    setLabelPrinterStatus("Terputus", "disconnected", "Koneksi gagal atau dibatalkan. Coba sambungkan lagi.");
-    if (!String(error.message).toLowerCase().includes("cancel")) {
-      toast(`Koneksi label printer gagal: ${error.message}`);
+    const msg = String(error?.message || error || "");
+    const isCancel = msg.toLowerCase().includes("cancel") || msg.toLowerCase().includes("dibatalkan");
+    setLabelPrinterStatus(
+      "Terputus",
+      "disconnected",
+      isCancel ? "Koneksi dibatalkan. Coba sambungkan lagi." : `Koneksi gagal: ${msg}`,
+    );
+    if (!isCancel) {
+      toast(`Koneksi label printer gagal: ${msg}. Pastikan printer tipe BLE dan tidak terhubung ke HP lain.`);
     }
   }
 }
@@ -6566,6 +6588,16 @@ function openItemCustomModal(itemId) {
   currentCustomizingItemId = itemId;
   if (els.customItemName) els.customItemName.textContent = item.name;
 
+  if (item.qty > 1) {
+    if (els.customApplyGroup) els.customApplyGroup.hidden = false;
+    if (els.customApplyAllBtn) els.customApplyAllBtn.textContent = `Semua (${item.qty}x)`;
+    els.customApplyTarget?.querySelectorAll("button").forEach((btn) => {
+      btn.classList.toggle("active", btn.dataset.value === "ALL");
+    });
+  } else {
+    if (els.customApplyGroup) els.customApplyGroup.hidden = true;
+  }
+
   // Parsing existing notes
   const notesStr = (item.notes || "").toUpperCase();
   
@@ -6640,6 +6672,8 @@ function saveItemCustomization(event) {
   const sizeBtn = els.customSize?.querySelector("button.active");
   const customText = els.customTextNote?.value.trim();
 
+  const applyTarget = els.customApplyTarget?.querySelector("button.active")?.dataset.value || "ALL";
+
   // Combine into formatted string
   const tags = [];
   if (tempBtn && tempBtn.dataset.value) tags.push(tempBtn.dataset.value);
@@ -6650,7 +6684,19 @@ function saveItemCustomization(event) {
   if (sizeBtn && sizeBtn.dataset.value) tags.push(sizeBtn.dataset.value);
   if (customText) tags.push(customText.toUpperCase());
 
-  item.notes = tags.join(" · ");
+  const newNotes = tags.join(" · ");
+
+  if (item.qty > 1 && applyTarget === "ONE") {
+    item.qty -= 1;
+    state.cart.push({
+      ...item,
+      id: `${item.id.split('-split-')[0]}-split-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+      qty: 1,
+      notes: newNotes,
+    });
+  } else {
+    item.notes = newNotes;
+  }
   
   // Re-render cart (which merges items with same notes if applicable)
   renderCart();
@@ -9363,6 +9409,7 @@ els.customTemp?.addEventListener("click", handleSegmentedClick);
 els.customIce?.addEventListener("click", handleSegmentedClick);
 els.customSugar?.addEventListener("click", handleSegmentedClick);
 els.customSize?.addEventListener("click", handleSegmentedClick);
+els.customApplyTarget?.addEventListener("click", handleSegmentedClick);
 
 els.ingredientCategorySelect?.addEventListener("change", syncIngredientCategoryField);
 els.ingredientCategoryCustom?.addEventListener("input", syncIngredientCategoryField);

@@ -1307,6 +1307,15 @@
         </div>
         
         <div class="custom-options-grid">
+          <!-- Porsi Target (muncul jika Qty > 1) -->
+          <div class="custom-group" id="customApplyGroup" hidden>
+            <p class="custom-label">Kustomisasi Untuk</p>
+            <div class="segmented" role="radiogroup" id="customApplyTarget">
+              <button type="button" class="active" data-value="ALL" id="customApplyAllBtn">Semua Porsi</button>
+              <button type="button" data-value="ONE">Pisahkan 1 Porsi Ini</button>
+            </div>
+          </div>
+
           <!-- Pilihan Suhu -->
           <div class="custom-group">
             <p class="custom-label">Suhu</p>
