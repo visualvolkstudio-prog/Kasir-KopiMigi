@@ -941,12 +941,36 @@ function clearEmployeeLeaveStatus(name) {
   setEmployeeLeaveStatus(name, false);
 }
 
+function mergeShiftAssignments(listA = [], listB = []) {
+  const merged = new Map();
+  [...(Array.isArray(listA) ? listA : []), ...(Array.isArray(listB) ? listB : [])].forEach((entry) => {
+    if (!entry || !entry.date) return;
+    const empId = entry.employeeId || assignmentEmployeeId(entry.employee);
+    const shift = normalizeShift(entry.shift || "Shift 1");
+    if (!empId || !shift) return;
+    const key = `${entry.date}:${empId}:${shift}`;
+    const existing = merged.get(key);
+    if (
+      !existing ||
+      (entry.loginAt && !existing.loginAt) ||
+      (entry.loginAt && existing.loginAt && new Date(entry.loginAt) > new Date(existing.loginAt))
+    ) {
+      merged.set(key, { ...entry, employeeId: empId, shift });
+    }
+  });
+  return [...merged.values()].sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+}
+
 function getShiftAssignments() {
   return readJson(storageKeys.shiftAssignments, []);
 }
 
-function saveShiftAssignments(assignments) {
-  writeJson(storageKeys.shiftAssignments, assignments.slice(-120));
+function saveShiftAssignments(assignments, options = {}) {
+  const clean = (Array.isArray(assignments) ? assignments : []).slice(-200);
+  writeJson(storageKeys.shiftAssignments, clean);
+  if (options?.dirty !== false) {
+    markSettingsDirty();
+  }
 }
 
 function assignmentEmployeeId(name) {
@@ -996,11 +1020,16 @@ function registerShiftAssignment(employee, shift, dutyRole = "karyawan") {
   const employeeId = assignmentEmployeeId(employee);
   const nextShift = normalizeShift(shift);
   const nextDutyRole = normalizeDutyRole(dutyRole);
-  const assignments = getShiftAssignments().filter(
+  const existingAssignments = getShiftAssignments();
+  const assignments = existingAssignments.filter(
     (entry) => !(entry.date === today && (entry.employeeId || assignmentEmployeeId(entry.employee)) === employeeId && normalizeShift(entry.shift) === nextShift),
   );
   assignments.push({ date: today, employee, employeeId, shift: nextShift, dutyRole: nextDutyRole, loginAt: new Date().toISOString() });
-  saveShiftAssignments(assignments);
+  saveShiftAssignments(assignments, { dirty: true });
+  syncSettingsToCloud({ force: true }).catch(() => null);
+  if (document.querySelector("#staffTodayTable")) {
+    renderStaffTodayAttendance();
+  }
 }
 
 function activeEmployeeName() {
@@ -1974,7 +2003,8 @@ function applyCloudSettings(settings) {
     changed = true;
   }
   if (Array.isArray(settings.shiftAssignments)) {
-    saveShiftAssignments(settings.shiftAssignments);
+    const merged = mergeShiftAssignments(getShiftAssignments(), settings.shiftAssignments);
+    saveShiftAssignments(merged, { dirty: false });
     changed = true;
   }
   return changed;
@@ -8937,6 +8967,7 @@ function renderAll() {
   renderWifiReceiptSettings();
   renderPendingSync();
   renderEmployeeRolesControls();
+  renderStaffView();
   updateLabelPreview();
 }
 
