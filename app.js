@@ -1268,6 +1268,63 @@ async function preloadEmployeesForLogin() {
   } catch {}
   return false;
 }
+// ─── Check-In Confirmation Screen ────────────────────────────────────────────
+
+let _checkinTimer = null;
+
+function showCheckinScreen(employee, shift, loginAt = new Date()) {
+  const screen = document.querySelector("#checkinScreen");
+  if (!screen) return;
+
+  // Isi konten
+  const nameEl = document.querySelector("#checkinName");
+  const timeEl = document.querySelector("#checkinTime");
+  const shiftBadgeEl = document.querySelector("#checkinShiftBadge");
+  const countdownEl = document.querySelector("#checkinCountdown");
+
+  if (nameEl) nameEl.textContent = `Selamat datang, ${employee}!`;
+  if (timeEl) {
+    timeEl.textContent = loginAt.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
+  }
+  if (shiftBadgeEl) {
+    const isShift1 = normalizeShift(shift) === "Shift 1";
+    const icon = isShift1 ? "ph-sun" : "ph-moon";
+    const timeRange = isShift1 ? "10.00–17.00" : "17.00–22.00";
+    shiftBadgeEl.className = `checkin-shift-badge ${isShift1 ? "checkin-shift-badge--1" : "checkin-shift-badge--2"}`;
+    shiftBadgeEl.innerHTML = `<i class="ph ${icon}"></i> ${escapeHtml(shift)} · ${timeRange}`;
+  }
+
+  // Tampilkan screen
+  screen.hidden = false;
+  screen.classList.remove("checkin-exit");
+  requestAnimationFrame(() => screen.classList.add("checkin-visible"));
+
+  // Countdown 5 detik
+  let count = 5;
+  if (countdownEl) countdownEl.textContent = count;
+  clearInterval(_checkinTimer);
+  _checkinTimer = setInterval(() => {
+    count--;
+    if (countdownEl) countdownEl.textContent = count;
+    if (count <= 0) {
+      clearInterval(_checkinTimer);
+      dismissCheckinScreen();
+    }
+  }, 1000);
+}
+
+function dismissCheckinScreen() {
+  clearInterval(_checkinTimer);
+  const screen = document.querySelector("#checkinScreen");
+  if (!screen || screen.hidden) return;
+  screen.classList.add("checkin-exit");
+  screen.addEventListener("animationend", () => {
+    screen.hidden = true;
+    screen.classList.remove("checkin-visible", "checkin-exit");
+  }, { once: true });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 async function finishLogin(role, employee, shift, dutyRole = "karyawan", token = "") {
   const normalizedDutyRole = role === "cashier" ? normalizeDutyRole(dutyRole) : "owner";
@@ -1301,7 +1358,11 @@ async function finishLogin(role, employee, shift, dutyRole = "karyawan", token =
   document.body.classList.remove("locked");
   els.loginPassword.value = "";
   setActiveView("pos");
-  toast(role === "owner" ? "Masuk sebagai Owner." : `Masuk sebagai ${activeEmployeeDisplayName(employee, normalizedDutyRole)} · ${shift}.`);
+  if (role === "cashier") {
+    showCheckinScreen(employee, shift, new Date());
+  } else {
+    toast("Masuk sebagai Owner.");
+  }
   updateDevicePresence().catch(() => null);
   if (role === "owner") refreshActiveCashierPresence().catch(() => null);
   syncCloudData();
@@ -1711,7 +1772,7 @@ function updateClock() {
     return;
   }
   runShiftScheduleChecks(now);
-  if (els.loginShift && !isLoggedIn() && document.activeElement !== els.loginShift && !els.loginShift.value) els.loginShift.value = defaultLoginShift();
+  if (els.loginShift && !isLoggedIn() && document.activeElement !== els.loginShift) els.loginShift.value = defaultLoginShift();
   const shifted = syncActiveShiftWithClock(now);
   if (els.orderShift && !state.activeDraftId && !els.orderModal?.classList.contains("open")) {
     els.orderShift.value = currentShiftName();
@@ -9864,6 +9925,7 @@ els.transactionEditItems?.addEventListener("click", (event) => {
 });
 els.transactionEditPayment?.addEventListener("change", renderTransactionEditModal);
 els.logoutBtn.addEventListener("click", logout);
+document.querySelector("#checkinDismissBtn")?.addEventListener("click", dismissCheckinScreen);
 els.testLogoPrint?.addEventListener("click", testLogoPrint);
 els.connectLabelPrinter?.addEventListener("click", connectLabelPrinter);
 els.testLabelPrint?.addEventListener("click", testLabelPrint);

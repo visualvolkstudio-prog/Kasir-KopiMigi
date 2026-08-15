@@ -4332,3 +4332,209 @@ body.locked .login-screen { display: grid; }
     font-size: 11px;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   CHECK-IN CONFIRMATION SCREEN
+   ═══════════════════════════════════════════════════════════════════════ */
+
+@keyframes checkin-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(28px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes checkin-slide-down {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(20px) scale(0.97);
+  }
+}
+
+@keyframes checkin-icon-pop {
+  0%   { transform: scale(0.4); opacity: 0; }
+  65%  { transform: scale(1.18); opacity: 1; }
+  85%  { transform: scale(0.92); }
+  100% { transform: scale(1); }
+}
+
+@keyframes checkin-overlay-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes checkin-overlay-out {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+
+.checkin-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0, 10, 30, 0.55);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  animation: checkin-overlay-in 0.3s ease forwards;
+}
+
+.checkin-overlay.checkin-exit {
+  animation: checkin-overlay-out 0.35s ease forwards;
+}
+
+.checkin-overlay.checkin-exit .checkin-card {
+  animation: checkin-slide-down 0.35s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+.checkin-overlay.checkin-visible .checkin-card {
+  animation: checkin-slide-up 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.checkin-card {
+  background: #ffffff;
+  border-radius: 24px;
+  padding: 36px 28px 28px;
+  width: 100%;
+  max-width: 360px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  box-shadow:
+    0 32px 80px rgba(0, 0, 0, 0.18),
+    0 8px 24px rgba(0, 0, 0, 0.10);
+  text-align: center;
+  opacity: 0;
+}
+
+/* Icon centang */
+.checkin-icon-wrap {
+  margin-bottom: 6px;
+}
+
+.checkin-success-icon {
+  font-size: 64px;
+  color: #16a34a;
+  display: block;
+  animation: checkin-icon-pop 0.55s cubic-bezier(0.16, 1, 0.3, 1) 0.15s both;
+  filter: drop-shadow(0 4px 16px rgba(22, 163, 74, 0.3));
+}
+
+/* Heading */
+.checkin-name {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--ink);
+  line-height: 1.2;
+  letter-spacing: -0.3px;
+  margin: 0;
+}
+
+.checkin-sub {
+  font-size: 14px;
+  color: var(--ink-2);
+  margin: 0 0 4px;
+}
+
+/* Info block: shift badge + jam masuk */
+.checkin-info-block {
+  width: 100%;
+  background: var(--soft, #f8fafc);
+  border: 1px solid var(--line, #e8edf5);
+  border-radius: 14px;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin: 6px 0 8px;
+}
+
+/* Shift badge */
+.checkin-shift-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 16px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.checkin-shift-badge i {
+  font-size: 15px;
+}
+
+.checkin-shift-badge--1 {
+  background: rgba(245, 158, 11, 0.12);
+  color: #92400e;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.checkin-shift-badge--2 {
+  background: rgba(109, 40, 217, 0.10);
+  color: #5b21b6;
+  border: 1px solid rgba(109, 40, 217, 0.25);
+}
+
+/* Baris jam masuk */
+.checkin-time-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 8px;
+}
+
+.checkin-time-label {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
+
+.checkin-time-val {
+  font-family: var(--font-mono, monospace);
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--ink);
+  letter-spacing: -0.5px;
+}
+
+/* Tombol mulai bertugas */
+.checkin-card .primary-button.full-button {
+  margin-top: 4px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 15px;
+  padding: 14px 24px;
+  border-radius: 14px;
+}
+
+/* Hint countdown */
+.checkin-auto-hint {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 2px 0 0;
+}
+
+.checkin-auto-hint strong {
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}

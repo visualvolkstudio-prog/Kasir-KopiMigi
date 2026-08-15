@@ -63,6 +63,30 @@
       </form>
     </section>
 
+    <!-- ─── Check-In Confirmation Screen ─────────────────────────────── -->
+    <div id="checkinScreen" class="checkin-overlay" hidden aria-modal="true" role="dialog" aria-label="Konfirmasi absensi">
+      <div class="checkin-card">
+        <div class="checkin-icon-wrap">
+          <i class="ph-fill ph-check-circle checkin-success-icon"></i>
+        </div>
+        <h2 class="checkin-name" id="checkinName">Selamat datang!</h2>
+        <p class="checkin-sub">Kamu tercatat hadir hari ini</p>
+        <div class="checkin-info-block">
+          <span class="checkin-shift-badge" id="checkinShiftBadge"></span>
+          <div class="checkin-time-row">
+            <span class="checkin-time-label">Jam Masuk</span>
+            <span class="checkin-time-val" id="checkinTime">–</span>
+          </div>
+        </div>
+        <button class="primary-button full-button" id="checkinDismissBtn" type="button">
+          Mulai Bertugas <i class="ph ph-arrow-right" aria-hidden="true"></i>
+        </button>
+        <p class="checkin-auto-hint">
+          Otomatis masuk dalam <strong id="checkinCountdown">5</strong> detik
+        </p>
+      </div>
+    </div>
+
     <section class="order-modal" id="orderModal" aria-label="Order aktif" aria-hidden="true">
       <form class="order-card" id="orderForm">
         <div class="modal-head">
