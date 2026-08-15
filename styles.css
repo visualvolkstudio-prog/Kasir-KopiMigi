@@ -4390,6 +4390,10 @@ body.locked .login-screen { display: grid; }
   animation: checkin-overlay-in 0.3s ease forwards;
 }
 
+.checkin-overlay[hidden] {
+  display: none !important;
+}
+
 .checkin-overlay.checkin-exit {
   animation: checkin-overlay-out 0.35s ease forwards;
 }
