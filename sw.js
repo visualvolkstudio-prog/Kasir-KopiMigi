@@ -23,17 +23,21 @@ const APP_SHELL = [
 ];
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)));
-  self.skipWaiting();
+  event.waitUntil(
+    caches
+      .open(CACHE_NAME)
+      .then((cache) => cache.addAll(APP_SHELL))
+      .then(() => self.skipWaiting()),
+  );
 });
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))),
-    ),
+    caches
+      .keys()
+      .then((keys) => Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))))
+      .then(() => self.clients.claim()),
   );
-  self.clients.claim();
 });
 
 self.addEventListener("fetch", (event) => {
@@ -45,7 +49,7 @@ self.addEventListener("fetch", (event) => {
       fetch(request)
         .then((response) => {
           const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone)).catch(() => null);
           return response;
         })
         .catch(() => caches.match(request).then((cached) => cached || caches.match("/offline.html"))),
@@ -53,13 +57,14 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  if (["/", "/app.js", "/styles.css", "/index.html"].includes(new URL(request.url).pathname)) {
+  const url = new URL(request.url);
+  if (["/", "/app.js", "/styles.css", "/index.html"].includes(url.pathname)) {
     event.respondWith(
       fetch(request)
         .then((response) => {
           if (response.ok) {
             const clone = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone)).catch(() => null);
           }
           return response;
         })
@@ -68,16 +73,29 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  if (url.pathname.startsWith("/assets/")) {
+    event.respondWith(
+      caches.match(request, { ignoreSearch: true }).then((cached) => {
+        if (cached) return cached;
+        return fetch(request).then((response) => {
+          if (response.ok) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone)).catch(() => null);
+          }
+          return response;
+        });
+      }),
+    );
+    return;
+  }
+
   event.respondWith(
     caches.match(request).then((cached) => {
-      if (new URL(request.url).pathname.startsWith("/assets/")) {
-        return caches.match(request, { ignoreSearch: true }).then((assetCached) => assetCached || fetch(request));
-      }
       const network = fetch(request)
         .then((response) => {
           if (response.ok) {
             const clone = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone)).catch(() => null);
           }
           return response;
         })

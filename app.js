@@ -583,7 +583,8 @@ function analyticsDateRange(range = state.chartRange) {
 
 function dayOrderPrefix(value = new Date()) {
   const date = value instanceof Date ? value : new Date(value);
-  return ["M", "S", "SS", "R", "K", "J", "SB"][date.getDay()];
+  const jakartaTime = new Date(date.getTime() + jakartaOffsetHours * 60 * 60 * 1000);
+  return ["M", "S", "SS", "R", "K", "J", "SB"][jakartaTime.getUTCDay()];
 }
 
 function isOnlineChannel(channel) {
@@ -801,7 +802,11 @@ function readJson(key, fallback) {
 }
 
 function writeJson(key, value) {
-  localStorage.setItem(key, JSON.stringify(value));
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch (err) {
+    console.error(`[writeJson] Gagal menyimpan key "${key}":`, err);
+  }
 }
 
 function escapeHtml(value) {
@@ -989,15 +994,22 @@ function todayShiftAssignments(today = dateKey()) {
       shift: normalizeShift(entry.shift || "Shift 1"),
       source: "transaction",
     }));
-  const byKey = new Map();
-  // Proses transactionAssignments dulu (prioritas lebih rendah),
-  // lalu assignments resmi (yang punya loginAt) — agar loginAt tidak tertimpa data transaksi yang kosong.
-  [...transactionAssignments, ...assignments].forEach((entry) => {
+  const byEmployee = new Map();
+  // 1. Masukkan transaksi dulu sebagai fallback
+  transactionAssignments.forEach((entry) => {
     const employeeId = entry.employeeId || assignmentEmployeeId(entry.employee);
     if (!employeeId || !entry.employee || !entry.shift) return;
-    byKey.set(`${employeeId}:${normalizeShift(entry.shift)}`, { ...entry, employeeId, shift: normalizeShift(entry.shift) });
+    if (!byEmployee.has(employeeId)) {
+      byEmployee.set(employeeId, { ...entry, employeeId, shift: normalizeShift(entry.shift) });
+    }
   });
-  return [...byKey.values()];
+  // 2. Timpa dengan assignment login resmi (yang punya loginAt)
+  assignments.forEach((entry) => {
+    const employeeId = entry.employeeId || assignmentEmployeeId(entry.employee);
+    if (!employeeId || !entry.employee || !entry.shift) return;
+    byEmployee.set(employeeId, { ...entry, employeeId, shift: normalizeShift(entry.shift) });
+  });
+  return [...byEmployee.values()];
 }
 
 function usedShiftForEmployee(name, today = dateKey()) {
@@ -1007,7 +1019,9 @@ function usedShiftForEmployee(name, today = dateKey()) {
 }
 
 function isEmployeeUsedInOtherShift(name, shift = getActiveShift(), today = dateKey()) {
-  return false;
+  if (!name) return false;
+  const existingShift = usedShiftForEmployee(name, today);
+  return Boolean(existingShift && normalizeShift(existingShift) !== normalizeShift(shift));
 }
 
 function defaultLoginShift() {
@@ -1173,12 +1187,21 @@ function renderEmployeeControls() {
       .join("");
   }
   if (els.loginEmployee) {
+    const selectedLoginShift = normalizeShift(els.loginShift?.value || defaultLoginShift());
     const options = roster.length
       ? roster.map((name) => {
           const usedShift = usedShiftForEmployee(name);
           const onLeave = isEmployeeOnLeave(name);
-          const disabled = onLeave;
-          const label = onLeave ? `${name} (libur)` : (usedShift && usedShift !== selectedLoginShift ? `${name} (${usedShift})` : name);
+          const isUsedInOther = Boolean(usedShift && normalizeShift(usedShift) !== selectedLoginShift);
+          const disabled = onLeave || isUsedInOther;
+          let label = name;
+          if (onLeave) {
+            label = `${name} (libur)`;
+          } else if (isUsedInOther) {
+            label = `${name} (sudah di ${usedShift})`;
+          } else if (usedShift === selectedLoginShift) {
+            label = `${name} (bertugas)`;
+          }
           const option = new Option(label, name);
           option.disabled = disabled;
           return option;
@@ -1187,7 +1210,8 @@ function renderEmployeeControls() {
     if (!roster.length) options[0].disabled = true;
     els.loginEmployee.replaceChildren(...options);
     const selectable = options.find((option) => !option.disabled);
-    els.loginEmployee.value = active || selectable?.value || "";
+    const activeIsSelectable = active && options.some((opt) => opt.value === active && !opt.disabled);
+    els.loginEmployee.value = activeIsSelectable ? active : (selectable?.value || "");
   }
   const roles = getEmployeeRoles();
   const showDutyRole = roles.length > 1;
@@ -1717,22 +1741,22 @@ function runShiftScheduleChecks(now = new Date()) {
   if (!isLoggedIn() || !isCashier()) return;
   const activeShift = normalizeShift(getAuth()?.shift || autoShiftName(now));
 
-  if (activeShift === "Shift 1" && hour === 16 && minute === 50 && markShiftActionOnce("shift-1-warning", now)) {
+  if (activeShift === "Shift 1" && minuteOfDay >= 16 * 60 + 50 && minuteOfDay < 17 * 60 && markShiftActionOnce("shift-1-warning", now)) {
     toast("Shift 1 hampir selesai. Siapkan tutup shift.");
   }
 
-  if (activeShift === "Shift 1" && hour === 17 && minute === 0 && markShiftActionOnce("shift-1-auto-logout", now)) {
+  if (activeShift === "Shift 1" && minuteOfDay >= 17 * 60 && minuteOfDay < 17 * 60 + 30 && markShiftActionOnce("shift-1-auto-logout", now)) {
     handleShiftAutoLogout();
   }
 
-  if (activeShift === "Shift 2" && hour === 21 && minute === 50 && markShiftActionOnce("shift-2-warning", now)) {
+  if (activeShift === "Shift 2" && minuteOfDay >= 21 * 60 + 50 && minuteOfDay < 22 * 60 && markShiftActionOnce("shift-2-warning", now)) {
     toast("Shift 2 hampir selesai. Siapkan laporan tutup toko.");
   }
 
   if (
     activeShift === "Shift 2" &&
-    hour === 22 &&
-    minute === 0 &&
+    minuteOfDay >= 22 * 60 &&
+    minuteOfDay < 22 * 60 + 30 &&
     sessionStartedBeforeHour(getAuth(), now, 22) &&
     markShiftActionOnce("shift-2-auto-logout", now)
   ) {
@@ -2983,16 +3007,16 @@ const LABEL_LAYOUT_KEYS = ["Logo", "CustomImage", "DrinkName", "Notes", "OrderCo
 function scaleLabelLayoutForPaperChange(previousSettings, nextPaperSize) {
   const previousPaper = getLabelPaperDimensions(previousSettings);
   const nextPaper = getLabelPaperDimensions({ paperSize: nextPaperSize });
-  const scaleX = nextPaper.width / previousPaper.width;
-  const scaleY = nextPaper.height / previousPaper.height;
+  const scaleX = (previousPaper.width > 0 && nextPaper.width > 0) ? nextPaper.width / previousPaper.width : 1;
+  const scaleY = (previousPaper.height > 0 && nextPaper.height > 0) ? nextPaper.height / previousPaper.height : 1;
 
   LABEL_LAYOUT_KEYS.forEach((key) => {
     const element = els[`labelPreview${key}`];
     if (!element) return;
-    const currentX = parseInt(element.getAttribute("data-drag-x") || element.style.left || "0");
-    const currentY = parseInt(element.getAttribute("data-drag-y") || element.style.top || "0");
-    const currentWidth = parseInt(element.style.width || "80");
-    const currentHeight = parseInt(element.style.height || "24");
+    const currentX = parseInt(element.getAttribute("data-drag-x") || element.style.left || "0") || 0;
+    const currentY = parseInt(element.getAttribute("data-drag-y") || element.style.top || "0") || 0;
+    const currentWidth = parseInt(element.style.width || "80") || 80;
+    const currentHeight = parseInt(element.style.height || "24") || 24;
     const nextWidth = Math.max(30, Math.min(nextPaper.width, Math.round(currentWidth * scaleX)));
     const nextHeight = Math.max(15, Math.min(nextPaper.height, Math.round(currentHeight * scaleY)));
     const nextX = Math.max(0, Math.min(nextPaper.width - nextWidth, Math.round(currentX * scaleX)));
@@ -7117,9 +7141,11 @@ async function editPaidPayment(id, paymentValue) {
   history[index] = next;
   writeJson(storageKeys.history, history.slice(0, 2000));
   patchAnalyticsPeriodTransaction(id, {
-    kitchenStatus: next.kitchenStatus,
-    kitchenCompletedAt: next.kitchenCompletedAt,
-    updatedAt: next.updatedAt,
+    channel: next.channel,
+    payment: next.payment,
+    paid: next.paid,
+    change: next.change,
+    paymentEditedAt: next.paymentEditedAt,
   });
   await saveOfflineTransaction(
     { ...next, localId: next.id, idempotencyKey: next.id },
@@ -7145,6 +7171,11 @@ async function completeKitchenOrder(id) {
   };
   history[index] = next;
   writeJson(storageKeys.history, history.slice(0, 2000));
+  patchAnalyticsPeriodTransaction(id, {
+    kitchenStatus: next.kitchenStatus,
+    kitchenCompletedAt: next.kitchenCompletedAt,
+    updatedAt: next.updatedAt,
+  });
   await saveOfflineTransaction(
     { ...next, localId: next.id, idempotencyKey: next.id },
     { syncStatus: "PENDING_SYNC", printStatus: next.printStatus || "PRINT_PENDING" },
@@ -7279,6 +7310,7 @@ async function saveTransactionEdit(event) {
   };
   history[index] = next;
   writeJson(storageKeys.history, history.slice(0, 2000));
+  patchAnalyticsPeriodTransaction(transaction.id, next);
   await saveOfflineTransaction(
     { ...next, localId: next.id, idempotencyKey: `${next.id}-edit-${Date.now()}` },
     { syncStatus: "PENDING_SYNC", printStatus: next.printStatus || "PRINT_PENDING" },
@@ -8087,6 +8119,7 @@ function dailyReportPdfLines(transactions = [], reportDateValue = selectedDailyD
 }
 
 function buildSimplePdf(lines = []) {
+  const encoder = new TextEncoder();
   const pageWidth = 595;
   const pageHeight = 842;
   const margin = 42;
@@ -8111,7 +8144,8 @@ function buildSimplePdf(lines = []) {
     const contentObjectNumber = pageObjectNumber + 1;
     pageRefs.push(`${pageObjectNumber} 0 R`);
     objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Resources << /Font << /F1 ${3 + pages.length * 2} 0 R >> >> /Contents ${contentObjectNumber} 0 R >>`);
-    contentObjects.push(`<< /Length ${content.length} >>\nstream\n${content}\nendstream`);
+    const contentBytes = encoder.encode(content);
+    contentObjects.push(`<< /Length ${contentBytes.length} >>\nstream\n${content}\nendstream`);
   });
   objects.push(`<< /Type /Pages /Kids [${pageRefs.join(" ")}] /Count ${pages.length} >>`);
   const orderedObjects = [objects[0], objects[objects.length - 1]];
@@ -8123,16 +8157,16 @@ function buildSimplePdf(lines = []) {
   let pdf = "%PDF-1.4\n";
   const offsets = [0];
   orderedObjects.forEach((object, index) => {
-    offsets.push(pdf.length);
+    offsets.push(encoder.encode(pdf).length);
     pdf += `${index + 1} 0 obj\n${object}\nendobj\n`;
   });
-  const xrefOffset = pdf.length;
+  const xrefOffset = encoder.encode(pdf).length;
   pdf += `xref\n0 ${orderedObjects.length + 1}\n0000000000 65535 f \n`;
   offsets.slice(1).forEach((offset) => {
     pdf += `${String(offset).padStart(10, "0")} 00000 n \n`;
   });
   pdf += `trailer\n<< /Size ${orderedObjects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
-  return new Blob([pdf], { type: "application/pdf" });
+  return new Blob([encoder.encode(pdf)], { type: "application/pdf" });
 }
 
 async function downloadDailyReportPdf() {
@@ -9079,19 +9113,17 @@ function getAttendanceForDate(dateStr) {
   const result = [];
   roster.forEach((name) => {
     const employeeId = assignmentEmployeeId(name);
-    const empAssignments = assignments.filter(
+    const assignment = assignments.find(
       (a) => (a.employeeId || assignmentEmployeeId(a.employee)) === employeeId,
     );
     const onLeave = isEmployeeOnLeave(name);
-    if (empAssignments.length > 0) {
-      empAssignments.forEach((assignment) => {
-        result.push({
-          name,
-          shift: assignment.shift || "",
-          loginAt: assignment.loginAt || "",
-          dutyRole: assignment.dutyRole || "",
-          status: "hadir",
-        });
+    if (assignment) {
+      result.push({
+        name,
+        shift: assignment.shift || "",
+        loginAt: assignment.loginAt || "",
+        dutyRole: assignment.dutyRole || "",
+        status: "hadir",
       });
     } else {
       result.push({
@@ -10361,6 +10393,7 @@ els.toggleWifiPassword?.addEventListener("click", () => {
   els.toggleWifiPassword.setAttribute("aria-label", isHidden ? "Sembunyikan password" : "Tampilkan password");
 });
 els.loginDutyRole?.addEventListener("change", renderEmployeeControls);
+els.loginShift?.addEventListener("change", renderEmployeeControls);
 els.roleAddForm?.addEventListener("submit", async (event) => {
   event.preventDefault();
   if (!isOwner()) {

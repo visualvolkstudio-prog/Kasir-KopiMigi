@@ -35,7 +35,11 @@ function allowCors(req, res) {
 }
 
 function authSecret() {
-  return API_SESSION_SECRET || SUPABASE_SERVICE_ROLE_KEY || "kasir-migi-local-session-secret";
+  const secret = API_SESSION_SECRET || SUPABASE_SERVICE_ROLE_KEY;
+  if (!secret) {
+    throw new Error("Server secret belum terkonfigurasi di environment variables.");
+  }
+  return secret;
 }
 
 function base64UrlEncode(value) {
@@ -57,13 +61,17 @@ function createSessionToken(role) {
 }
 
 function verifySessionToken(token = "") {
-  const [payload, signature] = String(token || "").split(".");
+  const rawToken = String(token || "");
+  const sepIdx = rawToken.lastIndexOf(".");
+  if (sepIdx === -1) return null;
+  const payload = rawToken.slice(0, sepIdx);
+  const signature = rawToken.slice(sepIdx + 1);
   if (!payload || !signature) return null;
-  const expected = signTokenPayload(payload);
-  const expectedBuffer = Buffer.from(expected);
-  const signatureBuffer = Buffer.from(signature);
-  if (expectedBuffer.length !== signatureBuffer.length || !crypto.timingSafeEqual(expectedBuffer, signatureBuffer)) return null;
   try {
+    const expected = signTokenPayload(payload);
+    const expectedBuffer = Buffer.from(expected);
+    const signatureBuffer = Buffer.from(signature);
+    if (expectedBuffer.length !== signatureBuffer.length || !crypto.timingSafeEqual(expectedBuffer, signatureBuffer)) return null;
     const session = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
     if (!session?.role || Date.now() > Number(session.exp || 0)) return null;
     return session;
@@ -125,7 +133,12 @@ async function supabaseFetch(path, options = {}) {
   });
 
   const text = await response.text();
-  const data = text ? JSON.parse(text) : null;
+  let data = null;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    data = { error: text || "Respon bukan format JSON valid" };
+  }
   if (!response.ok) {
     const message = data?.message || data?.error || response.statusText;
     throw new Error(`Supabase ${response.status}: ${message}`);
@@ -447,7 +460,20 @@ function staffDrinkMatches(transaction = {}, body = {}) {
 }
 
 async function findStaffDrinkUsage(body = {}) {
-  const rows = await fetchTransactionRows({ limit: transactionCacheLimit });
+  const date = String(body.date || "").trim();
+  let startDate = "";
+  let endDate = "";
+  if (date) {
+    startDate = `${date}T00:00:00.000Z`;
+    const d = new Date(startDate);
+    d.setUTCDate(d.getUTCDate() + 1);
+    endDate = d.toISOString();
+  }
+  const rows = await fetchTransactionRows({
+    startDate,
+    endDate,
+    limit: date ? 500 : transactionCacheLimit,
+  });
   const excludeId = String(body.excludeId || "").trim();
   return rows.find((row) => {
     if (excludeId && row.id === excludeId) return false;
@@ -517,13 +543,13 @@ async function syncTransaction(body) {
     body: row,
   });
 
-  await supabaseFetch(`transaction_items?transaction_id=eq.${encodeURIComponent(row.id)}`, {
-    method: "DELETE",
-    prefer: "return=minimal",
-  });
-
   const items = mapItems(transaction);
   if (items.length) {
+    await supabaseFetch(`transaction_items?transaction_id=eq.${encodeURIComponent(row.id)}`, {
+      method: "DELETE",
+      prefer: "return=minimal",
+    }).catch(() => null);
+
     await supabaseFetch("transaction_items", {
       method: "POST",
       prefer: "return=minimal",
