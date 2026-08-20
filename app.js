@@ -1193,13 +1193,14 @@ function renderEmployeeControls() {
           const usedShift = usedShiftForEmployee(name);
           const onLeave = isEmployeeOnLeave(name);
           const isUsedInOther = Boolean(usedShift && normalizeShift(usedShift) !== selectedLoginShift);
-          const disabled = onLeave || isUsedInOther;
+          const isUsedInSameShift = Boolean(usedShift && normalizeShift(usedShift) === selectedLoginShift);
+          const disabled = onLeave || isUsedInOther || isUsedInSameShift;
           let label = name;
           if (onLeave) {
             label = `${name} (libur)`;
           } else if (isUsedInOther) {
             label = `${name} (sudah di ${usedShift})`;
-          } else if (usedShift === selectedLoginShift) {
+          } else if (isUsedInSameShift) {
             label = `${name} (bertugas)`;
           }
           const option = new Option(label, name);
@@ -1363,6 +1364,11 @@ async function finishLogin(role, employee, shift, dutyRole = "karyawan", token =
   }
   if (role === "cashier" && isEmployeeUsedInOtherShift(employee, shift)) {
     toast(`${employee} sudah bertugas di ${usedShiftForEmployee(employee)} hari ini. Pilih crew lain.`);
+    renderEmployeeControls();
+    return false;
+  }
+  if (role === "cashier" && usedShiftForEmployee(employee) === normalizeShift(shift)) {
+    toast(`${employee} sudah bertugas di ${normalizeShift(shift)} hari ini. Pilih crew lain.`);
     renderEmployeeControls();
     return false;
   }
