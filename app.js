@@ -1439,11 +1439,6 @@ async function finishLogin(role, employee, shift, dutyRole = "karyawan", token =
     renderEmployeeControls();
     return false;
   }
-  if (role === "cashier" && usedShiftForEmployee(employee) === normalizeShift(shift)) {
-    toast(`${employee} sudah bertugas di ${normalizeShift(shift)} hari ini. Pilih crew lain.`);
-    renderEmployeeControls();
-    return false;
-  }
   const confirmed = role === "owner" ? true : await confirmLoginDevice(employee);
   if (!confirmed) {
     els.loginPassword.value = "";
