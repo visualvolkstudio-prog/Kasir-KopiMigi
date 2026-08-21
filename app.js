@@ -2078,6 +2078,7 @@ function getSettingsPayload() {
     labelPrinter: getLabelPrinterSettings(),
     employees: getEmployeeRoster(),
     shiftAssignments: getShiftAssignments(),
+    attendanceResets: readJson(storageKeys.attendanceResets, []),
   };
 }
 
@@ -2135,6 +2136,19 @@ function applyCloudSettings(settings) {
   if (Array.isArray(settings.shiftAssignments)) {
     const merged = mergeShiftAssignments(getShiftAssignments(), settings.shiftAssignments);
     saveShiftAssignments(merged, { dirty: false });
+    changed = true;
+  }
+  if (Array.isArray(settings.attendanceResets)) {
+    const localResets = readJson(storageKeys.attendanceResets, []);
+    const allResets = [...localResets, ...settings.attendanceResets];
+    const seen = new Set();
+    const mergedResets = allResets.filter((r) => {
+      const key = `${r.date}:${r.employeeId}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    writeJson(storageKeys.attendanceResets, mergedResets.slice(-100));
     changed = true;
   }
   return changed;
