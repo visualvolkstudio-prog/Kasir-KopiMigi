@@ -3829,6 +3829,11 @@ body.locked .login-screen { display: grid; }
   padding: 12px 18px;
 }
 
+.attendance-table--owner .attendance-header,
+.attendance-table--owner .attendance-row {
+  grid-template-columns: 2.2fr 1.1fr 1.1fr 1.1fr 1.4fr 0.7fr;
+}
+
 .attendance-header {
   background: #f8fafc;
   font-size: 11px;

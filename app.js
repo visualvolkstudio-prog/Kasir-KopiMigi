@@ -9256,14 +9256,14 @@ function renderStaffTodayAttendance() {
     return;
   }
   container.innerHTML = `
-    <div class="attendance-table">
+    <div class="attendance-table${ownerView ? " attendance-table--owner" : ""}">
       <div class="attendance-header">
         <span><i class="ph ph-user"></i> Crew</span>
         <span><i class="ph ph-calendar-check"></i> Shift</span>
         <span><i class="ph ph-sign-in"></i> Jam Masuk</span>
         <span><i class="ph ph-sign-out"></i> Jam Keluar</span>
         <span><i class="ph ph-shield-check"></i> Status</span>
-        ${ownerView ? `<span><i class="ph ph-gear"></i> Aksi</span>` : ""}
+        ${ownerView ? `<span><i class="ph ph-arrow-counter-clockwise"></i> Reset</span>` : ""}
       </div>
       ${attendance.map(({ name, shift, loginAt, status }) => {
         const initial = escapeHtml((name || "?").charAt(0).toUpperCase());
@@ -9283,10 +9283,6 @@ function renderStaffTodayAttendance() {
           badgeHtml = `<span class="att-badge att-badge--absent"><i class="ph ph-clock"></i> Belum masuk</span>`;
         }
 
-        const resetBtn = ownerView
-          ? `<button type="button" class="secondary-button compact danger-text" data-reset-crew="${escapeHtml(name)}" title="Reset kehadiran ${escapeHtml(name)}"><i class="ph ph-arrow-counter-clockwise"></i></button>`
-          : "";
-
         return `<div class="attendance-row">
           <div class="att-user-cell">
             <span class="att-avatar">${initial}</span>
@@ -9296,7 +9292,7 @@ function renderStaffTodayAttendance() {
           <span class="att-time-text">${loginTime}</span>
           <span class="att-time-text">${outTime}</span>
           <div>${badgeHtml}</div>
-          ${ownerView ? `<div style="display:flex;align-items:center;gap:6px;">${resetBtn}</div>` : ""}
+          ${ownerView ? `<div><button type="button" class="secondary-button compact danger-text" data-reset-crew="${escapeHtml(name)}" title="Reset kehadiran ${escapeHtml(name)}"><i class="ph ph-arrow-counter-clockwise"></i></button></div>` : ""}
         </div>`;
       }).join("")}
     </div>
