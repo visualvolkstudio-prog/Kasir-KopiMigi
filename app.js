@@ -44,6 +44,7 @@ const storageKeys = {
   lastDeviceWarning: "kasir-migi-last-device-warning",
   logoutSignal: "kasir-migi-logout-signal",
   lastRemoteLogout: "kasir-migi-last-remote-logout",
+  attendanceResets: "kasir-migi-attendance-resets",
 };
 
 const sessionTtlMs = 10 * 60 * 60 * 1000;
@@ -985,6 +986,10 @@ function assignmentEmployeeId(name) {
 
 function todayShiftAssignments(today = dateKey()) {
   const assignments = getShiftAssignments().filter((entry) => entry.date === today);
+  const resetOverrides = readJson(storageKeys.attendanceResets, []);
+  const resetIds = new Set(
+    resetOverrides.filter((r) => r.date === today).map((r) => r.employeeId)
+  );
   const transactionAssignments = getHistory()
     .filter((entry) => transactionReportDate(entry) === today && entry.employee && entry.employee !== "Owner")
     .map((entry) => ({
@@ -995,10 +1000,11 @@ function todayShiftAssignments(today = dateKey()) {
       source: "transaction",
     }));
   const byEmployee = new Map();
-  // 1. Masukkan transaksi dulu sebagai fallback
+  // 1. Masukkan transaksi dulu sebagai fallback (kecuali yang sudah di-reset owner)
   transactionAssignments.forEach((entry) => {
     const employeeId = entry.employeeId || assignmentEmployeeId(entry.employee);
     if (!employeeId || !entry.employee || !entry.shift) return;
+    if (resetIds.has(employeeId)) return; // skip jika sudah di-reset
     if (!byEmployee.has(employeeId)) {
       byEmployee.set(employeeId, { ...entry, employeeId, shift: normalizeShift(entry.shift) });
     }
@@ -1040,6 +1046,10 @@ function registerShiftAssignment(employee, shift, dutyRole = "karyawan") {
   );
   assignments.push({ date: today, employee, employeeId, shift: nextShift, dutyRole: nextDutyRole, loginAt: new Date().toISOString() });
   saveShiftAssignments(assignments, { dirty: true });
+  // Hapus reset-override jika crew absen ulang setelah di-reset
+  const resets = readJson(storageKeys.attendanceResets, []);
+  const clearedResets = resets.filter((r) => !(r.date === today && r.employeeId === employeeId));
+  writeJson(storageKeys.attendanceResets, clearedResets);
   syncSettingsToCloud({ force: true }).catch(() => null);
   if (document.querySelector("#staffTodayTable")) {
     renderStaffTodayAttendance();
@@ -1050,6 +1060,7 @@ function resetCrewAttendance(name) {
   if (!isOwner() || !name) return;
   const today = dateKey();
   const employeeId = assignmentEmployeeId(name);
+  // Hapus shift assignment
   const existing = getShiftAssignments();
   const filtered = existing.filter(
     (entry) =>
@@ -1059,6 +1070,13 @@ function resetCrewAttendance(name) {
       )
   );
   saveShiftAssignments(filtered, { dirty: true });
+  // Simpan override reset agar fallback transaksi juga di-block
+  const resets = readJson(storageKeys.attendanceResets, []);
+  const alreadyReset = resets.some((r) => r.date === today && r.employeeId === employeeId);
+  if (!alreadyReset) {
+    resets.push({ date: today, employeeId, employee: name });
+    writeJson(storageKeys.attendanceResets, resets.slice(-100));
+  }
   syncSettingsToCloud({ force: true }).catch(() => null);
   if (document.querySelector("#staffTodayTable")) {
     renderStaffTodayAttendance();
@@ -9263,7 +9281,7 @@ function renderStaffTodayAttendance() {
           badgeHtml = `<span class="att-badge att-badge--absent"><i class="ph ph-clock"></i> Belum masuk</span>`;
         }
 
-        const resetBtn = ownerView && status === "hadir"
+        const resetBtn = ownerView && status !== "libur"
           ? `<button type="button" class="secondary-button compact danger-text" data-reset-crew="${escapeHtml(name)}" title="Reset kehadiran ${escapeHtml(name)}"><i class="ph ph-arrow-counter-clockwise"></i></button>`
           : "";
 
@@ -10545,7 +10563,7 @@ document.querySelector("#staffTodayTable")?.addEventListener("click", (event) =>
   const resetBtn = event.target.closest("button[data-reset-crew]");
   if (resetBtn && isOwner()) {
     const crewName = resetBtn.dataset.resetCrew;
-    if (confirm(`Reset kehadiran "${crewName}" hari ini?\n\nCrew akan kembali ke status "Belum masuk" dan perlu absen ulang.`)) {
+    if (confirm(`Reset kehadiran "${crewName}" hari ini?\n\nData kehadiran hari ini akan dihapus. Crew perlu absen ulang untuk masuk shift.`)) {
       resetCrewAttendance(crewName);
       toast(`Kehadiran ${crewName} berhasil direset.`);
     }
