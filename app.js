@@ -674,7 +674,7 @@ function currentShiftName(value = new Date()) {
 
 function shiftScheduleText(value = new Date()) {
   const shift = getActiveShift();
-  return `${shift} · ${shift === "Shift 1" ? "10.00-17.00" : "17.00-22.00"}`;
+  return `${shift} · ${shift === "Shift 1" ? "10.00-17.00" : "17.00-23.00"}`;
 }
 
 function oppositeShift(shift) {
@@ -691,7 +691,7 @@ function transactionShift(transaction = {}) {
 function isShiftOperating(value = new Date()) {
   const date = value instanceof Date ? value : new Date(value);
   const hour = date.getHours();
-  return hour >= 10 && hour < 22;
+  return hour >= 10 && hour < 23;
 }
 
 function isHelperDay(value = new Date()) {
@@ -1160,7 +1160,7 @@ function renderLoginShiftOptions(preferredShift) {
     opt1.disabled = true;
   }
 
-  const opt2 = new Option("Shift 2 (17:00 – 22:00)", "Shift 2");
+  const opt2 = new Option("Shift 2 (17:00 – 23:00)", "Shift 2");
 
   els.loginShift.replaceChildren(opt1, opt2);
   els.loginShift.value = currentVal;
@@ -1264,7 +1264,9 @@ function renderEmployeeControls() {
           const onLeave = isEmployeeOnLeave(name);
           const isUsedInOther = Boolean(usedShift && normalizeShift(usedShift) !== selectedLoginShift);
           const isUsedInSameShift = Boolean(usedShift && normalizeShift(usedShift) === selectedLoginShift);
-          const disabled = onLeave || isUsedInOther || isUsedInSameShift;
+          // Hanya disable jika libur atau sudah bertugas di shift LAIN pada hari ini.
+          // Karyawan yang bertugas di shift yang sama tetap diizinkan login.
+          const disabled = onLeave || isUsedInOther;
           let label = name;
           if (onLeave) {
             label = `${name} (libur)`;
@@ -1281,8 +1283,9 @@ function renderEmployeeControls() {
     if (!roster.length) options[0].disabled = true;
     els.loginEmployee.replaceChildren(...options);
     const selectable = options.find((option) => !option.disabled);
+    const onDutyInThisShift = options.find((opt) => !opt.disabled && opt.text.includes("(bertugas)"));
     const activeIsSelectable = active && options.some((opt) => opt.value === active && !opt.disabled);
-    els.loginEmployee.value = activeIsSelectable ? active : (selectable?.value || "");
+    els.loginEmployee.value = activeIsSelectable ? active : (onDutyInThisShift?.value || selectable?.value || "");
   }
   const roles = getEmployeeRoles();
   const showDutyRole = roles.length > 1;
@@ -1383,7 +1386,7 @@ function showCheckinScreen(employee, shift, loginAt = new Date()) {
   if (shiftBadgeEl) {
     const isShift1 = normalizeShift(shift) === "Shift 1";
     const icon = isShift1 ? "ph-sun" : "ph-moon";
-    const timeRange = isShift1 ? "10.00–17.00" : "17.00–22.00";
+    const timeRange = isShift1 ? "10.00–17.00" : "17.00–23.00";
     shiftBadgeEl.className = `checkin-shift-badge ${isShift1 ? "checkin-shift-badge--1" : "checkin-shift-badge--2"}`;
     shiftBadgeEl.innerHTML = `<i class="ph ${icon}"></i> ${escapeHtml(shift)} · ${timeRange}`;
   }
@@ -1585,8 +1588,8 @@ function syncActiveShiftWithClock(now = new Date()) {
   if (
     auth.role === "cashier" &&
     normalizeShift(auth.shift) === "Shift 2" &&
-    minuteOfDay >= 22 * 60 &&
-    sessionStartedBeforeHour(auth, now, 22)
+    minuteOfDay >= 23 * 60 &&
+    sessionStartedBeforeHour(auth, now, 23)
   ) {
     const closingKey = `${dateKey(now)}:tutup`;
     if (state.shiftTransitionHandled !== closingKey) {
@@ -1805,11 +1808,11 @@ function runShiftScheduleChecks(now = new Date()) {
   const minute = now.getMinutes();
   const minuteOfDay = hour * 60 + minute;
 
-  if (minuteOfDay >= 17 * 60 + 30 && minuteOfDay < 22 * 60) {
+  if (minuteOfDay >= 17 * 60 + 30 && minuteOfDay < 23 * 60) {
     markReportReady("shift-1-wa-report", "Laporan Shift 1", shiftReportText("Shift 1", dateKey(now)));
   }
 
-  if (minuteOfDay >= 22 * 60 + 30) {
+  if (minuteOfDay >= 23 * 60 + 30) {
     markReportReady("daily-wa-report", "Laporan harian", dailyReportText(dayTransactions(dateKey(now)), dateKey(now)));
   }
 
@@ -1824,15 +1827,15 @@ function runShiftScheduleChecks(now = new Date()) {
     handleShiftAutoLogout();
   }
 
-  if (activeShift === "Shift 2" && minuteOfDay >= 21 * 60 + 50 && minuteOfDay < 22 * 60 && markShiftActionOnce("shift-2-warning", now)) {
+  if (activeShift === "Shift 2" && minuteOfDay >= 22 * 60 + 50 && minuteOfDay < 23 * 60 && markShiftActionOnce("shift-2-warning", now)) {
     toast("Shift 2 hampir selesai. Siapkan laporan tutup toko.");
   }
 
   if (
     activeShift === "Shift 2" &&
-    minuteOfDay >= 22 * 60 &&
-    minuteOfDay < 22 * 60 + 30 &&
-    sessionStartedBeforeHour(getAuth(), now, 22) &&
+    minuteOfDay >= 23 * 60 &&
+    minuteOfDay < 23 * 60 + 30 &&
+    sessionStartedBeforeHour(getAuth(), now, 23) &&
     markShiftActionOnce("shift-2-auto-logout", now)
   ) {
     handleShiftAutoLogout();
@@ -9189,7 +9192,7 @@ function registerServiceWorker() {
 // ─── Kehadiran & Absensi Crew ───────────────────────────────────────────
 
 function shiftEndTime(shift) {
-  return normalizeShift(shift) === "Shift 1" ? "17:00" : "22:00";
+  return normalizeShift(shift) === "Shift 1" ? "17:00" : "23:00";
 }
 
 function shiftStartTime(shift) {
