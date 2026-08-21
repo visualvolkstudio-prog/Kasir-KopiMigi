@@ -1046,6 +1046,25 @@ function registerShiftAssignment(employee, shift, dutyRole = "karyawan") {
   }
 }
 
+function resetCrewAttendance(name) {
+  if (!isOwner() || !name) return;
+  const today = dateKey();
+  const employeeId = assignmentEmployeeId(name);
+  const existing = getShiftAssignments();
+  const filtered = existing.filter(
+    (entry) =>
+      !(
+        entry.date === today &&
+        (entry.employeeId || assignmentEmployeeId(entry.employee)) === employeeId
+      )
+  );
+  saveShiftAssignments(filtered, { dirty: true });
+  syncSettingsToCloud({ force: true }).catch(() => null);
+  if (document.querySelector("#staffTodayTable")) {
+    renderStaffTodayAttendance();
+  }
+}
+
 function activeEmployeeName() {
   if (!isLoggedIn()) return "";
   if (currentRole() === "owner") return "Owner";
@@ -9204,6 +9223,7 @@ function renderStaffTodayAttendance() {
   const container = document.querySelector("#staffTodayTable");
   const todayLabel = document.querySelector("#staffTodayDate");
   if (!container) return;
+  const ownerView = isOwner();
   const today = dateKey();
   if (todayLabel) {
     todayLabel.textContent = new Date().toLocaleDateString("id-ID", {
@@ -9223,6 +9243,7 @@ function renderStaffTodayAttendance() {
         <span><i class="ph ph-sign-in"></i> Jam Masuk</span>
         <span><i class="ph ph-sign-out"></i> Jam Keluar</span>
         <span><i class="ph ph-shield-check"></i> Status</span>
+        ${ownerView ? `<span><i class="ph ph-gear"></i> Aksi</span>` : ""}
       </div>
       ${attendance.map(({ name, shift, loginAt, status }) => {
         const initial = escapeHtml((name || "?").charAt(0).toUpperCase());
@@ -9242,6 +9263,10 @@ function renderStaffTodayAttendance() {
           badgeHtml = `<span class="att-badge att-badge--absent"><i class="ph ph-clock"></i> Belum masuk</span>`;
         }
 
+        const resetBtn = ownerView && status === "hadir"
+          ? `<button type="button" class="secondary-button compact danger-text" data-reset-crew="${escapeHtml(name)}" title="Reset kehadiran ${escapeHtml(name)}"><i class="ph ph-arrow-counter-clockwise"></i></button>`
+          : "";
+
         return `<div class="attendance-row">
           <div class="att-user-cell">
             <span class="att-avatar">${initial}</span>
@@ -9251,6 +9276,7 @@ function renderStaffTodayAttendance() {
           <span class="att-time-text">${loginTime}</span>
           <span class="att-time-text">${outTime}</span>
           <div>${badgeHtml}</div>
+          ${ownerView ? `<div style="display:flex;align-items:center;gap:6px;">${resetBtn}</div>` : ""}
         </div>`;
       }).join("")}
     </div>
@@ -10513,6 +10539,16 @@ document.querySelector("#activeDevicesContainer")?.addEventListener("click", (ev
   const forceLogoutBtn = event.target.closest("button[data-force-logout]");
   if (forceLogoutBtn) {
     forceLogoutDeviceAction(forceLogoutBtn.dataset.forceLogout);
+  }
+});
+document.querySelector("#staffTodayTable")?.addEventListener("click", (event) => {
+  const resetBtn = event.target.closest("button[data-reset-crew]");
+  if (resetBtn && isOwner()) {
+    const crewName = resetBtn.dataset.resetCrew;
+    if (confirm(`Reset kehadiran "${crewName}" hari ini?\n\nCrew akan kembali ke status "Belum masuk" dan perlu absen ulang.`)) {
+      resetCrewAttendance(crewName);
+      toast(`Kehadiran ${crewName} berhasil direset.`);
+    }
   }
 });
 document.addEventListener("click", (event) => {
