@@ -1070,6 +1070,8 @@ function resetCrewAttendance(name) {
       )
   );
   saveShiftAssignments(filtered, { dirty: true });
+  // Hapus status libur jika ada
+  clearEmployeeLeaveStatus(name);
   // Simpan override reset agar fallback transaksi juga di-block
   const resets = readJson(storageKeys.attendanceResets, []);
   const alreadyReset = resets.some((r) => r.date === today && r.employeeId === employeeId);
@@ -9281,7 +9283,7 @@ function renderStaffTodayAttendance() {
           badgeHtml = `<span class="att-badge att-badge--absent"><i class="ph ph-clock"></i> Belum masuk</span>`;
         }
 
-        const resetBtn = ownerView && status !== "libur"
+        const resetBtn = ownerView
           ? `<button type="button" class="secondary-button compact danger-text" data-reset-crew="${escapeHtml(name)}" title="Reset kehadiran ${escapeHtml(name)}"><i class="ph ph-arrow-counter-clockwise"></i></button>`
           : "";
 
