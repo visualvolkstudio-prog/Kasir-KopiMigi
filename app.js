@@ -1031,7 +1031,7 @@ function isEmployeeUsedInOtherShift(name, shift = getActiveShift(), today = date
 }
 
 function defaultLoginShift() {
-  return getActiveShift();
+  return autoShiftName();
 }
 
 function registerShiftAssignment(employee, shift, dutyRole = "karyawan") {
@@ -1127,6 +1127,9 @@ function createAuthSession({ employee, shift, role, dutyRole = "karyawan", token
 function setLoginEmployeeStep(active) {
   state.pendingLogin = active ? state.pendingLogin : null;
   els.loginForm?.classList.toggle("employee-step", active);
+  if (active) {
+    renderLoginShiftOptions(autoShiftName());
+  }
   if (els.loginSubmitBtn) els.loginSubmitBtn.textContent = active ? "Masuk Dashboard" : "Masuk";
   if (els.loginHint) {
     els.loginHint.style.color = "";
@@ -1136,6 +1139,31 @@ function setLoginEmployeeStep(active) {
         : "Pilih crew yang bertugas, lalu masuk dashboard."
       : "Shift mengikuti jam operasional.";
   }
+}
+
+function renderLoginShiftOptions(preferredShift) {
+  if (!els.loginShift) return;
+  const currentHour = new Date().getHours();
+  const autoShift = autoShiftName();
+  const isShift1Ended = currentHour >= 17;
+
+  let currentVal = preferredShift || els.loginShift.value || autoShift;
+  if (currentVal === "Shift 1" && isShift1Ended) {
+    currentVal = autoShift;
+  }
+
+  const opt1 = new Option(
+    isShift1Ended ? "Shift 1 (10:00 – 17:00) (Selesai)" : "Shift 1 (10:00 – 17:00)",
+    "Shift 1"
+  );
+  if (isShift1Ended) {
+    opt1.disabled = true;
+  }
+
+  const opt2 = new Option("Shift 2 (17:00 – 22:00)", "Shift 2");
+
+  els.loginShift.replaceChildren(opt1, opt2);
+  els.loginShift.value = currentVal;
 }
 
 function isOwner() {
@@ -1163,9 +1191,12 @@ function transactionEmployeeDisplay(transaction) {
 }
 
 function renderEmployeeControls() {
+  if (els.loginShift && document.activeElement !== els.loginShift) {
+    renderLoginShiftOptions();
+  }
   const roster = getEmployeeRoster();
   const availableRoster = roster.filter((name) => !isEmployeeOnLeave(name));
-  const selectedLoginShift = els.loginShift?.value || defaultLoginShift();
+  const selectedLoginShift = normalizeShift(els.loginShift?.value || defaultLoginShift());
   const helperDay = isHelperDay();
   const selectedDutyRole = normalizeDutyRole(els.loginDutyRole?.value || "karyawan");
   const activeCandidate = activeEmployeeName() || availableRoster[0] || "";
@@ -1267,7 +1298,6 @@ function renderEmployeeControls() {
     els.loginDutyRole.value = roles.includes(currentVal) ? currentVal : "karyawan";
     els.loginDutyRole.disabled = false;
   }
-  if (els.loginShift && (!els.loginShift.value || document.activeElement !== els.loginShift)) els.loginShift.value = selectedLoginShift;
 }
 
 function initAuth() {
@@ -1841,7 +1871,7 @@ function updateClock() {
     return;
   }
   runShiftScheduleChecks(now);
-  if (els.loginShift && !isLoggedIn() && document.activeElement !== els.loginShift) els.loginShift.value = defaultLoginShift();
+  if (els.loginShift && !isLoggedIn() && document.activeElement !== els.loginShift) renderLoginShiftOptions();
   const shifted = syncActiveShiftWithClock(now);
   if (els.orderShift && !state.activeDraftId && !els.orderModal?.classList.contains("open")) {
     els.orderShift.value = currentShiftName();
