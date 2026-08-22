@@ -10683,7 +10683,7 @@ setInterval(() => {
 }, 60000);
 setInterval(() => {
   if (document.visibilityState === "visible") checkRemoteLogout().catch(() => null);
-}, 60000);
+}, 15000);
 setInterval(() => {
   if (document.visibilityState === "visible") {
     // Refresh ringan di background: hanya tarik 30 transaksi terbaru setiap 10 menit saat kasir sedang bekerja
@@ -10718,6 +10718,7 @@ setInterval(() => {
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible") {
     refreshOnlineData({ render: false }).catch(() => null);
+    checkRemoteLogout().catch(() => null);
     if (document.querySelector("#view-cashflow")?.classList.contains("active")) refreshActiveCashflowSales();
   }
 });
