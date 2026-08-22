@@ -664,6 +664,17 @@ async function syncInventory(body) {
   return { status: 200, payload: { success: true, count: rows.length } };
 }
 
+async function getInventory() {
+  const inventory = await supabaseFetch("inventory?select=*&order=name.asc");
+  return {
+    status: 200,
+    payload: {
+      success: true,
+      inventory: toLocalInventory(inventory),
+    },
+  };
+}
+
 async function syncEmployees(body) {
   const restoreKeys = new Set((Array.isArray(body?.restoreNames) ? body.restoreNames : []).map(employeeKey).filter(Boolean));
   let deletedRows = await getDeletedEmployeeRows();
@@ -924,6 +935,8 @@ async function dispatch(body, req) {
       return syncCashflow(body);
     case "sync-inventory":
       return syncInventory(body);
+    case "get-inventory":
+      return getInventory();
     case "sync-employees":
       return syncEmployees(body);
     case "add-employee":

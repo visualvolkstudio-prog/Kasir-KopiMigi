@@ -7741,6 +7741,24 @@ async function syncInventoryToCloud() {
   return true;
 }
 
+async function pullInventoryFromSupabase({ render = false } = {}) {
+  if (!navigator.onLine || !isLoggedIn()) return false;
+  try {
+    const result = await postSupabaseAction("get-inventory");
+    if (result?.success && result.inventory && typeof result.inventory === "object") {
+      const applied = applyCloudInventory(result.inventory);
+      if (applied && render) {
+        renderInventory();
+        renderRecipeOptions();
+      }
+      return true;
+    }
+  } catch {
+    return false;
+  }
+  return false;
+}
+
 async function addEmployeeInCloud(name) {
   if (!navigator.onLine) throw new Error("Koneksi internet diperlukan.");
   return postSupabaseAction("add-employee", { name });
@@ -9622,6 +9640,14 @@ function setActiveView(viewName, { persist = true } = {}) {
   tab.classList.add("active");
   target.classList.add("active");
   if (persist) localStorage.setItem(storageKeys.activeView, viewName);
+  if (viewName === "stock") {
+    renderInventory();
+    pullInventoryFromSupabase({ render: true }).catch(() => null);
+  }
+  if (viewName === "menu") {
+    renderRecipeOptions();
+    renderMenuTable();
+  }
   if (viewName === "settings") {
     updateLabelPreview();
     if (isOwner()) renderDeviceMonitor();
@@ -10675,6 +10701,13 @@ setInterval(() => {
 }, 600000);
 setInterval(() => {
   if (document.visibilityState === "visible" && navigator.onLine && isLoggedIn()) {
+    // Sync stok bahan baku setiap 30 detik agar perubahan di kasir lain otomatis terupdate
+    const isStockActive = document.querySelector("#view-stock")?.classList.contains("active");
+    pullInventoryFromSupabase({ render: isStockActive }).catch(() => null);
+  }
+}, 30000);
+setInterval(() => {
+  if (document.visibilityState === "visible" && navigator.onLine && isLoggedIn()) {
     // Sync karyawan setiap 5 menit agar semua device selalu up-to-date
     pullSettingsFromSupabase({ render: false })
       .then(() => renderEmployeeControls())
@@ -10722,5 +10755,6 @@ if (isLoggedIn()) {
   pullTransactionsFromSupabase({ render: true }).catch(() => null);
 }
 if (navigator.onLine) pullSettingsFromSupabase({ render: true }).catch(() => null);
+if (navigator.onLine) pullInventoryFromSupabase({ render: true }).catch(() => null);
 if (navigator.onLine) refreshActiveCashierPresence().catch(() => null);
 if (navigator.onLine) checkRemoteLogout().catch(() => null);
