@@ -7455,7 +7455,11 @@ function renderOrders() {
     .filter(isPaidTransaction)
     .filter((entry) => transactionReportDate(entry) === paidDate)
     .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
-  const kitchen = sortTransactionsNewestFirst(getHistory().filter(isKitchenPendingTransaction));
+  const kitchen = sortTransactionsNewestFirst(
+    getHistory()
+      .filter(isKitchenPendingTransaction)
+      .filter((entry) => transactionReportDate(entry) === paidDate)
+  );
   const doneAscending = paidAscending.filter(isKitchenDoneTransaction);
   const paidDisplayCodes = paidOrderDisplayCodes(doneAscending);
   const paid = [...doneAscending].reverse();
