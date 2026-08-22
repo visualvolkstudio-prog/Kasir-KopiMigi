@@ -426,6 +426,8 @@ const els = {
   pendingSyncCount: document.querySelector("#pendingSyncCount"),
   manualSyncBtn: document.querySelector("#manualSyncBtn"),
   manualSyncOrdersBtn: document.querySelector("#manualSyncOrdersBtn"),
+  recoverAllOfflineBtn: document.querySelector("#recoverAllOfflineBtn"),
+  loginEmergencyRecoverBtn: document.querySelector("#loginEmergencyRecoverBtn"),
   pendingSyncList: document.querySelector("#pendingSyncList"),
   analyticsMonth: document.querySelector("#analyticsMonth"),
   analyticsDate: document.querySelector("#analyticsDate"),
@@ -7534,6 +7536,95 @@ async function renderPendingSync() {
   }
 }
 
+async function recoverAndSyncAllLocalTransactions({ interactive = true } = {}) {
+  if (!navigator.onLine) {
+    if (interactive) window.alert("Perangkat kasir harus terhubung ke internet (WiFi/Data) untuk menyinkronkan data.");
+    return { success: false, error: "Offline" };
+  }
+
+  if (interactive) toast("Membaca memori transaksi lokal tablet...");
+
+  let offlineList = [];
+  try {
+    offlineList = await getOfflineTransactions();
+  } catch (e) {
+    console.error("Gagal membaca offlineStore:", e);
+  }
+
+  const localHistory = getHistory();
+  const drafts = getOrderDrafts();
+
+  const map = new Map();
+  [...offlineList, ...localHistory, ...drafts].forEach((item) => {
+    if (item && (item.id || item.localId)) {
+      const id = String(item.id || item.localId);
+      map.set(id, preferredTransaction(map.get(id), item));
+    }
+  });
+
+  const allTx = [...map.values()];
+  if (allTx.length === 0) {
+    if (interactive) window.alert("Tidak ada riwayat transaksi lokal yang tersimpan di browser ini.");
+    return { success: true, count: 0 };
+  }
+
+  if (interactive) toast(`Menyinkronkan ${allTx.length} transaksi lokal ke Cloud...`);
+
+  let synced = 0;
+  let failed = 0;
+
+  for (const tx of allTx) {
+    try {
+      const response = await fetch("/api/supabase", {
+        method: "POST",
+        headers: {
+          ...authHeaders(),
+          "Content-Type": "application/json",
+          "Idempotency-Key": tx.idempotencyKey || tx.localId || tx.id,
+        },
+        body: JSON.stringify({ action: "sync-transaction", transaction: tx }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (response.ok && result?.success !== false) {
+        synced++;
+        await updateOfflineTransaction(tx.localId || tx.id, {
+          syncStatus: "SYNCED",
+          syncedAt: new Date().toISOString(),
+          lastSyncError: "",
+        }).catch(() => null);
+      } else {
+        failed++;
+      }
+    } catch (err) {
+      console.warn("Gagal kirim tx ke Supabase:", tx.id, err);
+      failed++;
+    }
+  }
+
+  // Backup otomatis ke JSON file jika interactive
+  if (interactive && allTx.length > 0) {
+    try {
+      const blob = new Blob([JSON.stringify(allTx, null, 2)], { type: "application/json" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `backup-transaksi-migi-${dateKey()}.json`;
+      a.click();
+    } catch {
+      // Abaikan error download jika browser membatasi
+    }
+  }
+
+  await pullTransactionsFromSupabase({ render: true }).catch(() => null);
+  renderAll();
+  renderPendingSync();
+
+  if (interactive) {
+    window.alert(`Hasil Pemulihan Data:\n- Berhasil dikirim ke Server: ${synced} transaksi\n- Gagal: ${failed}\n\nFile cadangan (backup JSON) telah didownload ke perangkat.`);
+  }
+
+  return { success: true, synced, failed };
+}
+
 async function syncPendingTransactions({ pull = true } = {}) {
   if (!navigator.onLine) {
     renderPendingSync();
@@ -7815,7 +7906,7 @@ async function syncCloudData({ refresh = true } = {}) {
 async function refreshOnlineData({ render = true } = {}) {
   if (!navigator.onLine || !isLoggedIn()) return false;
   await processPendingDeletes().catch(() => null);
-  await syncPendingTransactions({ pull: false }).catch(() => null);
+  await recoverAndSyncAllLocalTransactions({ interactive: false }).catch(() => null);
   await syncInventoryToCloud().catch(() => null);
   await loadCloudData().catch(() => null);
   await ensureJuneRecoveryImported().catch(() => null);
@@ -9861,8 +9952,10 @@ els.pendingSyncList?.addEventListener("click", async (event) => {
   renderPendingSync();
 });
 
-els.manualSyncBtn?.addEventListener("click", () => refreshOnlineData({ render: true }).catch(() => null));
-els.manualSyncOrdersBtn?.addEventListener("click", () => refreshOnlineData({ render: true }).catch(() => null));
+els.manualSyncBtn?.addEventListener("click", () => recoverAndSyncAllLocalTransactions({ interactive: true }).catch(() => null));
+els.manualSyncOrdersBtn?.addEventListener("click", () => recoverAndSyncAllLocalTransactions({ interactive: true }).catch(() => null));
+els.recoverAllOfflineBtn?.addEventListener("click", () => recoverAndSyncAllLocalTransactions({ interactive: true }).catch(() => null));
+els.loginEmergencyRecoverBtn?.addEventListener("click", () => recoverAndSyncAllLocalTransactions({ interactive: true }).catch(() => null));
 els.closeShiftBtn?.addEventListener("click", closeActiveShift);
 els.inputDailyCashBtn?.addEventListener("click", () => openDailyCashModal(selectedDailyDate()));
 els.cancelDailyCash?.addEventListener("click", closeDailyCashModal);
