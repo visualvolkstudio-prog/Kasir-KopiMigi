@@ -59,6 +59,11 @@ typography:
     fontSize: "9.5px"
     fontWeight: 700
     lineHeight: 1.1
+  monospace:
+    fontFamily: "DM Mono, ui-monospace, monospace"
+    fontSize: "13px"
+    fontWeight: 500
+    lineHeight: 1.5
 rounded:
   xs: "4px"
   sm: "6px"
@@ -75,23 +80,43 @@ components:
   button-primary:
     backgroundColor: "{colors.primary}"
     textColor: "{colors.neutral-bg}"
-    rounded: "{rounded.md}"
+      monospace:
+    fontFamily: "DM Mono, ui-monospace, monospace"
+    fontSize: "13px"
+    fontWeight: 500
+    lineHeight: 1.5
+rounded: "{rounded.md}"
     padding: "11px 18px"
   button-primary-hover:
     backgroundColor: "{colors.primary-hover}"
   button-secondary:
     backgroundColor: "{colors.neutral-bg}"
     textColor: "{colors.neutral-dark}"
-    rounded: "{rounded.md}"
+      monospace:
+    fontFamily: "DM Mono, ui-monospace, monospace"
+    fontSize: "13px"
+    fontWeight: 500
+    lineHeight: 1.5
+rounded: "{rounded.md}"
     padding: "9px 14px"
   card:
     backgroundColor: "{colors.neutral-bg}"
-    rounded: "{rounded.lg}"
+      monospace:
+    fontFamily: "DM Mono, ui-monospace, monospace"
+    fontSize: "13px"
+    fontWeight: 500
+    lineHeight: 1.5
+rounded: "{rounded.lg}"
     padding: "18px"
   input:
     backgroundColor: "{colors.neutral-bg}"
     textColor: "{colors.neutral-dark}"
-    rounded: "{rounded.md}"
+      monospace:
+    fontFamily: "DM Mono, ui-monospace, monospace"
+    fontSize: "13px"
+    fontWeight: 500
+    lineHeight: 1.5
+rounded: "{rounded.md}"
     padding: "9px 11px"
 ---
 

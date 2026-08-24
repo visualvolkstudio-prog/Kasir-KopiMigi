@@ -2,21 +2,7 @@
    KASIR MIGI — Landscape Edition
    Accent: Kopi Migi Blue #00349b
    Layout: Compact sidebar, wide workspace
-═══════════════════════════════════════════════ */@font-face {
-  font-family: "Geist";
-  src: url("./assets/fonts/Geist[wght].woff2") format("woff2");
-  font-weight: 100 900;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "Geist";
-  src: url("./assets/fonts/Geist-Italic[wght].woff2") format("woff2");
-  font-weight: 100 900;
-  font-style: italic;
-  font-display: swap;
-}
+*/
 
 :root {
   color-scheme: light;
@@ -157,7 +143,7 @@ h3 { font-size: 16px; font-weight: 700; }
 }
 
 .brand-block .eyebrow { color: var(--sidebar-muted); font-size: 9.5px; }
-.brand-block h1 { color: var(--sidebar-text); font-size: 15px; font-weight: 700; margin-top: 1px; }
+.brand-block h1 { color: var(--sidebar-text); font-size: 16px; font-weight: 700; margin-top: 1px; }
 
 /* Nav */
 .nav-tabs {
@@ -210,7 +196,7 @@ h3 { font-size: 16px; font-weight: 700; }
 }
 
 .tab-icon .ph {
-  font-size: 19px;
+  font-size: 18px;
 }
 
 /* Kitchen badge pada nav tab Order */
@@ -345,7 +331,7 @@ h3 { font-size: 16px; font-weight: 700; }
   transition: border-color 0.2s, color 0.2s;
 }
 
-.shift-chip .ph { font-size: 15px; }
+.shift-chip .ph { font-size: 16px; }
 
 /* Lights up when there are active orders in the shift */
 .shift-chip.has-orders {
@@ -397,7 +383,7 @@ h3 { font-size: 16px; font-weight: 700; }
   box-shadow: var(--shadow-sm);
 }
 
-.dine-take-tabs button .ph { font-size: 15px; }
+.dine-take-tabs button .ph { font-size: 16px; }
 
 /* Customer name inline field */
 .customer-name-field {
@@ -418,7 +404,7 @@ h3 { font-size: 16px; font-weight: 700; }
 }
 
 .customer-name-field .ph {
-  font-size: 15px;
+  font-size: 16px;
   color: var(--muted);
   flex: 0 0 auto;
 }
@@ -774,7 +760,7 @@ h3 { font-size: 16px; font-weight: 700; }
   border: 1.5px solid rgba(239, 68, 68, 0.35);
   background: rgba(239, 68, 68, 0.1);
   color: #f87171;
-  font-size: 17px;
+  font-size: 18px;
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s, transform 0.1s;
   animation: printerPulse 2s ease-in-out infinite;
@@ -1104,7 +1090,7 @@ h3 { font-size: 16px; font-weight: 700; }
   display: grid;
   place-items: center;
   background: rgba(0, 52, 155, 0.12);
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 700;
   line-height: 1;
   padding: 0;
@@ -1164,7 +1150,7 @@ h3 { font-size: 16px; font-weight: 700; }
 
 .checkout-panel h3 {
   margin: 2px 0 0;
-  font-size: 17px;
+  font-size: 18px;
 }
 
 .checkout-panel .primary-button:disabled {
@@ -1251,9 +1237,9 @@ h3 { font-size: 16px; font-weight: 700; }
 
 .grand { font-size: 16px; font-weight: 700; color: var(--ink) !important; }
 .grand span { color: var(--ink) !important; }
-.grand strong { font-size: 17px; color: var(--accent) !important; }
+.grand strong { font-size: 18px; color: var(--accent) !important; }
 .change-line { font-weight: 700; color: var(--accent-text); }
-.change-line strong { color: var(--accent); font-size: 15px; }
+.change-line strong { color: var(--accent); font-size: 16px; }
 
 /* ── Process Dock ────────────────────────────── */
 .process-dock {
@@ -1342,14 +1328,14 @@ button { cursor: pointer; }
 
 .primary-button .ph,
 .secondary-button .ph {
-  font-size: 17px;
+  font-size: 18px;
   flex: 0 0 auto;
 }
 
 .icon-button .ph,
 .ghost-button .ph,
 .printer-toggle .ph {
-  font-size: 19px;
+  font-size: 18px;
 }
 
 .qty-button,
@@ -1688,7 +1674,7 @@ input:focus, select:focus, textarea:focus {
 
 .price-list-toggle strong {
   margin-top: 3px;
-  font-size: 17px;
+  font-size: 18px;
 }
 
 .accordion-chevron {
@@ -2077,7 +2063,7 @@ input:focus, select:focus, textarea:focus {
 .metric-card strong {
   display: block;
   margin-top: 9px;
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 700;
   letter-spacing: -0.02em;
   font-family: var(--font-mono);
@@ -2213,7 +2199,7 @@ input:focus, select:focus, textarea:focus {
 }
 
 .payment-methods button i {
-  font-size: 17px;
+  font-size: 18px;
   color: var(--payment-tone);
 }
 
@@ -2553,7 +2539,7 @@ input:focus, select:focus, textarea:focus {
   place-items: center;
   background: var(--summary-soft);
   color: var(--summary-tone);
-  font-size: 15px;
+  font-size: 16px;
 }
 
 .payment-summary-row strong {
@@ -2611,7 +2597,7 @@ input:focus, select:focus, textarea:focus {
 .shift-summary strong {
   display: block;
   margin-top: 4px;
-  font-size: 17px;
+  font-size: 16px;
   font-weight: 800;
 }
 
@@ -2846,7 +2832,7 @@ input:focus, select:focus, textarea:focus {
 }
 
 .booth-code-box span { color: var(--muted); font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; }
-.booth-code-box strong { font-size: 17px; font-weight: 800; letter-spacing: 0.06em; font-family: var(--font-mono); color: var(--accent); }
+.booth-code-box strong { font-size: 18px; font-weight: 800; letter-spacing: 0.06em; font-family: var(--font-mono); color: var(--accent); }
 
 /* ── Settings ────────────────────────────────── */
 .settings-panel { display: grid; gap: 13px; }
@@ -3075,7 +3061,7 @@ body.locked .login-screen { display: grid; }
 }
 
 .login-card img { width: 48px; height: 48px; object-fit: contain; }
-.login-card h2 { font-size: 32px; margin-top: -2px; }
+.login-card h2 { font-size: clamp(24px, 3vw, 42px); margin-top: -2px; }
 .login-hint { margin: 0; color: var(--muted); font-size: 11.5px; font-weight: 600; }
 .login-card:not(.employee-step) .login-session-grid { display: none; }
 .login-card.employee-step .login-credential-field { display: none; }
@@ -3159,7 +3145,7 @@ body.locked .login-screen { display: grid; }
 .employee-active-box strong {
   display: block;
   margin-top: 2px;
-  font-size: 17px;
+  font-size: 16px;
   overflow-wrap: anywhere;
 }
 
@@ -3315,7 +3301,7 @@ body.locked .login-screen { display: grid; }
   display: grid;
 }
 
-.order-card h2 { font-size: 27px; }
+.order-card h2 { font-size: clamp(24px, 3vw, 42px); }
 
 .stock-edit-card {
   width: min(520px, calc(100vw - 24px));
@@ -4167,7 +4153,7 @@ body.locked .login-screen { display: grid; }
     margin: 0 auto;
     padding: 3mm 2mm;
     color: #000;
-    font-family: 'Courier New', monospace;
+    font-family: var(--font-mono);
     font-size: 12px;
     box-sizing: border-box;
   }
@@ -4264,7 +4250,7 @@ body.locked .login-screen { display: grid; }
   border-radius: 6px;
   background: var(--white);
   color: var(--muted);
-  font-family: Georgia, serif;
+  font-family: var(--font-body);
   font-size: 14px;
   transition: 0.15s ease;
 }
@@ -4320,7 +4306,7 @@ body.locked .login-screen { display: grid; }
 
 #labelPreviewSticker,
 #labelReadOnlyPreviewSticker {
-  font-family: "Geist", Arial, sans-serif !important;
+  font-family: var(--font-body) !important;
 }
 #labelPreviewSticker > [id^="labelPreview"]:not(#labelPreviewBarcode),
 #labelReadOnlyPreviewSticker > [id^="labelReadOnlyPreview"]:not(#labelReadOnlyPreviewBarcode) {
@@ -4560,7 +4546,7 @@ body.locked .login-screen { display: grid; }
   position: absolute;
   left: 10px;
   color: var(--muted);
-  font-size: 15px;
+  font-size: 16px;
   pointer-events: none;
 }
 
@@ -4651,7 +4637,7 @@ body.locked .login-screen { display: grid; }
 }
 
 .staff-summary-name {
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 700;
   color: var(--ink);
 }
@@ -4709,7 +4695,7 @@ body.locked .login-screen { display: grid; }
 }
 
 .staff-stat-value {
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 800;
   line-height: 1;
   font-family: var(--font-mono);
@@ -4926,7 +4912,7 @@ body.locked .login-screen { display: grid; }
 }
 
 .checkin-success-icon {
-  font-size: 64px;
+  font-size: 42px;
   color: #16a34a;
   display: block;
   animation: checkin-icon-pop 0.55s cubic-bezier(0.16, 1, 0.3, 1) 0.15s both;
@@ -4935,7 +4921,7 @@ body.locked .login-screen { display: grid; }
 
 /* Heading */
 .checkin-name {
-  font-size: 22px;
+  font-size: 24px;
   font-weight: 800;
   color: var(--ink);
   line-height: 1.2;
@@ -4975,7 +4961,7 @@ body.locked .login-screen { display: grid; }
 }
 
 .checkin-shift-badge i {
-  font-size: 15px;
+  font-size: 16px;
 }
 
 .checkin-shift-badge--1 {
@@ -5009,7 +4995,7 @@ body.locked .login-screen { display: grid; }
 
 .checkin-time-val {
   font-family: var(--font-mono, monospace);
-  font-size: 22px;
+  font-size: 18px;
   font-weight: 700;
   color: var(--ink);
   letter-spacing: -0.5px;
@@ -5023,7 +5009,7 @@ body.locked .login-screen { display: grid; }
   align-items: center;
   justify-content: center;
   gap: 8px;
-  font-size: 15px;
+  font-size: 16px;
   padding: 14px 24px;
   border-radius: 14px;
 }
