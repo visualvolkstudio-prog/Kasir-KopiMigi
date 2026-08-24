@@ -518,6 +518,7 @@ const els = {
   downloadBooth: document.querySelector("#downloadBooth"),
   boothQueue: document.querySelector("#boothQueue"),
   toast: document.querySelector("#toast"),
+  toastUrgent: document.querySelector("#toastUrgent"),
 };
 
 function money(value) {
@@ -1316,7 +1317,7 @@ function initAuth() {
     setLoginEmployeeStep(false);
     document.body.classList.add("locked");
     setTimeout(() => els.loginUsername?.focus(), 50);
-    toast("Sesi login habis. Silakan masuk lagi.");
+    toast("Sesi login habis. Silakan masuk lagi.", "error");
   } else if (!auth?.loggedIn) {
     setLoginEmployeeStep(false);
     document.body.classList.add("locked");
@@ -1872,7 +1873,7 @@ function updateClock() {
   els.clockLabel.textContent = now.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
   if (getAuth()?.loggedIn && isAuthExpired()) {
     logout({ remote: true });
-    toast("Sesi login habis. Silakan masuk lagi.");
+    toast("Sesi login habis. Silakan masuk lagi.", "error");
     return;
   }
   runShiftScheduleChecks(now);
@@ -2764,11 +2765,31 @@ if (boothSyncChannel) {
   };
 }
 
-function toast(message) {
-  els.toast.textContent = message;
-  els.toast.classList.add("show");
+// type: 'info' (default) | 'success' | 'warning' | 'error'
+// error & warning → aria-live="assertive" + durasi 4 detik
+// info & success  → aria-live="polite"   + durasi 2.6 detik
+function toast(message, type = "info") {
+  const isUrgent = type === "error" || type === "warning";
+  const el = isUrgent ? (els.toastUrgent || els.toast) : els.toast;
+  const other = isUrgent ? els.toast : els.toastUrgent;
+
+  // Tutup toast satunya jika sedang tampil, hindari dua toast sekaligus
+  if (other) {
+    other.classList.remove("show");
+    other.textContent = "";
+  }
+
+  el.textContent = message;
+  el.className = `toast${isUrgent ? " toast--urgent" : ""}${type !== "info" ? ` toast--${type}` : ""}`;
+  el.classList.add("show");
+
   clearTimeout(toast.timer);
-  toast.timer = setTimeout(() => els.toast.classList.remove("show"), 2600);
+  const duration = isUrgent ? 4000 : 2600;
+  toast.timer = setTimeout(() => {
+    el.classList.remove("show");
+    // Bersihkan teks setelah transisi agar screen reader tidak membacanya ulang
+    setTimeout(() => { el.textContent = ""; }, 300);
+  }, duration);
 }
 
 function setPrinterStatus(status, tone, hint) {
@@ -3928,7 +3949,7 @@ function initPrinterSettings() {
 
 async function connectPrinter() {
   if (!navigator.bluetooth) {
-    toast("Web Bluetooth belum didukung. Coba Chrome atau Brave desktop.");
+    toast("Web Bluetooth belum didukung. Coba Chrome atau Brave desktop.", "error");
     setPrinterStatus("Tidak didukung", "disconnected", "Browser ini belum mendukung Web Bluetooth.");
     return;
   }
@@ -3987,7 +4008,7 @@ async function connectPrinter() {
       isCancel ? "Koneksi dibatalkan. Coba sambungkan lagi." : `Koneksi gagal: ${msg}`,
     );
     if (!isCancel) {
-      toast(`Koneksi printer gagal: ${msg}. Pastikan printer tipe BLE dan tidak terhubung ke HP lain.`);
+      toast(`Koneksi printer gagal: ${msg}. Pastikan printer BLE & tidak terhubung ke HP lain.`, "error");
     }
   }
 }
@@ -4085,7 +4106,7 @@ async function connectLabelPrinter() {
       isCancel ? "Koneksi dibatalkan. Coba sambungkan lagi." : `Koneksi gagal: ${msg}`,
     );
     if (!isCancel) {
-      toast(`Koneksi label printer gagal: ${msg}. Pastikan printer tipe BLE dan tidak terhubung ke HP lain.`);
+      toast(`Koneksi label printer gagal: ${msg}. Pastikan printer BLE & tidak terhubung ke HP lain.`, "error");
     }
   }
 }
@@ -4844,7 +4865,7 @@ async function confirmEmployeeDelete() {
   try {
     await deleteEmployeeInCloud(name);
   } catch {
-    toast("Crew belum terhapus. Coba lagi saat koneksi stabil.");
+    toast("Crew belum terhapus. Coba lagi saat koneksi stabil.", "error");
     return;
   }
   rememberDeletedEmployee(name);
@@ -5276,7 +5297,7 @@ function syncCustomOrderIngredientUnit() {
 
 function openCustomOrderModal() {
   if (!Object.values(getInventory()).some((record) => record?.name && ingredientCategory(record) === "Bean Kopi")) {
-    toast("Belum ada bahan kategori Bean Kopi. Atur kategori bahan baku dulu.");
+    toast("Belum ada bahan Bean Kopi. Minta Owner untuk mengatur kategori bahan baku di tab Bahan Baku.", "warning");
     return;
   }
   els.customOrderForm?.reset();
@@ -5353,7 +5374,11 @@ function renderCart() {
           `,
         )
         .join("")
-    : `<div class="empty-state">Pilih menu untuk mulai order.</div>`;
+    : `<div class="empty-state cart-empty-state">
+        <i class="ph ph-coffee cart-empty-icon" aria-hidden="true"></i>
+        <p class="cart-empty-title">Belum ada pesanan</p>
+        <p class="cart-empty-hint">Ketuk menu di sebelah kiri untuk menambahkan ke keranjang</p>
+      </div>`;
 
   const total = totals();
   els.subtotal.textContent = money(total.subtotal);
@@ -5362,10 +5387,22 @@ function renderCart() {
   els.grandTotal.textContent = money(total.grandTotal);
   els.cartSubtotal.textContent = money(total.subtotal);
   els.cartGrandTotal.textContent = money(total.grandTotal);
+
+  // Delight: "uang masuk" — grand total pop saat nilai berubah (ada item di cart)
+  if (state.cart.length > 0) {
+    [els.cartGrandTotal, els.grandTotal].forEach((el) => {
+      if (!el) return;
+      el.classList.remove("total-updated");
+      void el.offsetWidth; // force reflow agar animasi restart pada tap cepat
+      el.classList.add("total-updated");
+      el.addEventListener("animationend", () => el.classList.remove("total-updated"), { once: true });
+    });
+  }
+
   els.checkoutBtn.disabled = !state.cart.length;
   els.checkoutBtn.innerHTML = state.cart.length
-    ? `<i class="ph ph-caret-right" aria-hidden="true"></i>${state.activeDraftId ? "Update Bill" : "Process Order"}`
-    : `<i class="ph ph-caret-right" aria-hidden="true"></i>Pilih Menu`;
+    ? `<i class="ph ph-caret-right" aria-hidden="true"></i>${state.activeDraftId ? "Update Bill" : "Proses Pesanan"}`
+    : `<i class="ph ph-caret-right" aria-hidden="true"></i>Pilih menu dulu`;
   syncOrderTypeUi();
   updateLabelPrinterCheckoutWarning();
 }
@@ -5375,6 +5412,11 @@ function openOrderModal() {
   els.orderCustomerName.value = els.customerName.value || "Teman Migi";
   if (els.orderShift) els.orderShift.value = activeDraft?.shift || currentShiftName();
   els.orderTableNumber.value = activeDraft?.orderCode || activeDraft?.table || nextDailyOrderCode(new Date(), state.orderChannel);
+  // Reset metode bayar ke Tunai setiap kali modal dibuka (kecuali order online),
+  // agar tombol quick cash selalu muncul di awal checkout.
+  if (!isOnlineChannel(state.orderChannel) && state.orderType !== "staff_drink") {
+    state.payment = "Tunai";
+  }
   syncCheckoutWifiOption({ reset: true });
   syncOrderTypeUi();
   updateLabelPrinterCheckoutWarning();
@@ -5523,25 +5565,36 @@ async function startOrder(event) {
     if (!state.cart.length) return;
     if (!validateStockForCart()) return;
     if (state.orderType === "staff_drink" && staffDrinkItemCount() !== 1) {
-      window.alert("Staff Drink hanya bisa diproses untuk 1 item.");
+      toast("Staff Drink hanya bisa diproses untuk 1 item.", "error");
       return;
     }
     if (state.orderType === "staff_drink" && await staffDrinkAlreadyUsedToday()) {
-      window.alert(`Jatah kopi gratis untuk ${activeEmployeeName()} hari ini sudah digunakan.`);
+      toast(`Jatah kopi gratis untuk ${activeEmployeeName()} hari ini sudah digunakan.`, "warning");
       return;
     }
     const pendingLabelCount = labelItemCount();
     if (pendingLabelCount > 0 && !isLabelPrinterReady()) {
-      toast(`Label printer belum tersambung. Order tetap diproses; ${pendingLabelCount} label cetak ulang dari tab Order.`);
+      toast(`Label printer belum tersambung — ${pendingLabelCount} label bisa dicetak ulang dari tab Order.`, "warning");
     }
     if (!ensurePrinterReadyForOrderPrint()) return;
     els.customerName.value = els.orderCustomerName.value.trim();
     els.tableNumber.value = els.orderTableNumber.value.trim();
     const transaction = currentTransaction(false);
     if (!isOnlineChannel(transaction.channel) && state.payment === "Tunai" && transaction.paid < transaction.grandTotal) {
-      toast("Nominal tunai belum cukup.");
-      if (els.paidAmount) els.paidAmount.focus();
+      toast("Nominal tunai belum cukup. Isi jumlah yang diterima dari pelanggan.", "error");
+      if (els.paidAmount) {
+        els.paidAmount.setAttribute("aria-invalid", "true");
+        els.paidAmount.focus();
+        // Reset aria-invalid saat user mulai mengetik
+        els.paidAmount.addEventListener("input", () => els.paidAmount.removeAttribute("aria-invalid"), { once: true });
+      }
       return;
+    }
+    // Delight: success-flash hijau pada tombol Bayar & Cetak
+    const submitBtn = els.orderModal?.querySelector("button[type='submit']");
+    if (submitBtn) {
+      submitBtn.classList.add("checkout-success-flash");
+      submitBtn.addEventListener("animationend", () => submitBtn.classList.remove("checkout-success-flash"), { once: true });
     }
     closeOrderModal();
     transaction.boothCode = createBoothQueue(transaction);
@@ -5599,11 +5652,15 @@ async function startOrder(event) {
     }
     
     if (printed) {
-      toast(transaction.boothCode ? `Checkout selesai. Kode photobooth: ${transaction.boothCode}` : "Checkout selesai. Segera buat pesanan! ☕");
+      toast(transaction.boothCode ? `Checkout selesai. Kode photobooth: ${transaction.boothCode}` : "Checkout selesai. Segera buat pesanan! ☕", "success");
     } else {
-      toast(transaction.boothCode ? `Checkout tersimpan. Kode photobooth: ${transaction.boothCode}. Sambungkan printer lalu cetak ulang.` : "Checkout tersimpan. Sambungkan printer lalu cetak ulang.");
+      toast(transaction.boothCode ? `Checkout tersimpan. Kode: ${transaction.boothCode}. Sambungkan printer → tab Order untuk cetak ulang.` : "Checkout tersimpan. Sambungkan printer → tab Order untuk cetak ulang.", "warning");
     }
     completeDeferredShiftLogout();
+  } catch (err) {
+    // Error tak terduga saat proses checkout — jangan biarkan kasir bingung
+    console.error("startOrder error:", err);
+    toast("Terjadi kesalahan saat memproses order. Coba lagi atau hubungi Owner.", "error");
   } finally {
     setOrderProcessing(false);
   }
@@ -7544,12 +7601,12 @@ function renderOrders() {
     ? state.orderStatus === "paid"
       ? list.slice(0, 80).map((transaction) => orderCard(transaction, state.orderStatus, paidDisplayCodes.get(transaction.id))).join("")
       : list.slice(0, 80).map((transaction) => orderCard(transaction, state.orderStatus)).join("")
-    : `<div class="empty-state">${
+    : `<div class="empty-state order-empty-state">${
         state.orderStatus === "paid"
-          ? `Belum ada order ${state.paidOrderCategory === "Semua" ? "yang selesai" : `kategori ${state.paidOrderCategory}`} pada tanggal ini.`
+          ? `<i class="ph ph-check-circle order-empty-icon" aria-hidden="true"></i><p class="cart-empty-title">Belum ada order selesai</p><p class="cart-empty-hint">${state.paidOrderCategory !== "Semua" ? `Kategori "${state.paidOrderCategory}" ` : ""}Hari ini belum ada transaksi selesai — atau coba pilih tanggal lain.</p>`
           : state.orderStatus === "kitchen"
-            ? "Belum ada order yang diproses."
-            : "Belum ada order menunggu pembayaran."
+            ? `<i class="ph ph-cooking-pot order-empty-icon" aria-hidden="true"></i><p class="cart-empty-title">Belum ada order diproses</p><p class="cart-empty-hint">Order yang sudah dibayar akan muncul di sini untuk disiapkan.</p>`
+            : `<i class="ph ph-receipt order-empty-icon" aria-hidden="true"></i><p class="cart-empty-title">Belum ada order menunggu</p><p class="cart-empty-hint">Mulai transaksi dari tab Kasir — pilih menu dan tekan Proses Pesanan.</p>`
       }</div>`;
 }
 
@@ -10936,6 +10993,37 @@ document.addEventListener("click", (event) => {
     applyStaffPresetRange(presetBtn.dataset.rangePreset);
   }
 });
+// ─── Keyboard shortcuts POS ──────────────────────────────────────────────────
+// F2  → buka modal checkout (shortcut standar di sistem POS)
+// Esc → tutup modal aktif (order modal / custom order / stock edit)
+// Shortcuts diabaikan saat focus ada di input/textarea/select
+document.addEventListener("keydown", (event) => {
+  const tag = document.activeElement?.tagName?.toLowerCase();
+  const inInput = tag === "input" || tag === "textarea" || tag === "select"
+    || document.activeElement?.isContentEditable;
+  if (inInput) return;
+
+  if (event.key === "F2") {
+    event.preventDefault();
+    // Buka modal checkout hanya saat di POS view dan ada item di keranjang
+    if (state.activeView === "pos" && state.cart.length > 0 && !state.orderProcessing) {
+      openOrderModal();
+    }
+    return;
+  }
+
+  if (event.key === "Escape") {
+    // Tutup modal yang sedang terbuka, prioritas dari paling atas ke paling bawah
+    if (els.orderModal?.classList.contains("open")) {
+      closeOrderModal();
+    } else if (els.customOrderModal?.classList.contains("open")) {
+      closeCustomOrderModal();
+    } else if (els.stockEditModal?.classList.contains("open")) {
+      els.stockEditCancelBtn?.click();
+    }
+  }
+});
+
 restoreActiveView();
 applyAccessControls();
 renderAll();

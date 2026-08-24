@@ -64,7 +64,7 @@
     </section>
 
     <!-- ─── Check-In Confirmation Screen ─────────────────────────────── -->
-    <div id="checkinScreen" class="checkin-overlay" hidden style="display: none;" aria-modal="true" role="dialog" aria-label="Konfirmasi absensi">
+    <div id="checkinScreen" class="checkin-overlay" hidden aria-modal="true" role="dialog" aria-label="Konfirmasi absensi">
       <div class="checkin-card">
         <div class="checkin-icon-wrap">
           <i class="ph-fill ph-check-circle checkin-success-icon"></i>
@@ -197,7 +197,7 @@
                   </select>
                 </label>
                 <div class="voucher-apply-row">
-                  <button class="secondary-button compact" id="applyDiscountVoucher" type="button">Apply</button>
+                  <button class="secondary-button compact" id="applyDiscountVoucher" type="button">Terapkan</button>
                   <button class="secondary-button compact" id="clearDiscountVoucher" type="button">Hapus</button>
                 </div>
                 <p class="voucher-discount-info" id="voucherDiscountInfo">Voucher dibuat Owner di tab Analitik.</p>
@@ -227,7 +227,7 @@
           <button class="secondary-button" id="clearCart" type="button">Batalkan</button>
           <div class="modal-action-primary">
             <button class="secondary-button" id="billOrderBtn" type="button">Bayar Nanti</button>
-            <button class="primary-button" type="submit">Bayar & Cetak</button>
+            <button class="primary-button" type="submit">Bayar &amp; Cetak</button>
           </div>
         </div>
       </form>
@@ -436,50 +436,50 @@
         </div>
 
         <nav class="nav-tabs" aria-label="Tampilan">
-          <button class="nav-tab active" data-view="pos" type="button">
+          <button class="nav-tab active" data-view="pos" type="button" title="Kasir — proses pesanan">
             <span class="tab-icon" aria-hidden="true">
               <i class="ph ph-cash-register"></i>
             </span>
             <span class="nav-label">Kasir</span>
           </button>
-          <button class="nav-tab" data-view="orders" type="button" id="navTabOrders">
+          <button class="nav-tab" data-view="orders" type="button" id="navTabOrders" title="Order — lihat daftar pesanan masuk">
             <span class="tab-icon" aria-hidden="true">
               <i class="ph ph-receipt"></i>
             </span>
             <span class="nav-label">Order</span>
             <span class="nav-kitchen-badge" id="navKitchenBadge" hidden>0</span>
           </button>
-          <button class="nav-tab" data-view="menu" type="button">
+          <button class="nav-tab" data-view="menu" type="button" title="Menu — kelola daftar produk">
             <span class="tab-icon" aria-hidden="true">
               <i class="ph ph-list-bullets"></i>
             </span>
             <span class="nav-label">Menu</span>
           </button>
-          <button class="nav-tab" data-view="stock" type="button">
+          <button class="nav-tab" data-view="stock" type="button" title="Bahan Baku — stok dan inventaris">
             <span class="tab-icon" aria-hidden="true">
               <i class="ph ph-basket"></i>
             </span>
             <span class="nav-label">Bahan Baku</span>
           </button>
-          <button class="nav-tab" data-view="cashflow" type="button">
+          <button class="nav-tab" data-view="cashflow" type="button" title="Arus Kas — pemasukan dan pengeluaran">
             <span class="tab-icon" aria-hidden="true">
               <i class="ph ph-currency-dollar"></i>
             </span>
             <span class="nav-label">Arus Kas</span>
           </button>
-          <button class="nav-tab" data-view="analytics" type="button">
+          <button class="nav-tab" data-view="analytics" type="button" title="Analitik — laporan penjualan">
             <span class="tab-icon" aria-hidden="true">
               <i class="ph ph-chart-bar"></i>
             </span>
             <span class="nav-label">Analitik</span>
           </button>
-          <button class="nav-tab owner-only" data-view="staff" type="button">
+          <button class="nav-tab owner-only" data-view="staff" type="button" title="Crew — kelola karyawan dan jadwal">
             <span class="tab-icon" aria-hidden="true">
               <i class="ph ph-users-three"></i>
             </span>
             <span class="nav-label">Crew</span>
           </button>
-          <button class="nav-tab" data-view="settings" type="button">
+          <button class="nav-tab" data-view="settings" type="button" title="Pengaturan — printer, profil toko, dan konfigurasi">
             <span class="tab-icon" aria-hidden="true">
               <i class="ph ph-gear-six"></i>
             </span>
@@ -523,8 +523,8 @@
               <div class="printer-dropdown" id="printerDropdown">
                 <!-- Tab bar -->
                 <div class="printer-tab-bar" role="tablist" aria-label="Pilih printer">
-                  <button class="printer-tab active" id="printerTabKasir" data-printer-tab="kasir" role="tab" aria-selected="true" type="button">🧾 Kasir</button>
-                  <button class="printer-tab" id="printerTabLabel" data-printer-tab="label" role="tab" aria-selected="false" type="button">🏷️ Label Cup</button>
+                  <button class="printer-tab active" id="printerTabKasir" data-printer-tab="kasir" role="tab" aria-selected="true" type="button"><i class="ph ph-receipt" aria-hidden="true"></i> Kasir</button>
+                  <button class="printer-tab" id="printerTabLabel" data-printer-tab="label" role="tab" aria-selected="false" type="button"><i class="ph ph-tag" aria-hidden="true"></i> Label Cup</button>
                 </div>
 
                 <!-- Panel: Printer Kasir -->
@@ -557,7 +557,7 @@
                     </div>
                     <span class="printer-status disconnected" id="labelPrinterStatus">Terputus</span>
                   </div>
-                  <button class="primary-button full-button" id="connectLabelPrinter" type="button" style="margin-top: 8px;">Sambungkan Label Printer</button>
+                  <button class="primary-button full-button" id="connectLabelPrinter" type="button">Sambungkan Label Printer</button>
                   <button class="secondary-button full-button" id="testLabelPrint" type="button">Test Label</button>
                   <p class="printer-hint" id="labelPrinterHint">Gunakan tab <strong>Pengaturan</strong> (Owner) untuk mengubah ukuran stiker, metode feed, margin, dan tata letak tulisan.</p>
                 </div>
@@ -574,7 +574,7 @@
             </label>
             <div class="topbar-right">
               <div class="segmented" role="tablist" aria-label="Kategori menu" id="categoryTabs"></div>
-              <button class="secondary-button compact" id="openCustomOrder" type="button">Custom Order</button>
+              <button class="secondary-button compact" id="openCustomOrder" type="button" title="Jual bean kopi (biji kopi) langsung dari stok bahan baku dengan harga manual">Custom Order</button>
               <button class="ghost-button" id="resetFilter" type="button" title="Reset filter" aria-label="Reset filter">
                 <i class="ph ph-funnel-simple" aria-hidden="true"></i>
               </button>
@@ -615,7 +615,7 @@
                 <div><span>Subtotal</span><strong id="cartSubtotal">Rp0</strong></div>
                 <div class="grand"><span>Total</span><strong id="cartGrandTotal">Rp0</strong></div>
               </div>
-              <button class="primary-button full-button" id="checkoutBtn" type="button">
+              <button class="primary-button full-button" id="checkoutBtn" type="button" title="Proses pesanan (F2)">
                 <i class="ph ph-caret-right" aria-hidden="true"></i>
                 Proses Pesanan
               </button>
@@ -1416,7 +1416,7 @@
             <div style="width: 100%; display: flex; justify-content: center; align-items: center; overflow: visible; height: 160px; margin: 8px 0;">
               <div id="labelPreviewPaper" style="background: #e2e8f0; width: 384px; height: 160px; position: relative; border: 1px dashed #cbd5e1; border-radius: 6px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05); overflow: hidden; transform-origin: center center;">
                 <div id="labelPreviewSticker" style="background: #ffffff; width: 320px; height: 160px; position: absolute; left: 8px; top: 0; border-radius: 4px; box-shadow: 0 4px 10px rgba(0,0,0,0.08); box-sizing: border-box; color: #000000; font-family: var(--font-body); line-height: 1.25; overflow: hidden; user-select: none;">
-                  <div id="labelPreviewLogo" style="position: absolute; left: 12px; top: 12px; width: 32px; height: 32px; cursor: move; border: 1px dashed rgba(59, 130, 246, 0.3); border-radius: 3px; overflow: hidden; box-sizing: border-box; display: none;">
+                  <div id="labelPreviewLogo" style="position: absolute; left: 12px; top: 12px; width: 32px; height: 32px; cursor: move; border: 1px dashed var(--selected-line); border-radius: 3px; overflow: hidden; box-sizing: border-box; display: none;">
                     <img src="assets/logo-migi-print.png" alt="Logo Migi" style="width: 100%; height: 100%; object-fit: contain; filter: grayscale(1) contrast(1.8);">
                   </div>
                   <div class="label-preview-item" id="labelPreviewCustomImage" style="left: 260px; top: 12px; width: 48px; height: 48px; display: none;">
@@ -1716,7 +1716,8 @@
     </section>
     <section class="receipt-paper" id="receiptPaper" aria-label="Struk cetak"></section>
 
-    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+    <div class="toast toast--urgent" id="toastUrgent" role="alert" aria-live="assertive" aria-atomic="true"></div>
 
     <script src="app.js?v=160"></script>
   </body>
