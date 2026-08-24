@@ -1,0 +1,130 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-24T04:12:30.000Z",
+  "title": "Design System: Kopi Migi POS",
+  "extensions": {
+    "colorMeta": {
+      "primary": {
+        "role": "primary",
+        "displayName": "Kopi Migi Blue",
+        "canonical": "#00349b",
+        "tonalRamp": ["#00143d", "#001e5c", "#002979", "#00349b", "#265ecb", "#5a88e5", "#9ab7f3", "#dce6ff"]
+      },
+      "sidebar-bg": {
+        "role": "surface",
+        "displayName": "Midnight Navy",
+        "canonical": "#001b52",
+        "tonalRamp": ["#000c24", "#00133b", "#001b52", "#002670", "#003499", "#1f58cc", "#638ee6", "#c7d9fa"]
+      },
+      "success": {
+        "role": "feedback",
+        "displayName": "Sage Success",
+        "canonical": "#2f7a46",
+        "tonalRamp": ["#0f2e18", "#1a4726", "#246135", "#2f7a46", "#429b5e", "#6ec088", "#a6dfb8", "#eaf6ee"]
+      },
+      "warning": {
+        "role": "feedback",
+        "displayName": "Amber Warning",
+        "canonical": "#c9861e",
+        "tonalRamp": ["#4a2f07", "#734a0f", "#9e6617", "#c9861e", "#e09f3e", "#ebb86c", "#f5d5a4", "#fdf2de"]
+      },
+      "danger": {
+        "role": "feedback",
+        "displayName": "Danger Red",
+        "canonical": "#b84040",
+        "tonalRamp": ["#4a1515", "#6e2323", "#933131", "#b84040", "#cf5c5c", "#e08282", "#f0b4b4", "#fdeaea"]
+      },
+      "neutral-bg": {
+        "role": "neutral",
+        "displayName": "Pure Surface",
+        "canonical": "#faf8ff",
+        "tonalRamp": ["#101426", "#313854", "#707692", "#a3a8c2", "#c8cbe0", "#e6e1f1", "#f3effb", "#faf8ff"]
+      }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Header besar di layar login & hero terminal." },
+      "headline": { "displayName": "Headline", "purpose": "Judul modal & subtotal transaksi." },
+      "body": { "displayName": "Body", "purpose": "Nama menu dan teks deskripsi." },
+      "mono": { "displayName": "Monospace", "purpose": "Nominal harga, jam shift, dan kode transaksi." }
+    },
+    "shadows": [
+      { "name": "shadow-sm", "value": "0 1px 3px rgba(0,0,0,0.08)", "purpose": "Badge kuantitas dan segmented switch." },
+      { "name": "shadow", "value": "0 4px 16px rgba(0,0,0,0.10)", "purpose": "Kartu menu saat hover dan focus." },
+      { "name": "shadow-lg", "value": "0 12px 40px rgba(0,0,0,0.16)", "purpose": "Modal dialog dan floating toast." }
+    ],
+    "motion": [
+      { "name": "ease-out", "value": "cubic-bezier(0.16, 1, 0.3, 1)", "purpose": "Transisi modal dan buka panel." },
+      { "name": "badge-pop", "value": "cubic-bezier(0.34, 1.56, 0.64, 1)", "purpose": "Animasi kemunculan notifikasi & badge order." }
+    ],
+    "breakpoints": [
+      { "name": "mobile", "value": "700px" },
+      { "name": "tablet", "value": "900px" },
+      { "name": "desktop", "value": "1200px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Tombol aksi utama kasir (Bayar & Cetak, Proses Pesanan).",
+      "html": "<button class=\"ds-btn-primary\">Bayar & Cetak</button>",
+      "css": ".ds-btn-primary { background: #00349b; color: #faf8ff; padding: 11px 18px; border: none; border-radius: 9px; font-weight: 700; font-size: 14px; cursor: pointer; transition: background 0.15s, transform 0.15s; } .ds-btn-primary:hover { background: #002979; transform: translateY(-1px); }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Tombol opsi sekunder (Bayar Nanti, Tutup).",
+      "html": "<button class=\"ds-btn-secondary\">Bayar Nanti</button>",
+      "css": ".ds-btn-secondary { background: #faf8ff; color: #101426; border: 1px solid #e6e1f1; padding: 9px 14px; border-radius: 9px; font-weight: 700; font-size: 13.5px; cursor: pointer; transition: background 0.15s; } .ds-btn-secondary:hover { background: #f8f5ff; border-color: #d1c7e6; }"
+    },
+    {
+      "name": "Menu Quantity Pill",
+      "kind": "custom",
+      "refersTo": "qty-control",
+      "description": "Kontainer pengatur jumlah menu di atas kartu produk.",
+      "html": "<div class=\"ds-qty-pill\"><button class=\"ds-qty-btn\">-</button><strong>2</strong><button class=\"ds-qty-btn\">+</button></div>",
+      "css": ".ds-qty-pill { min-width: 74px; height: 32px; padding: 0 4px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: space-between; gap: 6px; background: #fff; color: #00349b; box-shadow: 0 2px 10px rgba(0,0,0,0.18); font-family: sans-serif; } .ds-qty-btn { width: 24px; height: 24px; border: 0; border-radius: 999px; background: rgba(0,52,155,0.12); color: #00349b; font-weight: 900; font-size: 15px; cursor: pointer; display: grid; place-items: center; } .ds-qty-pill strong { font-size: 13px; font-weight: 800; min-width: 16px; text-align: center; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Focused Roastery Terminal",
+    "overview": "Kopi Migi POS adalah sistem antarmuka operasional yang dirancang untuk kecepatan transaksi di meja kasir dan kejernihan pemantauan bagi pemilik kedai. Menggabungkan ketegasan fungsional POS dengan kehangatan kedai kopi lokal.",
+    "keyCharacteristics": [
+      "High-Velocity Scannability",
+      "Monospace Financial Precision",
+      "Tactile Touch Targets",
+      "Offline & Role Clarity"
+    ],
+    "rules": [
+      {
+        "name": "The Single Dominant Blue Rule",
+        "body": "Warna biru #00349b hanya digunakan untuk elemen yang dapat diklik atau status yang sedang aktif.",
+        "section": "colors"
+      },
+      {
+        "name": "The Monospace Money Rule",
+        "body": "Setiap nominal rupiah wajib menggunakan font-family: var(--font-mono).",
+        "section": "typography"
+      },
+      {
+        "name": "The Flat-in-Panel Rule",
+        "body": "Elemen form di dalam panel atau modal tidak menggunakan bayangan sendiri; kedalaman modul dibentuk oleh border 1px solid var(--line).",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do gunakan font-family: var(--font-mono) untuk semua angka harga, total, kembalian, dan jam shift.",
+      "Do sediakan dialog konfirmasi sebelum aksi yang berpotensi menghapus data.",
+      "Do pertahankan ukuran area sentuh minimal 32-44px untuk kontrol tablet.",
+      "Do gunakan bahasa Indonesia yang konsisten dan ramah."
+    ],
+    "donts": [
+      "Don't membungkus kotak-kotak form dengan border nested card bertingkat.",
+      "Don't menggunakan warna biru brand untuk teks informasi non-klik.",
+      "Don't mengganti icon SVG dengan teks karakter biasa.",
+      "Don't mencampur istilah tombol bahasa Inggris ke dalam antarmuka."
+    ]
+  }
+}

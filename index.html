@@ -2,7 +2,7 @@
 <html lang="id">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Kopi Migi POS</title>
     <meta name="theme-color" content="#00349b" />
     <meta name="application-name" content="Kopi Migi" />
@@ -22,7 +22,7 @@
   <body>
     <section class="login-screen" id="loginScreen" aria-label="Login kasir">
       <form class="login-card" id="loginForm">
-        <img src="assets/logo-miginew-transparent.png?v=20" alt="Logo Migi" />
+        <img src="assets/logo-miginew-transparent.png?v=20" alt="Logo Migi" width="48" height="48" />
         <p class="eyebrow">Kopi Migi</p>
         <h2>Masuk</h2>
         <label class="login-credential-field">
@@ -64,7 +64,7 @@
     </section>
 
     <!-- ─── Check-In Confirmation Screen ─────────────────────────────── -->
-    <div id="checkinScreen" class="checkin-overlay" hidden aria-modal="true" role="dialog" aria-label="Konfirmasi absensi">
+    <div id="checkinScreen" class="checkin-overlay" hidden style="display: none;" aria-modal="true" role="dialog" aria-label="Konfirmasi absensi">
       <div class="checkin-card">
         <div class="checkin-icon-wrap">
           <i class="ph-fill ph-check-circle checkin-success-icon"></i>
@@ -91,7 +91,6 @@
       <form class="order-card" id="orderForm">
         <div class="modal-head">
           <div>
-            <p class="eyebrow">Process</p>
             <h2>Order Aktif</h2>
           </div>
           <div class="modal-head-actions">
@@ -109,7 +108,6 @@
         <div class="order-modal-grid">
           <section class="order-summary-pane" aria-label="Ringkasan pesanan">
             <div class="modal-section-title">
-              <p class="eyebrow">Item dipilih</p>
               <h3>Keranjang</h3>
             </div>
             <div class="modal-order-list" id="modalOrderList"></div>
@@ -129,23 +127,11 @@
               </div>
               <p class="staff-drink-info" id="staffDrinkInfo" hidden>Staff Drink hanya bisa digunakan 1 kali per hari per crew dan maksimal 1 item.</p>
             </div>
-            <div class="dine-take-box" id="dineTakeBox">
-              <p class="eyebrow">Penyajian</p>
-              <div class="segmented dine-take-tabs" id="dineTakeTabs" role="group" aria-label="Penyajian">
-                <button class="active" data-service-type="dine_in" type="button">
-                  <i class="ph ph-chair" aria-hidden="true"></i>
-                  <span>Dine In</span>
-                </button>
-                <button data-service-type="take_away" type="button">
-                  <i class="ph ph-bag" aria-hidden="true"></i>
-                  <span>Take Away</span>
-                </button>
-              </div>
-            </div>
+
             <div class="order-field-grid">
               <label>
                 Nama customer
-                <input id="orderCustomerName" type="text" placeholder="Teman Migi" />
+                <input id="orderCustomerName" type="text" placeholder="Teman Migi" readonly />
               </label>
               <label>
                 Nomor pesanan
@@ -220,6 +206,12 @@
                 <span id="paidAmountLabel">Dibayar</span>
                 <input id="paidAmount" type="number" min="0" step="1" inputmode="numeric" placeholder="0" />
               </label>
+              <div class="quick-cash-row" id="quickCashRow" role="group" aria-label="Tombol cepat uang tunai">
+                <button class="quick-cash-btn" type="button" data-quick-cash="exact">Uang Pas</button>
+                <button class="quick-cash-btn" type="button" data-quick-cash="20000">20.000</button>
+                <button class="quick-cash-btn" type="button" data-quick-cash="50000">50.000</button>
+                <button class="quick-cash-btn" type="button" data-quick-cash="100000">100.000</button>
+              </div>
               <div class="change-line">
                 <span>Kembalian</span>
                 <strong id="changeDue">Rp0</strong>
@@ -435,7 +427,7 @@
       <aside class="sidebar" aria-label="Navigasi kasir">
         <div class="brand-block">
           <div class="brand-mark" aria-hidden="true">
-            <img src="assets/logo-miginew.png?v=20" alt="" />
+            <img src="assets/logo-miginew.png?v=20" alt="" width="34" height="34" />
           </div>
           <div>
             <p class="eyebrow">Kopi Migi</p>
@@ -508,6 +500,10 @@
 
       <main class="workspace">
         <header class="page-head">
+          <div class="shift-chip" id="shiftChip" aria-live="polite">
+            <i class="ph ph-receipt" aria-hidden="true"></i>
+            <span id="shiftChipCount">0 order</span>
+          </div>
           <div class="head-meta">
             <div class="workday-meta">
               <span id="todayLabel"></span>
@@ -574,27 +570,20 @@
           <div class="topbar">
             <label class="search-field">
               <i class="ph ph-magnifying-glass" aria-hidden="true"></i>
-              <input id="menuSearch" type="search" placeholder="Cari menu, paket, atau kategori" />
+              <input id="menuSearch" type="search" placeholder="Cari menu atau kategori" />
             </label>
-            <div class="segmented" role="tablist" aria-label="Kategori menu" id="categoryTabs"></div>
+            <div class="topbar-right">
+              <div class="segmented" role="tablist" aria-label="Kategori menu" id="categoryTabs"></div>
+              <button class="secondary-button compact" id="openCustomOrder" type="button">Custom Order</button>
+              <button class="ghost-button" id="resetFilter" type="button" title="Reset filter" aria-label="Reset filter">
+                <i class="ph ph-funnel-simple" aria-hidden="true"></i>
+              </button>
+            </div>
           </div>
 
           <div class="pos-grid">
             <section class="menu-section" aria-label="Daftar menu">
-              <div class="section-heading">
-                <div>
-                  <p class="eyebrow">Menu aktif</p>
-                  <h3>Produk</h3>
-                </div>
-                <div class="menu-section-actions">
-                  <button class="secondary-button compact" id="openCustomOrder" type="button">Custom Order</button>
-                  <button class="ghost-button" id="resetFilter" type="button" title="Reset filter">
-                    <i class="ph ph-funnel-simple" aria-hidden="true"></i>
-                  </button>
-                </div>
-              </div>
               <div class="menu-grid" id="menuGrid"></div>
-              <input id="customerName" type="hidden" />
               <input id="tableNumber" type="hidden" />
             </section>
             <aside class="checkout-panel" aria-label="Ringkasan order">
@@ -607,6 +596,20 @@
                   <i class="ph ph-x" aria-hidden="true"></i>
                 </button>
               </div>
+              <div class="cart-context" id="dineTakeBox">
+                <div class="segmented dine-take-tabs" id="dineTakeTabs" role="group" aria-label="Tipe penyajian">
+                  <button class="active" data-service-type="dine_in" type="button">
+                    <i class="ph ph-coffee" aria-hidden="true"></i> Dine In
+                  </button>
+                  <button data-service-type="take_away" type="button">
+                    <i class="ph ph-bag" aria-hidden="true"></i> Take Away
+                  </button>
+                </div>
+                <div class="customer-name-field">
+                  <i class="ph ph-user" aria-hidden="true"></i>
+                  <input id="customerName" type="text" placeholder="Nama customer (opsional)" autocomplete="off" maxlength="60" />
+                </div>
+              </div>
               <div class="cart-list" id="cartList"></div>
               <div class="totals">
                 <div><span>Subtotal</span><strong id="cartSubtotal">Rp0</strong></div>
@@ -614,7 +617,7 @@
               </div>
               <button class="primary-button full-button" id="checkoutBtn" type="button">
                 <i class="ph ph-caret-right" aria-hidden="true"></i>
-                Process Order
+                Proses Pesanan
               </button>
             </aside>
           </div>
@@ -775,7 +778,7 @@
                   <small>Gudang</small>
                   <strong>Daftar Harga Bahan Baku</strong>
                 </span>
-                <span class="accordion-chevron" aria-hidden="true">v</span>
+                <span class="accordion-chevron" aria-hidden="true"><i class="ph ph-caret-down"></i></span>
               </button>
               <div class="accordion-content" id="priceListContent">
                 <div class="stock-table" id="stockTable"></div>
@@ -1243,7 +1246,7 @@
                     <div id="labelReadOnlyPreviewPaper" style="background: #e2e8f0; width: 384px; height: 160px; position: relative; border: 1px dashed #cbd5e1; border-radius: 6px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05); overflow: hidden; transform-origin: center center;">
                       <div id="labelReadOnlyPreviewSticker" style="background: #ffffff; width: 320px; height: 160px; position: absolute; left: 8px; top: 0; border-radius: 4px; box-shadow: 0 4px 10px rgba(0,0,0,0.08); box-sizing: border-box; color: #000000; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.25; overflow: hidden; user-select: none;">
                         <div id="labelReadOnlyPreviewLogo" style="position: absolute; left: 12px; top: 12px; width: 32px; height: 32px; border-radius: 3px; overflow: hidden; box-sizing: border-box; display: none;"><img src="assets/logo-migi-print.png" alt="Logo Migi" style="width: 100%; height: 100%; object-fit: contain; filter: grayscale(1) contrast(1.8);"></div>
-                        <div id="labelReadOnlyPreviewCustomImage" style="position: absolute; left: 260px; top: 12px; width: 48px; height: 48px; border-radius: 3px; overflow: hidden; box-sizing: border-box; display: none;"><img alt="Gambar dekorasi label" style="width: 100%; height: 100%; object-fit: contain; filter: grayscale(1) contrast(1.8);"></div>
+                        <div id="labelReadOnlyPreviewCustomImage" style="position: absolute; left: 260px; top: 12px; width: 48px; height: 48px; border-radius: 3px; overflow: hidden; box-sizing: border-box; display: none;"><img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'/%3E" alt="Gambar dekorasi label" style="width: 100%; height: 100%; object-fit: contain; filter: grayscale(1) contrast(1.8);"></div>
                         
                         <div id="labelReadOnlyPreviewDrinkName" style="position: absolute; left: 12px; top: 12px; padding: 2px 4px; border-radius: 3px; overflow: hidden; max-height: 48px; word-break: break-word; box-sizing: border-box;">
                           Kopi Susu Migi
@@ -1416,36 +1419,36 @@
                   <div id="labelPreviewLogo" style="position: absolute; left: 12px; top: 12px; width: 32px; height: 32px; cursor: move; border: 1px dashed rgba(59, 130, 246, 0.3); border-radius: 3px; overflow: hidden; box-sizing: border-box; display: none;">
                     <img src="assets/logo-migi-print.png" alt="Logo Migi" style="width: 100%; height: 100%; object-fit: contain; filter: grayscale(1) contrast(1.8);">
                   </div>
-                  <div id="labelPreviewCustomImage" style="position: absolute; left: 260px; top: 12px; width: 48px; height: 48px; cursor: move; border: 1px dashed rgba(59, 130, 246, 0.3); border-radius: 3px; overflow: hidden; box-sizing: border-box; display: none;">
-                    <img alt="Gambar dekorasi label" style="width: 100%; height: 100%; object-fit: contain; filter: grayscale(1) contrast(1.8); pointer-events: none;">
+                  <div class="label-preview-item" id="labelPreviewCustomImage" style="left: 260px; top: 12px; width: 48px; height: 48px; display: none;">
+                    <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'/%3E" alt="Gambar dekorasi label" style="width: 100%; height: 100%; object-fit: contain; filter: grayscale(1) contrast(1.8); pointer-events: none;">
                   </div>
                   
-                  <div id="labelPreviewDrinkName" style="position: absolute; left: 12px; top: 12px; cursor: move; border: 1px dashed rgba(59, 130, 246, 0.3); padding: 2px 12px 6px 4px; border-radius: 3px; overflow: hidden; word-break: break-word; box-sizing: border-box;">
+                  <div class="label-preview-item" id="labelPreviewDrinkName" style="left: 12px; top: 12px;">
                     Kopi Susu Migi
                   </div>
                   
-                  <div id="labelPreviewNotes" style="position: absolute; left: 12px; top: 48px; cursor: move; border: 1px dashed rgba(59, 130, 246, 0.3); padding: 2px 12px 6px 4px; border-radius: 3px; overflow: hidden; word-break: break-word; box-sizing: border-box;">
+                  <div class="label-preview-item" id="labelPreviewNotes" style="left: 12px; top: 48px;">
                     Ice * Less Sugar
                   </div>
                   
-                  <div id="labelPreviewOrderCode" style="position: absolute; left: 12px; top: 84px; cursor: move; border: 1px dashed rgba(59, 130, 246, 0.3); padding: 2px 12px 6px 4px; border-radius: 3px; overflow: hidden; word-break: break-word; box-sizing: border-box;">
+                  <div class="label-preview-item" id="labelPreviewOrderCode" style="left: 12px; top: 84px;">
                     #SB-001
                   </div>
                   
-                  <div id="labelPreviewCustomer" style="position: absolute; left: 12px; top: 110px; cursor: move; border: 1px dashed rgba(59, 130, 246, 0.3); padding: 2px 12px 6px 4px; border-radius: 3px; overflow: hidden; word-break: break-word; box-sizing: border-box;">
+                  <div class="label-preview-item" id="labelPreviewCustomer" style="left: 12px; top: 110px;">
                     Teman Migi
                   </div>
-                  <div id="labelPreviewServiceType" style="position: absolute; left: 214px; top: 88px; width: 64px; cursor: move; border: 1px dashed rgba(59, 130, 246, 0.3); padding: 2px 12px 6px 4px; border-radius: 3px; overflow: hidden; word-break: break-word; box-sizing: border-box;">DI</div>
+                  <div class="label-preview-item" id="labelPreviewServiceType" style="left: 214px; top: 88px; width: 64px;">DI</div>
 
-                  <div id="labelPreviewCounter" style="position: absolute; left: 240px; top: 84px; cursor: move; border: 1px dashed rgba(59, 130, 246, 0.3); padding: 2px 12px 6px 4px; border-radius: 3px; overflow: hidden; word-break: break-word; box-sizing: border-box;">
+                  <div class="label-preview-item" id="labelPreviewCounter" style="left: 240px; top: 84px;">
                     [1/1]
                   </div>
                   
-                  <div id="labelPreviewCustomText" style="position: absolute; left: 150px; top: 12px; cursor: move; border: 1px dashed rgba(59, 130, 246, 0.3); padding: 2px 12px 6px 4px; border-radius: 3px; overflow: hidden; word-break: break-word; box-sizing: border-box;">
+                  <div class="label-preview-item" id="labelPreviewCustomText" style="left: 150px; top: 12px;">
                     TEKS KUSTOM
                   </div>
                   
-                  <div id="labelPreviewBarcode" style="position: absolute; left: 60px; top: 130px; cursor: move; border: 1px dashed rgba(59, 130, 246, 0.3); box-sizing: border-box; display: flex; flex-direction: column; align-items: center; justify-content: center; overflow: hidden; background: white;">
+                  <div class="label-preview-item" id="labelPreviewBarcode" style="left: 60px; top: 130px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: white;">
                     <div class="mock-barcode-lines" style="width: 100%; height: calc(100% - 10px); display: flex; align-items: stretch; gap: 1px; padding: 2px; box-sizing: border-box;">
                       <div style="flex: 1; background: #000; height: 100%;"></div>
                       <div style="flex: 2; background: #000; height: 100%;"></div>

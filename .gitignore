@@ -3,3 +3,9 @@ dist/
 .DS_Store
 .env.local
 .vercel/
+.agent/
+.agents/
+.codex/
+.gemini/
+.kiro/
+

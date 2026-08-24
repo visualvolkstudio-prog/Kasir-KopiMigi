@@ -394,6 +394,7 @@ const els = {
   discountVoucherList: document.querySelector("#discountVoucherList"),
   paidAmountLabel: document.querySelector("#paidAmountLabel"),
   paidAmount: document.querySelector("#paidAmount"),
+  quickCashRow: document.querySelector("#quickCashRow"),
   changeDue: document.querySelector("#changeDue"),
   clearCart: document.querySelector("#clearCart"),
   clearCartPanel: document.querySelector("#clearCartPanel"),
@@ -404,6 +405,8 @@ const els = {
   tableNumber: document.querySelector("#tableNumber"),
   boothPackage: document.querySelector("#boothPackage"),
   latestBoothCode: document.querySelector("#latestBoothCode"),
+  shiftChip: document.querySelector("#shiftChip"),
+  shiftChipCount: document.querySelector("#shiftChipCount"),
   shiftTotal: document.querySelector("#shiftTotal"),
   shiftCount: document.querySelector("#shiftCount"),
   activeShiftLabel: document.querySelector("#activeShiftLabel"),
@@ -1395,6 +1398,7 @@ function showCheckinScreen(employee, shift, loginAt = new Date()) {
 
   // Tampilkan screen
   screen.hidden = false;
+  screen.style.display = "flex";
   screen.classList.remove("checkin-exit");
   requestAnimationFrame(() => screen.classList.add("checkin-visible"));
 
@@ -1419,6 +1423,7 @@ function dismissCheckinScreen() {
   screen.classList.add("checkin-exit");
   screen.addEventListener("animationend", () => {
     screen.hidden = true;
+    screen.style.display = "none";
     screen.classList.remove("checkin-visible", "checkin-exit");
   }, { once: true });
 }
@@ -4172,7 +4177,7 @@ function itemArt(item) {
 
 function itemVisual(item) {
   if (item.image) {
-    return `<img class="item-image" src="${escapeHtml(item.image)}" alt="" />`;
+    return `<img class="item-image" src="${escapeHtml(item.image)}" alt="" loading="lazy" decoding="async" width="48" height="48" />`;
   }
   return `<span class="item-art ${itemArt(item)}" aria-hidden="true">${escapeHtml(itemLabel(item))}</span>`;
 }
@@ -4455,13 +4460,17 @@ function syncOrderTypeUi() {
   els.paymentMethods?.querySelectorAll("button[data-payment]").forEach((button) => {
     button.classList.toggle("active", button.dataset.payment === state.payment);
   });
+  if (els.quickCashRow) {
+    els.quickCashRow.hidden = staffDrinkActive || onlineChannel || state.payment !== "Tunai";
+  }
   updateChange();
-  if (els.dineTakeBox) els.dineTakeBox.hidden = staffDrinkActive;
+  const dineTakeBox = document.querySelector("#dineTakeBox");
+  if (dineTakeBox) dineTakeBox.hidden = staffDrinkActive;
   syncDineTakeUi();
 }
 
 function syncDineTakeUi() {
-  els.dineTakeTabs?.querySelectorAll("button[data-service-type]").forEach((button) => {
+  document.querySelectorAll("#dineTakeTabs button[data-service-type]").forEach((button) => {
     button.classList.toggle("active", button.dataset.serviceType === state.serviceType);
   });
 }
@@ -4506,10 +4515,11 @@ function renderMenuCategoryOptions(selectedCategory = els.menuCategory.value) {
 }
 
 function renderMenuGrid() {
-  const keyword = state.search.toLowerCase();
+  const keyword = String(state.search || "").trim().toLowerCase();
   const filtered = getMenu().filter((item) => {
+    if (!item) return false;
     const matchesCategory = state.category === "Semua" || item.category === state.category;
-    const matchesSearch = `${item.name} ${item.category}`.toLowerCase().includes(keyword);
+    const matchesSearch = !keyword || `${item.name || ""} ${item.category || ""}`.toLowerCase().includes(keyword);
     return matchesCategory && matchesSearch;
   });
 
@@ -5391,8 +5401,14 @@ function openOrderModal() {
 }
 
 function closeOrderModal() {
-  els.orderModal.classList.remove("open");
-  els.orderModal.setAttribute("aria-hidden", "true");
+  // Play exit animation then hide. Falls back instantly if motion is reduced.
+  const prefersReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const delay = prefersReduced ? 0 : 200;
+  els.orderModal.classList.add("is-closing");
+  setTimeout(() => {
+    els.orderModal.classList.remove("open", "is-closing");
+    els.orderModal.setAttribute("aria-hidden", "true");
+  }, delay);
 }
 
 function ensurePhotoboothCode(item) {
@@ -5484,6 +5500,18 @@ function addToCart(id) {
 
   renderCart();
   renderMenuGrid();
+
+  // Animate the freshly-rendered card — "I received your order" pulse.
+  // Runs after renderMenuGrid so we get the current DOM element.
+  requestAnimationFrame(() => {
+    const card = els.menuGrid.querySelector(`.menu-card[data-id="${CSS.escape(id)}"]`);
+    if (card) {
+      card.classList.remove("card-adding");
+      void card.offsetWidth; // force reflow to restart animation on rapid taps
+      card.classList.add("card-adding");
+      card.addEventListener("animationend", () => card.classList.remove("card-adding"), { once: true });
+    }
+  });
 }
 
 async function startOrder(event) {
@@ -5588,16 +5616,33 @@ function changeQty(id, delta) {
     toast("Staff Drink hanya untuk 1 item.");
     return;
   }
-  item.qty += delta;
-  if (item.qty <= 0) state.cart = state.cart.filter((entry) => entry.id !== id);
+  const currentQty = Math.max(0, Math.round(Number(item.qty || 0)));
+  const nextQty = currentQty + Math.round(Number(delta || 0));
+  if (nextQty <= 0) {
+    state.cart = state.cart.filter((entry) => entry.id !== id);
+  } else {
+    item.qty = nextQty;
+  }
   syncPhotoboothCodeFromCart();
   renderCart();
   renderMenuGrid();
 }
 
+function syncQuickCashActiveState() {
+  if (!els.quickCashRow) return;
+  const paid = parseRupiah(els.paidAmount?.value || "");
+  const grandTotal = totals().grandTotal;
+  els.quickCashRow.querySelectorAll(".quick-cash-btn").forEach((btn) => {
+    const target = btn.dataset.quickCash;
+    const isActive = target === "exact" ? (paid > 0 && paid === grandTotal) : (paid > 0 && paid === Number(target));
+    btn.classList.toggle("active", isActive);
+  });
+}
+
 function updateChange() {
   const paid = parseRupiah(els.paidAmount.value);
   els.changeDue.textContent = money(Math.max(0, paid - totals().grandTotal));
+  syncQuickCashActiveState();
 }
 
 function setOrderChannel(channel = "Kasir") {
@@ -5682,10 +5727,11 @@ function currentTransaction(draft = false) {
   };
 }
 
-function requiredIngredientsForItems(items, serviceType = state.serviceType) {
+function requiredIngredientsForItems(items = [], serviceType = state.serviceType) {
   const recipes = getRecipes();
   const servType = serviceType || "dine_in";
-  return items.reduce((required, item) => {
+  return (Array.isArray(items) ? items : []).reduce((required, item) => {
+    if (!item) return required;
     (recipes[item.id] || []).forEach((recipe) => {
       const recipeType = recipe.type || "all";
       if (recipeType === "all" || recipeType === servType) {
@@ -6962,7 +7008,7 @@ function createBoothQueue(transaction) {
 function setOrderProcessing(active, label = "Memproses...") {
   state.orderProcessing = active;
   const submitButton = els.orderForm?.querySelector('button[type="submit"]');
-  [els.billOrderBtn, submitButton, els.clearCart, els.cancelOrderModal].forEach((button) => {
+  [els.checkoutBtn, els.billOrderBtn, submitButton, els.clearCart, els.cancelOrderModal].forEach((button) => {
     if (button) button.disabled = active;
   });
   if (submitButton) {
@@ -7092,6 +7138,7 @@ function renderHistory() {
     if (els.activeShiftLabel) els.activeShiftLabel.textContent = `${activeShift} aktif`;
     els.shiftTotal.textContent = "-";
     els.shiftCount.textContent = `${activeShift} · data belum dimuat`;
+    updateShiftChip(0);
     renderDailySummaryLoadError(today, state.analyticsLoadError);
     return;
   }
@@ -7101,7 +7148,14 @@ function renderHistory() {
   if (els.activeShiftLabel) els.activeShiftLabel.textContent = `${activeShift} aktif`;
   els.shiftTotal.textContent = money(activeShiftTransactions.reduce((sum, entry) => sum + entry.grandTotal, 0));
   els.shiftCount.textContent = `${activeShift} · ${activeShiftTransactions.length} transaksi`;
+  updateShiftChip(activeShiftTransactions.length);
   renderDailySummary(todayTransactions, today);
+}
+
+function updateShiftChip(count = 0) {
+  if (!els.shiftChipCount || !els.shiftChip) return;
+  els.shiftChipCount.textContent = count === 0 ? "0 order" : `${count} order`;
+  els.shiftChip.classList.toggle("has-orders", count > 0);
 }
 
 function orderCard(transaction, kind, displayCode = "") {
@@ -7690,7 +7744,7 @@ async function postCloudJson(url, payload) {
 }
 
 async function postSupabaseAction(action, payload = {}) {
-  const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+  const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1" || window.location.protocol === "file:" || !window.location.hostname;
   if (isLocal) {
     console.log("[DEV MOCK] postSupabaseAction:", action, payload);
     if (action === "login") {
@@ -8766,9 +8820,15 @@ function renderIngredientOutSummary(ingredientUsage = []) {
     .join("");
 }
 
+let chartHoverIndex = -1;
+let lastRevenueHistory = [];
+
 function renderRevenueChart(history) {
+  lastRevenueHistory = Array.isArray(history) ? history : [];
   const canvas = els.revenueChart;
   if (!canvas) return;
+  attachRevenueChartListeners();
+
   const ctx = canvas.getContext("2d");
   const dpr = window.devicePixelRatio || 1;
   const rect = canvas.getBoundingClientRect();
@@ -8780,18 +8840,18 @@ function renderRevenueChart(history) {
 
   const w = width / dpr;
   const h = height / dpr;
-  const pad = { top: 24, right: 28, bottom: 38, left: 72 };
+  const pad = { top: 32, right: 28, bottom: 42, left: 76 };
   const month = selectedMonth();
   const [year, monthIndex] = month.split("-").map(Number);
   const selectedYear = selectedAnalyticsYear();
   const daysInMonth = new Date(year, monthIndex, 0).getDate();
   const range = state.chartRange;
   const source = range === "daily"
-    ? history
+    ? lastRevenueHistory
     : revenueTransactions(analyticsSourceForPeriod(`year:${selectedYear}`)).filter((entry) => transactionReportYear(entry) === String(selectedYear));
   const points = range !== "daily"
-      ? Array.from({ length: 12 }, (_, index) => ({ label: new Date(selectedYear, index, 1).toLocaleDateString("id-ID", { month: "short" }), total: 0 }))
-      : Array.from({ length: daysInMonth }, (_, index) => ({ label: String(index + 1), total: 0 }));
+      ? Array.from({ length: 12 }, (_, index) => ({ label: new Date(selectedYear, index, 1).toLocaleDateString("id-ID", { month: "short" }), fullLabel: new Date(selectedYear, index, 1).toLocaleDateString("id-ID", { month: "long", year: "numeric" }), total: 0 }))
+      : Array.from({ length: daysInMonth }, (_, index) => ({ label: String(index + 1), fullLabel: `${index + 1} ${new Date(year, monthIndex - 1, index + 1).toLocaleDateString("id-ID", { month: "short", year: "numeric" })}`, total: 0 }));
 
   source.forEach((entry) => {
     if (range !== "daily") {
@@ -8808,10 +8868,10 @@ function renderRevenueChart(history) {
   ctx.fillRect(0, 0, w, h);
 
   if (!source.length) {
-    ctx.fillStyle = "#77736d";
-    ctx.font = "700 15px Geist, system-ui";
+    ctx.fillStyle = "#707692";
+    ctx.font = "600 14px 'DM Sans', ui-sans-serif, system-ui, sans-serif";
     ctx.textAlign = "center";
-    ctx.fillText("Belum ada omset untuk rentang ini.", w / 2, h / 2);
+    ctx.fillText("Belum ada data omset untuk rentang ini.", w / 2, h / 2);
     return;
   }
 
@@ -8821,10 +8881,11 @@ function renderRevenueChart(history) {
   const xFor = (index) => pad.left + (points.length === 1 ? 0 : (index / (points.length - 1)) * plotW);
   const yFor = (value) => pad.top + plotH - (value / maxValue) * plotH;
 
-  ctx.strokeStyle = "#e6e2dc";
+  // Grid Lines & Price Axis
+  ctx.strokeStyle = "#e6e1f1";
   ctx.lineWidth = 1;
-  ctx.fillStyle = "#77736d";
-  ctx.font = "700 11px Geist, system-ui";
+  ctx.fillStyle = "#707692";
+  ctx.font = "600 11px 'DM Mono', monospace";
   ctx.textAlign = "right";
   for (let i = 0; i <= 4; i += 1) {
     const value = (maxValue / 4) * i;
@@ -8836,16 +8897,20 @@ function renderRevenueChart(history) {
     ctx.fillText(money(Math.round(value)).replace(/^Rp\s*/, ""), pad.left - 10, y + 4);
   }
 
+  // X Axis Labels
+  ctx.fillStyle = "#707692";
+  ctx.font = "600 11.5px 'DM Sans', ui-sans-serif, system-ui, sans-serif";
   ctx.textAlign = "center";
   points.forEach((entry, index) => {
-    if (range !== "daily" || index === 0 || index === points.length - 1 || Number(entry.label) % 7 === 0) {
+    if (range !== "daily" || index === 0 || index === points.length - 1 || Number(entry.label) % 5 === 0) {
       ctx.fillText(entry.label, xFor(index), h - 14);
     }
   });
 
+  // Soft Blue Gradient Area
   const gradient = ctx.createLinearGradient(0, pad.top, 0, h - pad.bottom);
-  gradient.addColorStop(0, "rgba(47, 122, 70, 0.2)");
-  gradient.addColorStop(1, "rgba(47, 122, 70, 0)");
+  gradient.addColorStop(0, "rgba(0, 52, 155, 0.16)");
+  gradient.addColorStop(1, "rgba(0, 52, 155, 0.01)");
 
   ctx.beginPath();
   points.forEach((entry, index) => {
@@ -8865,6 +8930,7 @@ function renderRevenueChart(history) {
   ctx.fillStyle = gradient;
   ctx.fill();
 
+  // Smooth Blue Line
   ctx.beginPath();
   points.forEach((entry, index) => {
     const x = xFor(index);
@@ -8877,19 +8943,123 @@ function renderRevenueChart(history) {
       ctx.bezierCurveTo(midX, prevY, midX, y, x, y);
     }
   });
-  ctx.strokeStyle = "#2f7a46";
-  ctx.lineWidth = 3;
+  ctx.strokeStyle = "#00349b";
+  ctx.lineWidth = 2.5;
   ctx.stroke();
 
+  // Points on line
   points.forEach((entry, index) => {
     if (!entry.total) return;
+    const isHovered = chartHoverIndex === index;
     ctx.beginPath();
-    ctx.arc(xFor(index), yFor(entry.total), 4, 0, Math.PI * 2);
-    ctx.fillStyle = "#2f7a46";
+    ctx.arc(xFor(index), yFor(entry.total), isHovered ? 6 : 3.5, 0, Math.PI * 2);
+    ctx.fillStyle = "#00349b";
     ctx.fill();
     ctx.strokeStyle = "#faf8ff";
     ctx.lineWidth = 2;
     ctx.stroke();
+  });
+
+  // Interactive Hover / Touch Tooltip
+  if (chartHoverIndex >= 0 && chartHoverIndex < points.length) {
+    const activeEntry = points[chartHoverIndex];
+    const activeX = xFor(chartHoverIndex);
+    const activeY = yFor(activeEntry.total);
+
+    // Vertical dashed guideline
+    ctx.save();
+    ctx.beginPath();
+    ctx.setLineDash([3, 3]);
+    ctx.strokeStyle = "rgba(0, 52, 155, 0.35)";
+    ctx.lineWidth = 1.5;
+    ctx.moveTo(activeX, pad.top);
+    ctx.lineTo(activeX, h - pad.bottom);
+    ctx.stroke();
+    ctx.restore();
+
+    // Measure text for tooltip box
+    const textDate = activeEntry.fullLabel || activeEntry.label;
+    const textMoney = money(activeEntry.total);
+    ctx.font = "700 12px 'DM Mono', monospace";
+    const moneyWidth = ctx.measureText(textMoney).width;
+    ctx.font = "600 11px 'DM Sans', system-ui";
+    const dateWidth = ctx.measureText(textDate).width;
+    const tooltipW = Math.max(moneyWidth, dateWidth) + 24;
+    const tooltipH = 46;
+    let tipX = activeX - tooltipW / 2;
+    if (tipX < pad.left) tipX = pad.left;
+    if (tipX + tooltipW > w - pad.right) tipX = w - pad.right - tooltipW;
+    let tipY = activeY - tooltipH - 12;
+    if (tipY < pad.top) tipY = activeY + 14;
+
+    // Tooltip Container
+    ctx.fillStyle = "#101426";
+    ctx.beginPath();
+    if (typeof ctx.roundRect === "function") {
+      ctx.roundRect(tipX, tipY, tooltipW, tooltipH, 8);
+    } else {
+      ctx.rect(tipX, tipY, tooltipW, tooltipH);
+    }
+    ctx.fill();
+    ctx.strokeStyle = "rgba(255,255,255,0.14)";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // Tooltip Texts
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#a9b8e8";
+    ctx.font = "600 10.5px 'DM Sans', system-ui";
+    ctx.fillText(textDate, tipX + tooltipW / 2, tipY + 16);
+
+    ctx.fillStyle = "#faf8ff";
+    ctx.font = "700 13px 'DM Mono', monospace";
+    ctx.fillText(textMoney, tipX + tooltipW / 2, tipY + 34);
+  }
+}
+
+function attachRevenueChartListeners() {
+  if (!els.revenueChart || els.revenueChart.dataset.hasListeners) return;
+  els.revenueChart.dataset.hasListeners = "true";
+
+  const getPointsCount = () => {
+    const month = selectedMonth();
+    const [year, monthIndex] = month.split("-").map(Number);
+    return state.chartRange === "daily" ? new Date(year, monthIndex, 0).getDate() : 12;
+  };
+
+  const handlePointer = (event) => {
+    const canvas = els.revenueChart;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const clientX = event.clientX || event.touches?.[0]?.clientX || 0;
+    const x = clientX - rect.left;
+    const padLeft = 76;
+    const padRight = 28;
+    const plotW = rect.width - padLeft - padRight;
+    if (x < padLeft - 10 || x > rect.width - padRight + 10 || plotW <= 0) {
+      if (chartHoverIndex !== -1) {
+        chartHoverIndex = -1;
+        renderRevenueChart(lastRevenueHistory);
+      }
+      return;
+    }
+    const count = getPointsCount();
+    const ratio = Math.max(0, Math.min(1, (x - padLeft) / plotW));
+    const nextIndex = Math.round(ratio * (count - 1));
+    if (nextIndex !== chartHoverIndex) {
+      chartHoverIndex = nextIndex;
+      renderRevenueChart(lastRevenueHistory);
+    }
+  };
+
+  els.revenueChart.addEventListener("mousemove", handlePointer);
+  els.revenueChart.addEventListener("touchmove", handlePointer, { passive: true });
+  els.revenueChart.addEventListener("touchstart", handlePointer, { passive: true });
+  els.revenueChart.addEventListener("mouseleave", () => {
+    if (chartHoverIndex !== -1) {
+      chartHoverIndex = -1;
+      renderRevenueChart(lastRevenueHistory);
+    }
   });
 }
 
@@ -9802,6 +9972,20 @@ els.paymentMethods.addEventListener("click", (event) => {
   if (state.payment !== previousPayment) {
     els.paidAmount.value = state.payment === "Tunai" ? "" : totals().grandTotal;
   }
+  syncOrderTypeUi();
+  updateChange();
+});
+
+document.addEventListener("click", (event) => {
+  const button = event.target.closest("#quickCashRow .quick-cash-btn");
+  if (!button) return;
+  const target = button.dataset.quickCash;
+  const grandTotal = totals().grandTotal;
+  if (target === "exact") {
+    els.paidAmount.value = grandTotal;
+  } else {
+    els.paidAmount.value = Number(target);
+  }
   updateChange();
 });
 
@@ -9819,8 +10003,8 @@ els.orderTypeTabs?.addEventListener("click", (event) => {
   renderCart();
 });
 
-els.dineTakeTabs?.addEventListener("click", (event) => {
-  const button = event.target.closest("button[data-service-type]");
+document.addEventListener("click", (event) => {
+  const button = event.target.closest("#dineTakeTabs button[data-service-type]");
   if (!button) return;
   state.serviceType = button.dataset.serviceType || "dine_in";
   syncDineTakeUi();
@@ -10065,9 +10249,13 @@ window.addEventListener("storage", (event) => {
   }
 });
 
+let menuSearchDebounceTimer = null;
 els.menuSearch.addEventListener("input", (event) => {
   state.search = event.target.value;
-  renderMenuGrid();
+  clearTimeout(menuSearchDebounceTimer);
+  menuSearchDebounceTimer = setTimeout(() => {
+    renderMenuGrid();
+  }, 100);
 });
 
 els.resetFilter.addEventListener("click", () => {
@@ -10078,10 +10266,12 @@ els.resetFilter.addEventListener("click", () => {
 });
 
 els.clearCart.addEventListener("click", () => {
+  if (state.cart.length > 0 && !window.confirm("Batalkan dan kosongkan seluruh pesanan di keranjang?")) return;
   clearActiveOrder();
 });
 
 els.clearCartPanel?.addEventListener("click", () => {
+  if (state.cart.length > 0 && !window.confirm("Kosongkan keranjang belanja?")) return;
   clearActiveOrder();
 });
 
