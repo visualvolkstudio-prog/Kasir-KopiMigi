@@ -1040,6 +1040,35 @@ function defaultLoginShift() {
   return autoShiftName();
 }
 
+// Baca nilai shift aktif dari input readonly (dataset.shift) atau fallback ke autoShiftName
+function getLoginShiftValue() {
+  const el = els.loginShift;
+  if (!el) return autoShiftName();
+  // Input readonly menyimpan nilai canonical di dataset.shift
+  return normalizeShift(el.dataset?.shift || el.value || autoShiftName());
+}
+
+// Push absensi crew ke cloud — bisa dipakai cashier maupun owner
+async function pushCheckinToCloud(employee, shift, dutyRole, loginAt) {
+  if (!navigator.onLine || !isLoggedIn() || !employee || employee === "Owner") return;
+  const today = dateKey();
+  const employeeId = assignmentEmployeeId(employee);
+  try {
+    await postSupabaseAction("sync-checkin", {
+      assignment: {
+        date: today,
+        employee,
+        employeeId,
+        shift: normalizeShift(shift),
+        dutyRole: normalizeDutyRole(dutyRole),
+        loginAt: loginAt instanceof Date ? loginAt.toISOString() : (loginAt || new Date().toISOString()),
+      },
+    });
+  } catch {
+    // Gagal push ke cloud — data tetap aman di localStorage, tidak perlu toast
+  }
+}
+
 function registerShiftAssignment(employee, shift, dutyRole = "karyawan") {
   if (!employee || employee === "Owner") return;
   const today = dateKey();
@@ -1050,12 +1079,16 @@ function registerShiftAssignment(employee, shift, dutyRole = "karyawan") {
   const assignments = existingAssignments.filter(
     (entry) => !(entry.date === today && (entry.employeeId || assignmentEmployeeId(entry.employee)) === employeeId && normalizeShift(entry.shift) === nextShift),
   );
-  assignments.push({ date: today, employee, employeeId, shift: nextShift, dutyRole: nextDutyRole, loginAt: new Date().toISOString() });
+  const loginAt = new Date().toISOString();
+  assignments.push({ date: today, employee, employeeId, shift: nextShift, dutyRole: nextDutyRole, loginAt });
   saveShiftAssignments(assignments, { dirty: true });
   // Hapus reset-override jika crew absen ulang setelah di-reset
   const resets = readJson(storageKeys.attendanceResets, []);
   const clearedResets = resets.filter((r) => !(r.date === today && r.employeeId === employeeId));
   writeJson(storageKeys.attendanceResets, clearedResets);
+  // Push loginAt ke cloud — pakai endpoint khusus agar cashier tidak kena block isOwner()
+  pushCheckinToCloud(employee, nextShift, nextDutyRole, loginAt).catch(() => null);
+  // Tetap coba syncSettingsToCloud untuk owner (tidak efek ke cashier karena ada guard isOwner di dalam)
   syncSettingsToCloud({ force: true }).catch(() => null);
   if (document.querySelector("#staffTodayTable")) {
     renderStaffTodayAttendance();
@@ -1149,27 +1182,18 @@ function setLoginEmployeeStep(active) {
 
 function renderLoginShiftOptions(preferredShift) {
   if (!els.loginShift) return;
-  const currentHour = new Date().getHours();
   const autoShift = autoShiftName();
-  const isShift1Ended = currentHour >= 17;
-
-  let currentVal = preferredShift || els.loginShift.value || autoShift;
-  if (currentVal === "Shift 1" && isShift1Ended) {
-    currentVal = autoShift;
+  const shift = autoShift; // Selalu ikut jam, abaikan preferredShift
+  const label = shift === "Shift 1" ? "Shift 1 (10:00 – 17:00)" : "Shift 2 (17:00 – 23:00)";
+  els.loginShift.value = shift;
+  els.loginShift.dataset.shift = shift;
+  // Untuk tampilan di input readonly gunakan label lengkap
+  els.loginShift.setAttribute("data-display", label);
+  // Jika element adalah input, tampilkan label; jika select, .value sudah cukup
+  if (els.loginShift.tagName === "INPUT") {
+    els.loginShift.value = label;
+    els.loginShift.dataset.shift = shift;
   }
-
-  const opt1 = new Option(
-    isShift1Ended ? "Shift 1 (10:00 – 17:00) (Selesai)" : "Shift 1 (10:00 – 17:00)",
-    "Shift 1"
-  );
-  if (isShift1Ended) {
-    opt1.disabled = true;
-  }
-
-  const opt2 = new Option("Shift 2 (17:00 – 23:00)", "Shift 2");
-
-  els.loginShift.replaceChildren(opt1, opt2);
-  els.loginShift.value = currentVal;
 }
 
 function isOwner() {
@@ -1202,7 +1226,7 @@ function renderEmployeeControls() {
   }
   const roster = getEmployeeRoster();
   const availableRoster = roster.filter((name) => !isEmployeeOnLeave(name));
-  const selectedLoginShift = normalizeShift(els.loginShift?.value || defaultLoginShift());
+  const selectedLoginShift = getLoginShiftValue();
   const helperDay = isHelperDay();
   const selectedDutyRole = normalizeDutyRole(els.loginDutyRole?.value || "karyawan");
   const activeCandidate = activeEmployeeName() || availableRoster[0] || "";
@@ -1263,7 +1287,7 @@ function renderEmployeeControls() {
       .join("");
   }
   if (els.loginEmployee) {
-    const selectedLoginShift = normalizeShift(els.loginShift?.value || defaultLoginShift());
+    const selectedLoginShift = getLoginShiftValue();
     const options = roster.length
       ? roster.map((name) => {
           const usedShift = usedShiftForEmployee(name);
@@ -1478,7 +1502,7 @@ async function login(event) {
   event.preventDefault();
   if (state.pendingLogin?.role === "cashier") {
     const employee = els.loginEmployee?.value || getEmployeeRoster()[0] || "";
-    await finishLogin("cashier", employee, els.loginShift?.value || defaultLoginShift(), els.loginDutyRole?.value || "karyawan", state.pendingLogin.token || "");
+    await finishLogin("cashier", employee, getLoginShiftValue(), els.loginDutyRole?.value || "karyawan", state.pendingLogin.token || "");
     return;
   }
 
@@ -10853,7 +10877,7 @@ els.toggleWifiPassword?.addEventListener("click", () => {
   els.toggleWifiPassword.setAttribute("aria-label", isHidden ? "Sembunyikan password" : "Tampilkan password");
 });
 els.loginDutyRole?.addEventListener("change", renderEmployeeControls);
-els.loginShift?.addEventListener("change", renderEmployeeControls);
+// loginShift adalah readonly — tidak perlu event listener change
 els.roleAddForm?.addEventListener("submit", async (event) => {
   event.preventDefault();
   if (!isOwner()) {
