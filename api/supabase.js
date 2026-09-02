@@ -173,9 +173,9 @@ function archiveDateParam(value) {
   return date && !Number.isNaN(date.getTime()) ? date.toISOString() : "";
 }
 
-function transactionPath({ deleted = false, startDate = "", endDate = "", limit = transactionCacheLimit, offset = 0 }) {
+function transactionPath({ deleted = false, startDate = "", endDate = "", limit = transactionCacheLimit, offset = 0, withItems = false }) {
   const params = [
-    "select=*",
+    withItems ? "select=*,transaction_items(*)" : "select=*",
     deleted ? "deleted_at=not.is.null" : "deleted_at=is.null",
     "order=created_at.desc",
     `limit=${limit}`,
@@ -188,16 +188,16 @@ function transactionPath({ deleted = false, startDate = "", endDate = "", limit 
   return `transactions?${params.join("&")}`;
 }
 
-async function fetchTransactionRows({ deleted = false, startDate = "", endDate = "", limit = transactionCacheLimit, fullArchive = false } = {}) {
+async function fetchTransactionRows({ deleted = false, startDate = "", endDate = "", limit = transactionCacheLimit, fullArchive = false, withItems = false } = {}) {
   const hasPeriod = Boolean(archiveDateParam(startDate) || archiveDateParam(endDate));
   const safeLimit = clampNumber(limit, transactionCacheLimit, 1, archiveMaxRows);
   if (fullArchive || hasPeriod || safeLimit > supabasePageSize) {
     return supabaseFetchPaged(
-      ({ limit: pageLimit, offset }) => transactionPath({ deleted, startDate, endDate, limit: pageLimit, offset }),
+      ({ limit: pageLimit, offset }) => transactionPath({ deleted, startDate, endDate, limit: pageLimit, offset, withItems }),
       { maxRows: safeLimit },
     );
   }
-  return supabaseFetch(transactionPath({ deleted, startDate, endDate, limit: safeLimit }));
+  return supabaseFetch(transactionPath({ deleted, startDate, endDate, limit: safeLimit, withItems }));
 }
 
 async function fetchDeletedTransactionRows({ startDate = "", endDate = "", limit = transactionCacheLimit, fullArchive = false } = {}) {
@@ -205,32 +205,15 @@ async function fetchDeletedTransactionRows({ startDate = "", endDate = "", limit
   return rows.map(({ id, created_at, deleted_at }) => ({ id, created_at, deleted_at }));
 }
 
-async function fetchItemsByTransactionIds(ids = []) {
-  const safeIds = ids.slice(0, 300);
-  const chunks = [];
-  for (let index = 0; index < safeIds.length; index += 100) chunks.push(safeIds.slice(index, index + 100));
-  const pages = await Promise.all(
-    chunks.map((chunk) => supabaseFetchPaged(
-      ({ limit, offset }) => `transaction_items?select=*&transaction_id=in.(${chunk.map(encodeURIComponent).join(",")})&limit=${limit}${offset ? `&offset=${offset}` : ""}`,
-      { maxRows: archiveMaxRows },
-    )),
-  );
-  return pages.flat();
-}
-
-function groupTransactionItems(items = []) {
-  return items.reduce((map, item) => {
-    const list = map.get(item.transaction_id) || [];
-    list.push({
-      id: item.menu_id,
-      name: item.name,
-      category: item.category,
-      price: Number(item.price || 0),
-      qty: Number(item.qty || 0),
-    });
-    map.set(item.transaction_id, list);
-    return map;
-  }, new Map());
+function formatItems(items = []) {
+  if (!Array.isArray(items)) return [];
+  return items.map((item) => ({
+    id: item.menu_id,
+    name: item.name,
+    category: item.category,
+    price: Number(item.price || 0),
+    qty: Number(item.qty || 0),
+  }));
 }
 
 function toIso(value) {
@@ -570,18 +553,15 @@ async function getTransactions(body = {}) {
       ? archiveMaxRows
       : transactionCacheLimit);
   const [transactions, deletedTransactions] = await Promise.all([
-    fetchTransactionRows({ startDate, endDate, limit, fullArchive }),
+    fetchTransactionRows({ startDate, endDate, limit, fullArchive, withItems: true }),
     fetchDeletedTransactionRows({ startDate, endDate, limit, fullArchive }),
   ]);
-  const ids = transactions.map((row) => row.id).filter(Boolean);
-  const items = ids.length ? await fetchItemsByTransactionIds(ids) : [];
-  const itemsByTransaction = groupTransactionItems(items);
 
   return {
     status: 200,
     payload: {
       success: true,
-      transactions: transactions.map((row) => toLocalTransaction(row, itemsByTransaction.get(row.id) || [])),
+      transactions: transactions.map((row) => toLocalTransaction(row, formatItems(row.transaction_items))),
       deletedTransactions,
       source: "supabase",
       archive: fullArchive || Boolean(startDate || endDate),
@@ -608,7 +588,7 @@ async function deleteTransaction(body) {
 
 async function bootstrapData() {
   const [transactions, deletedTransactions, expenses, inventory, employees, settingsRows, deletedEmployeeRows] = await Promise.all([
-    fetchTransactionRows({ limit: transactionCacheLimit }),
+    fetchTransactionRows({ limit: transactionCacheLimit, withItems: true }),
     fetchDeletedTransactionRows({ limit: transactionCacheLimit }),
     supabaseFetch("cashflow_expenses?select=*&order=created_at.desc&limit=150"),
     supabaseFetch("inventory?select=*&order=name.asc"),
@@ -616,19 +596,16 @@ async function bootstrapData() {
     supabaseFetch("app_settings?select=*&key=eq.global&limit=1").catch(() => []),
     supabaseFetch("app_settings?select=*&key=eq.deleted_employees&limit=1").catch(() => []),
   ]);
-  const transactionIds = transactions.map((row) => row.id).filter(Boolean);
-  const items = transactionIds.length ? await fetchItemsByTransactionIds(transactionIds) : [];
   const settingsRow = Array.isArray(settingsRows) ? settingsRows[0] : null;
   const deletedEmployeeValue = Array.isArray(deletedEmployeeRows) ? deletedEmployeeRows[0]?.value : [];
   const deletedEmployeeKeys = new Set((Array.isArray(deletedEmployeeValue) ? deletedEmployeeValue : []).map((entry) => entry.key || employeeKey(entry.name)).filter(Boolean));
   const activeEmployees = employees.filter((row) => !deletedEmployeeKeys.has(employeeKey(row.name)));
-  const itemsByTransaction = groupTransactionItems(items);
 
   return {
     status: 200,
     payload: {
       success: true,
-      history: transactions.map((row) => toLocalTransaction(row, itemsByTransaction.get(row.id) || [])),
+      history: transactions.map((row) => toLocalTransaction(row, formatItems(row.transaction_items))),
       deletedTransactions,
       cashflowExpenses: expenses.map(toLocalExpense),
       inventory: toLocalInventory(inventory),
