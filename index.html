@@ -201,7 +201,7 @@
               </div>
               <label>
                 <span id="paidAmountLabel">Dibayar</span>
-                <input id="paidAmount" type="number" min="0" step="1" inputmode="numeric" placeholder="0" />
+                <input id="paidAmount" type="number" min="0" step="any" inputmode="numeric" placeholder="0" />
               </label>
               <div class="quick-cash-row" id="quickCashRow" role="group" aria-label="Tombol cepat uang tunai">
                 <button class="quick-cash-btn" type="button" data-quick-cash="exact">Uang Pas</button>
@@ -258,7 +258,7 @@
           </div>
           <label>
             Harga jual
-            <input id="customOrderPrice" type="text" inputmode="numeric" placeholder="Rp 0" required />
+            <input id="customOrderPrice" type="number" min="0" step="any" inputmode="numeric" placeholder="0" required />
           </label>
           <p class="staff-drink-info custom-order-info" id="customOrderInfo">Custom Order hanya mengambil bahan kategori Bean Kopi dan tetap mengurangi stock saat checkout.</p>
         </div>
@@ -348,7 +348,7 @@
           <p>Masukkan kas yang disiapkan untuk kembalian hari berikutnya.</p>
           <label>
             Kas untuk kembalian
-            <input id="dailyCashAmount" type="text" inputmode="numeric" placeholder="Rp 25.000" required />
+            <input id="dailyCashAmount" type="number" min="0" step="any" inputmode="numeric" placeholder="25000" required />
           </label>
           <small>Catatan ini tidak memengaruhi omzet atau arus kas.</small>
         </div>
@@ -670,7 +670,7 @@
                 </label>
                 <label>
                   Harga
-                  <input id="menuPrice" type="text" inputmode="numeric" placeholder="Rp 25.000" required />
+                  <input id="menuPrice" type="number" min="0" step="any" inputmode="numeric" placeholder="25000" required />
                 </label>
                 <label class="toggle-line">
                   <input id="menuPrintLabel" type="checkbox" checked />
@@ -749,7 +749,7 @@
                 </div>
                 <label>
                   Harga total acuan
-                  <input id="purchaseCost" type="text" inputmode="numeric" placeholder="Rp 100.000" required />
+                  <input id="purchaseCost" type="number" min="0" step="any" inputmode="numeric" placeholder="100000" required />
                 </label>
                   <input id="purchaseNote" type="hidden" />
                 <button class="primary-button full-button" type="submit">Simpan Harga Bahan</button>
@@ -859,7 +859,7 @@
                   </div>
                   <label>
                     Harga total
-                    <input id="cfExpenseAmount" type="text" inputmode="numeric" placeholder="Rp 50.000" required />
+                    <input id="cfExpenseAmount" type="number" min="0" step="any" inputmode="numeric" placeholder="50000" required />
                   </label>
                 </div>
                 <button class="primary-button full-button" type="submit">Catat Pengeluaran</button>
@@ -951,7 +951,7 @@
                 </label>
                 <label>
                   Nilai
-                  <input id="voucherValue" type="text" inputmode="numeric" placeholder="10 atau Rp 5.000" />
+                  <input id="voucherValue" type="number" min="0" step="any" inputmode="numeric" placeholder="10 atau 5000" />
                 </label>
               </div>
               <label>

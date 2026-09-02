@@ -144,7 +144,8 @@ const bleCharacteristicUuids = [
 const rupiah = new Intl.NumberFormat("id-ID", {
   style: "currency",
   currency: "IDR",
-  maximumFractionDigits: 0,
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 2,
 });
 
 const offlineDbName = "kasir-migi-offline";
@@ -530,7 +531,17 @@ function quantityLabel(value) {
 }
 
 function parseRupiah(value) {
-  return Number(String(value || "").replace(/[^\d]/g, "")) || 0;
+  if (typeof value === "number") return value;
+  let str = String(value || "").trim();
+  if (str.includes(",") || /[^\d.-]/.test(str)) {
+    str = str.replace(/[^\d,.-]/g, "");
+    if (str.includes(",")) {
+      str = str.replace(/\./g, "").replace(",", ".");
+    } else {
+      str = str.replace(/\./g, "");
+    }
+  }
+  return Number(str) || 0;
 }
 
 const jakartaOffsetHours = 7;
@@ -1758,7 +1769,7 @@ function openDailyCashModal(reportDateValue = selectedDailyDate()) {
       year: "numeric",
     });
   }
-  els.dailyCashAmount.value = saved?.amount ? money(saved.amount) : "";
+  els.dailyCashAmount.value = saved?.amount ? saved.amount : "";
   els.dailyCashModal.classList.add("open");
   els.dailyCashModal.setAttribute("aria-hidden", "false");
   requestAnimationFrame(() => els.dailyCashAmount.focus());
@@ -9972,10 +9983,7 @@ els.openCustomOrder?.addEventListener("click", openCustomOrderModal);
 els.cancelCustomOrder?.addEventListener("click", closeCustomOrderModal);
 els.customOrderCancelBtn?.addEventListener("click", closeCustomOrderModal);
 els.customOrderIngredient?.addEventListener("change", syncCustomOrderIngredientUnit);
-els.customOrderPrice?.addEventListener("blur", () => {
-  const value = parseRupiah(els.customOrderPrice.value);
-  els.customOrderPrice.value = value ? money(value) : "";
-});
+
 els.customOrderForm?.addEventListener("submit", addCustomOrderToCart);
 
 els.itemCustomForm?.addEventListener("submit", saveItemCustomization);
@@ -10255,10 +10263,7 @@ els.closeShiftBtn?.addEventListener("click", closeActiveShift);
 els.inputDailyCashBtn?.addEventListener("click", () => openDailyCashModal(selectedDailyDate()));
 els.cancelDailyCash?.addEventListener("click", closeDailyCashModal);
 els.dailyCashCancelBtn?.addEventListener("click", closeDailyCashModal);
-els.dailyCashAmount?.addEventListener("input", () => {
-  const amount = parseRupiah(els.dailyCashAmount.value);
-  els.dailyCashAmount.value = amount ? money(amount) : "";
-});
+
 els.dailyCashForm?.addEventListener("submit", async (event) => {
   event.preventDefault();
   if (!isOwner()) return toast("Kas Harian hanya dapat diinput Owner.");
@@ -10642,10 +10647,7 @@ els.cashflowExpenseForm?.addEventListener("change", (event) => {
   if (els.cfExpenseUnit) els.cfExpenseUnit.value = ingredient?.unit || "gram";
 });
 
-els.cfExpenseAmount?.addEventListener("blur", () => {
-  const value = parseRupiah(els.cfExpenseAmount.value);
-  els.cfExpenseAmount.value = value ? money(value) : "";
-});
+
 
 els.cfFilterTabs?.addEventListener("click", (event) => {
   const button = event.target.closest("button[data-cf-filter]");
@@ -10714,7 +10716,7 @@ els.stockTable?.addEventListener("click", (event) => {
     renderIngredientCategoryOptions(ingredientCategory(record));
     els.purchaseQty.value = 1;
     els.ingredientUnit.value = record.unit || "gram";
-    els.purchaseCost.value = record.buyPrice ? money(record.buyPrice) : "";
+    els.purchaseCost.value = record.buyPrice ? record.buyPrice : "";
     els.purchaseForm.dataset.editingStockId = id;
     els.purchaseForm.querySelector("button[type=submit]").textContent = `Update Bahan: ${record.name}`;
     els.purchaseForm.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -10769,14 +10771,7 @@ els.cancelMenuEdit.addEventListener("click", resetMenuForm);
 els.menuCategorySelect.addEventListener("change", syncMenuCategoryField);
 els.menuCategoryCustom.addEventListener("input", syncMenuCategoryField);
 els.menuImageFile?.addEventListener("change", readMenuImageFile);
-els.menuPrice.addEventListener("blur", () => {
-  const value = parseRupiah(els.menuPrice.value);
-  els.menuPrice.value = value ? money(value) : "";
-});
-els.purchaseCost?.addEventListener("blur", () => {
-  const value = parseRupiah(els.purchaseCost.value);
-  els.purchaseCost.value = value ? money(value) : "";
-});
+
 els.menuEditCategoryTabs?.addEventListener("click", (event) => {
   const button = event.target.closest("button[data-menu-edit-category]");
   if (!button) return;
@@ -10799,7 +10794,7 @@ els.menuTable.addEventListener("click", async (event) => {
       els.menuName.value = item.name;
       els.menuCategory.value = item.category;
       renderMenuCategoryOptions(item.category);
-      els.menuPrice.value = money(item.price);
+      els.menuPrice.value = item.price;
       setMenuImagePreview(item.image || "");
       if (els.menuPrintLabel) {
         els.menuPrintLabel.checked = item.printLabel !== false;
