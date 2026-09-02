@@ -10361,6 +10361,36 @@ els.clearCartPanel?.addEventListener("click", () => {
   clearActiveOrder();
 });
 
+// ── Live Rupiah Preview ────────────────────────────────────────────────────
+// Menampilkan format Rp di bawah kolom angka saat sedang diketik.
+function updateRupiahPreview(inputEl, previewId) {
+  const preview = document.getElementById(previewId);
+  if (!preview) return;
+  const val = Number(inputEl.value);
+  if (!inputEl.value || isNaN(val) || val === 0) {
+    preview.textContent = "";
+    return;
+  }
+  preview.textContent = money(val);
+}
+
+const rupiahPreviewPairs = [
+  ["paidAmount",         "paidAmountPreview"],
+  ["customOrderPrice",   "customOrderPricePreview"],
+  ["dailyCashAmount",    "dailyCashAmountPreview"],
+  ["menuPrice",          "menuPricePreview"],
+  ["purchaseCost",       "purchaseCostPreview"],
+  ["cfExpenseAmount",    "cfExpenseAmountPreview"],
+];
+
+rupiahPreviewPairs.forEach(([inputId, previewId]) => {
+  const inputEl = document.getElementById(inputId);
+  if (!inputEl) return;
+  inputEl.addEventListener("input", () => updateRupiahPreview(inputEl, previewId));
+  // Tampilkan preview saat form di-populate dari data tersimpan
+  if (inputEl.value) updateRupiahPreview(inputEl, previewId);
+});
+
 els.paidAmount.addEventListener("input", updateChange);
 els.checkoutBtn.addEventListener("click", checkout);
 els.boothPackage.addEventListener("change", () => {

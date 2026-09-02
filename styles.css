@@ -5171,3 +5171,117 @@ body.locked .login-screen { display: grid; }
   color: var(--ink-2);
   font-variant-numeric: tabular-nums;
 }
+
+/* ── Live Rupiah Preview ──────────────────────────────────────────────────── */
+.rupiah-preview {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  min-height: 16px;
+  line-height: 1.4;
+  letter-spacing: 0.01em;
+  transition: opacity 0.15s;
+}
+
+.rupiah-preview:empty {
+  display: none;
+}
+
+/* ── Mobile Improvements ─────────────────────────────────────────────────── */
+/* Sidebar/header mobile — lebih ringkas dan tidak terlalu tinggi */
+@media (max-width: 820px), (orientation: portrait) {
+  /* Sidebar header lebih compact */
+  .sidebar {
+    padding: 8px 10px;
+    gap: 8px;
+  }
+
+  /* Brand mark kecil di mobile */
+  .brand-mark {
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    flex: 0 0 30px;
+  }
+
+  /* Brand text lebih ringkas */
+  .brand-block .eyebrow { font-size: 8.5px; }
+  .brand-block h1 { font-size: 12.5px; }
+
+  /* Nav tabs — scroll horizontal, lebih compact */
+  .nav-tabs {
+    gap: 2px;
+    padding: 0;
+  }
+
+  .nav-tab {
+    height: 40px;
+    padding: 6px 10px;
+    gap: 5px;
+    font-size: 12px;
+    border-radius: 8px;
+  }
+
+  .tab-icon { width: 16px; height: 16px; }
+  .tab-icon .ph { font-size: 16px; }
+
+  /* Stack-form labels — lebih compact di mobile */
+  .stack-form { gap: 11px; }
+  .stack-form label { font-size: 13px; }
+
+  /* Input font-size minimal 16px agar tidak auto-zoom iOS */
+  .stack-form input,
+  .stack-form select,
+  #paidAmount,
+  #customOrderPrice,
+  #cfExpenseAmount {
+    font-size: 16px;
+  }
+
+  /* Page head — sedikit lebih ramping */
+  .page-head {
+    padding: 8px 12px;
+    gap: 6px;
+  }
+
+  /* Head meta — less padding */
+  .head-meta { gap: 5px; }
+
+  /* Workday meta — compact */
+  .workday-meta { padding: 5px 9px; font-size: 12px; }
+
+  /* Section heading — kurangi padding top */
+  .section-heading { margin-bottom: 6px; }
+
+  /* Stock alert — full width */
+  .stock-alert { font-size: 12.5px; }
+
+  /* Order status tabs — wrap jika tidak muat */
+  .order-status-tabs { flex-wrap: wrap; gap: 6px; }
+
+  /* History card — lebih kompak */
+  .history-card { padding: 11px 13px; }
+
+  /* Modal stack actions — column di mobile kecil */
+  .confirm-body { padding: 16px; }
+}
+
+/* Extra small — layar sangat sempit (< 400px) */
+@media (max-width: 400px) {
+  .brand-block h1 { display: none; }
+  .brand-block .eyebrow { display: none; }
+  .brand-mark { width: 28px; height: 28px; flex: 0 0 28px; }
+
+  .nav-tab {
+    padding: 6px 8px;
+    font-size: 11.5px;
+    gap: 4px;
+  }
+
+  .nav-label { font-size: 11px; }
+
+  /* Input tetap 16px agar tidak zoom di iPhone */
+  input, select, textarea { font-size: 16px !important; }
+}

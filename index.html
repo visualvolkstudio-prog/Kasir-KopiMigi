@@ -202,6 +202,7 @@
               <label>
                 <span id="paidAmountLabel">Dibayar</span>
                 <input id="paidAmount" type="number" min="0" step="any" inputmode="numeric" placeholder="0" />
+                <small class="rupiah-preview" id="paidAmountPreview" aria-live="polite"></small>
               </label>
               <div class="quick-cash-row" id="quickCashRow" role="group" aria-label="Tombol cepat uang tunai">
                 <button class="quick-cash-btn" type="button" data-quick-cash="exact">Uang Pas</button>
@@ -259,6 +260,7 @@
           <label>
             Harga jual
             <input id="customOrderPrice" type="number" min="0" step="any" inputmode="numeric" placeholder="0" required />
+            <small class="rupiah-preview" id="customOrderPricePreview" aria-live="polite"></small>
           </label>
           <p class="staff-drink-info custom-order-info" id="customOrderInfo">Custom Order hanya mengambil bahan kategori Bean Kopi dan tetap mengurangi stock saat checkout.</p>
         </div>
@@ -349,6 +351,7 @@
           <label>
             Kas untuk kembalian
             <input id="dailyCashAmount" type="number" min="0" step="any" inputmode="numeric" placeholder="25000" required />
+            <small class="rupiah-preview" id="dailyCashAmountPreview" aria-live="polite"></small>
           </label>
           <small>Catatan ini tidak memengaruhi omzet atau arus kas.</small>
         </div>
@@ -671,6 +674,7 @@
                 <label>
                   Harga
                   <input id="menuPrice" type="number" min="0" step="any" inputmode="numeric" placeholder="25000" required />
+                  <small class="rupiah-preview" id="menuPricePreview" aria-live="polite"></small>
                 </label>
                 <label class="toggle-line">
                   <input id="menuPrintLabel" type="checkbox" checked />
@@ -750,6 +754,7 @@
                 <label>
                   Harga total acuan
                   <input id="purchaseCost" type="number" min="0" step="any" inputmode="numeric" placeholder="100000" required />
+                  <small class="rupiah-preview" id="purchaseCostPreview" aria-live="polite"></small>
                 </label>
                   <input id="purchaseNote" type="hidden" />
                 <button class="primary-button full-button" type="submit">Simpan Harga Bahan</button>
@@ -860,6 +865,7 @@
                   <label>
                     Harga total
                     <input id="cfExpenseAmount" type="number" min="0" step="any" inputmode="numeric" placeholder="50000" required />
+                    <small class="rupiah-preview" id="cfExpenseAmountPreview" aria-live="polite"></small>
                   </label>
                 </div>
                 <button class="primary-button full-button" type="submit">Catat Pengeluaran</button>
