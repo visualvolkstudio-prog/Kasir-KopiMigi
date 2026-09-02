@@ -10951,28 +10951,52 @@ setInterval(() => {
 setInterval(() => {
   if (document.visibilityState === "visible") checkRemoteLogout().catch(() => null);
 }, 15000);
-setInterval(() => {
-  if (document.visibilityState === "visible") {
-    // Refresh ringan di background: hanya tarik 30 transaksi terbaru setiap 10 menit saat kasir sedang bekerja
-    syncPendingTransactions({ pull: false })
-      .then(() => pullTransactionsFromSupabase({ render: false, limit: 30 }))
-      .then(() => {
+// ─── Adaptive Realtime Polling ───────────────────────────────────────────────
+// Saat tab aktif & user tidak idle: pull transaksi terbaru tiap 8 detik
+// Saat tab tersembunyi / user idle > 5 menit: hemat ke 60 detik
+// Guard _realtimePulling mencegah request overlap jika koneksi lambat
+let _realtimePulling = false;
+let _lastInteractionAt = Date.now();
+
+["click", "keydown", "touchstart", "scroll"].forEach((ev) =>
+  document.addEventListener(ev, () => { _lastInteractionAt = Date.now(); }, { passive: true })
+);
+
+function scheduleRealtimePoll() {
+  const isVisible = document.visibilityState === "visible";
+  const isIdle = Date.now() - _lastInteractionAt > 5 * 60 * 1000; // idle > 5 menit
+  const interval = (!isVisible || isIdle) ? 60000 : 8000;         // 8s aktif, 60s idle/hidden
+
+  setTimeout(async () => {
+    if (document.visibilityState === "visible" && navigator.onLine && isLoggedIn() && !_realtimePulling) {
+      _realtimePulling = true;
+      try {
+        await syncPendingTransactions({ pull: false }).catch(() => null);
+        await pullTransactionsFromSupabase({ render: false, limit: 10 });
         renderHistory();
         renderOrders();
         renderCashflow();
         renderPendingSync();
-      })
-      .catch(() => null);
-    refreshActiveCashflowSales();
-  }
-}, 600000);
+        refreshActiveCashflowSales();
+      } catch {
+        // silent fail — tidak spam error
+      } finally {
+        _realtimePulling = false;
+      }
+    }
+    scheduleRealtimePoll(); // rekursif — interval otomatis menyesuaikan kondisi
+  }, interval);
+}
+
+scheduleRealtimePoll();
+// ─────────────────────────────────────────────────────────────────────────────
 setInterval(() => {
   if (document.visibilityState === "visible" && navigator.onLine && isLoggedIn()) {
-    // Sync stok bahan baku setiap 30 detik agar perubahan di kasir lain otomatis terupdate
+    // Sync stok bahan baku setiap 15 detik (dipercepat dari 30 detik)
     const isStockActive = document.querySelector("#view-stock")?.classList.contains("active");
     pullInventoryFromSupabase({ render: isStockActive }).catch(() => null);
   }
-}, 30000);
+}, 15000);
 setInterval(() => {
   if (document.visibilityState === "visible" && navigator.onLine && isLoggedIn()) {
     // Sync karyawan setiap 5 menit agar semua device selalu up-to-date
