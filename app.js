@@ -1810,7 +1810,7 @@ function applyAccessControls() {
   document.querySelector('[data-view="cashflow"]')?.classList.toggle("owner-only", !owner);
   document.querySelector("#view-cashflow")?.classList.toggle("owner-only", !owner);
   document.querySelector('[data-view="staff"]')?.classList.toggle("owner-only", !owner);
-  // document.querySelector("#view-stock .inventory-grid > .settings-panel")?.classList.toggle("owner-only", !owner);
+  document.querySelector("#view-stock .inventory-grid > .settings-panel")?.classList.toggle("owner-only", !owner);
   els.employeeAddForm?.classList.toggle("owner-only", !owner);
   els.employeeList?.classList.toggle("owner-only", !owner);
 
@@ -5000,8 +5000,12 @@ function renderInventory() {
             </div>
           </div>
           <div class="stock-row-actions">
-            <button class="secondary-button compact" data-edit-stock="${id}" type="button">Edit Harga</button>
-            <button class="secondary-button compact danger-text" data-delete-stock="${id}" type="button">Hapus</button>
+            ${
+              isOwner()
+                ? `<button class="secondary-button compact" data-edit-stock="${id}" type="button">Edit Harga</button>
+                   <button class="secondary-button compact danger-text" data-delete-stock="${id}" type="button">Hapus</button>`
+                : ""
+            }
           </div>
         </article>
       `;
@@ -9293,10 +9297,10 @@ async function saveMenu(event) {
 
 function savePurchase(event) {
   event.preventDefault();
-  // if (!isOwner()) {
-  //   toast("Set harga bahan baku hanya untuk Owner.");
-  //   return;
-  // }
+  if (!isOwner()) {
+    toast("Set harga bahan baku hanya untuk Owner.");
+    return;
+  }
   const itemName = els.purchaseMenuId.value.trim();
   syncIngredientCategoryField();
   const category = els.ingredientCategory?.value.trim() || "Lainnya";
@@ -10539,10 +10543,10 @@ els.stockEditSlider?.addEventListener("input", () => syncStockEditControls("slid
 els.stockEditInput?.addEventListener("input", () => syncStockEditControls("input"));
 els.stockEditForm?.addEventListener("submit", (event) => {
   event.preventDefault();
-  // if (!isOwner()) {
-  //   toast("Edit stock aktif hanya untuk Owner.");
-  //   return;
-  // }
+  if (!isOwner()) {
+    toast("Edit stock aktif hanya untuk Owner.");
+    return;
+  }
   const id = els.stockEditForm.dataset.stockId;
   const inventory = getInventory();
   const record = inventory[id];
@@ -10697,10 +10701,10 @@ els.stockTable?.addEventListener("click", (event) => {
   const deleteBtn = event.target.closest("button[data-delete-stock]");
 
   if (editBtn) {
-    // if (!isOwner()) {
-    //   toast("Edit bahan baku hanya untuk Owner.");
-    //   return;
-    // }
+    if (!isOwner()) {
+      toast("Edit bahan baku hanya untuk Owner.");
+      return;
+    }
     const id = editBtn.dataset.editStock;
     const inventory = getInventory();
     const record = inventory[id];
@@ -10719,10 +10723,10 @@ els.stockTable?.addEventListener("click", (event) => {
   }
 
   if (deleteBtn) {
-    // if (!isOwner()) {
-    //   toast("Hapus bahan baku hanya untuk Owner.");
-    //   return;
-    // }
+    if (!isOwner()) {
+      toast("Hapus bahan baku hanya untuk Owner.");
+      return;
+    }
     const id = deleteBtn.dataset.deleteStock;
     const inventory = getInventory();
     if (!inventory[id]) return;
