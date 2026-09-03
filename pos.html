@@ -1,0 +1,1727 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Kopi Migi POS</title>
+    <meta name="theme-color" content="#00349b" />
+    <meta name="application-name" content="Kopi Migi" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Kopi Migi" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <link rel="manifest" href="/manifest.json?v=22" />
+    <link rel="icon" href="/assets/favicon-migi.png?v=22" />
+    <link rel="apple-touch-icon" href="/assets/pwa-icon-512.png?v=22" />
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/regular/style.css" />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:ital,opsz,wght@0,9..40,300..900;1,9..40,300..900&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css?v=160" />
+  </head>
+  <body>
+    <section class="login-screen" id="loginScreen" aria-label="Login kasir">
+      <form class="login-card" id="loginForm">
+        <img src="assets/logo-miginew-transparent.png?v=20" alt="Logo Migi" width="48" height="48" />
+        <p class="eyebrow">Kopi Migi</p>
+        <h2>Masuk</h2>
+        <label class="login-credential-field">
+          Username
+          <input id="loginUsername" type="text" autocomplete="username" placeholder="Username" required />
+        </label>
+        <label class="login-credential-field">
+          Password
+          <div class="password-input-wrap">
+            <input id="loginPassword" type="password" autocomplete="current-password" placeholder="Password" required />
+            <button type="button" class="password-toggle" id="toggleLoginPassword" aria-label="Tampilkan password" tabindex="-1">
+              <i class="ph ph-eye" id="toggleLoginPasswordIcon"></i>
+            </button>
+          </div>
+        </label>
+        <div class="login-session-grid">
+          <label>
+            Shift
+            <input id="loginShift" type="text" readonly tabindex="-1" />
+          </label>
+          <label>
+            Petugas
+            <select id="loginEmployee"></select>
+          </label>
+          <label id="loginDutyRoleWrap">
+            Tugas
+            <select id="loginDutyRole">
+              <option value="karyawan">Crew</option>
+              <option value="helper">Helper</option>
+            </select>
+          </label>
+        </div>
+        <button class="primary-button full-button" id="loginSubmitBtn" type="submit">Masuk</button>
+        <p class="login-hint" id="loginHint">Shift mengikuti jam operasional.</p>
+      </form>
+    </section>
+
+    <!-- ─── Check-In Confirmation Screen ─────────────────────────────── -->
+    <div id="checkinScreen" class="checkin-overlay" hidden aria-modal="true" role="dialog" aria-label="Konfirmasi absensi">
+      <div class="checkin-card">
+        <div class="checkin-icon-wrap">
+          <i class="ph-fill ph-check-circle checkin-success-icon"></i>
+        </div>
+        <h2 class="checkin-name" id="checkinName">Selamat datang!</h2>
+        <p class="checkin-sub">Kamu tercatat hadir hari ini</p>
+        <div class="checkin-info-block">
+          <span class="checkin-shift-badge" id="checkinShiftBadge"></span>
+          <div class="checkin-time-row">
+            <span class="checkin-time-label">Jam Masuk</span>
+            <span class="checkin-time-val" id="checkinTime">–</span>
+          </div>
+        </div>
+        <button class="primary-button full-button" id="checkinDismissBtn" type="button">
+          Mulai Bertugas <i class="ph ph-arrow-right" aria-hidden="true"></i>
+        </button>
+        <p class="checkin-auto-hint">
+          Otomatis masuk dalam <strong id="checkinCountdown">5</strong> detik
+        </p>
+      </div>
+    </div>
+
+    <section class="order-modal" id="orderModal" aria-label="Order aktif" aria-hidden="true">
+      <form class="order-card" id="orderForm">
+        <div class="modal-head">
+          <div>
+            <h2>Order Aktif</h2>
+          </div>
+          <div class="modal-head-actions">
+            <button class="modal-printer-icon" id="receiptPrinterWarningBtn" type="button" title="Printer struk belum tersambung — klik untuk sambungkan" hidden>
+              <i class="ph ph-printer" aria-hidden="true"></i>
+            </button>
+            <button class="modal-printer-icon modal-printer-icon--label" id="labelPrinterWarningBtn" type="button" title="Printer label belum tersambung" hidden>
+              <i class="ph ph-tag" aria-hidden="true"></i>
+            </button>
+            <button class="icon-button modal-close" id="cancelOrderModal" type="button" title="Tutup order">
+              <i class="ph ph-x" aria-hidden="true"></i>
+            </button>
+          </div>
+        </div>
+        <div class="order-modal-grid">
+          <section class="order-summary-pane" aria-label="Ringkasan pesanan">
+            <div class="modal-section-title">
+              <h3>Keranjang</h3>
+            </div>
+            <div class="modal-order-list" id="modalOrderList"></div>
+            <div class="totals modal-totals">
+              <div><span>Subtotal</span><strong id="subtotal">Rp0</strong></div>
+              <div id="discountLine" hidden><span>Diskon</span><strong id="discountTotal">-Rp0</strong></div>
+              <div class="grand"><span>Total</span><strong id="grandTotal">Rp0</strong></div>
+            </div>
+          </section>
+
+          <section class="order-payment-pane" aria-label="Detail pembayaran">
+            <div class="order-type-box">
+              <p class="eyebrow">Tipe transaksi</p>
+              <div class="segmented order-type-tabs" id="orderTypeTabs" role="tablist" aria-label="Tipe transaksi">
+                <button class="active" data-order-type="normal" type="button">Normal</button>
+                <button data-order-type="staff_drink" type="button">Staff Drink</button>
+              </div>
+              <p class="staff-drink-info" id="staffDrinkInfo" hidden>Staff Drink hanya bisa digunakan 1 kali per hari per crew dan maksimal 1 item.</p>
+            </div>
+
+            <div class="order-field-grid">
+              <label>
+                Nama customer
+                <input id="orderCustomerName" type="text" placeholder="Teman Migi" readonly />
+              </label>
+              <label>
+                Nomor pesanan
+                <input id="orderTableNumber" type="text" placeholder="S-001" readonly />
+              </label>
+              <label>
+                Shift otomatis
+                <input id="orderShift" type="text" value="Shift 1" readonly />
+              </label>
+            </div>
+            <div class="order-source">
+              <p class="eyebrow">Sumber order</p>
+              <div class="channel-options" id="orderChannels" role="group" aria-label="Sumber order">
+                <button class="active" data-channel="Kasir" type="button">
+                  <i class="ph ph-cash-register" aria-hidden="true"></i>
+                  <span>Kasir</span>
+                </button>
+                <button data-channel="GoFood" type="button">
+                  <i class="ph ph-bowl-food" aria-hidden="true"></i>
+                  <span>GoFood</span>
+                </button>
+                <button data-channel="GrabFood" type="button">
+                  <i class="ph ph-car" aria-hidden="true"></i>
+                  <span>GrabFood</span>
+                </button>
+                <button data-channel="ShopeeFood" type="button">
+                  <i class="ph ph-shopping-bag" aria-hidden="true"></i>
+                  <span>ShopeeFood</span>
+                </button>
+              </div>
+            </div>
+            <div class="photobooth-inline">
+              <label>
+                Paket sesi
+                <select id="boothPackage">
+                  <option value="single">Single 1 foto</option>
+                  <option value="classic">Classic 2 foto</option>
+                  <option value="premium">Premium 4 foto</option>
+                </select>
+              </label>
+              <div class="booth-code-box">
+                <span>Kode akses terakhir</span>
+                <strong id="latestBoothCode">Belum ada</strong>
+              </div>
+            </div>
+            <div class="payment-box">
+              <div class="segmented payment-methods" id="paymentMethods" role="tablist" aria-label="Metode bayar">
+                <button class="active" data-payment="Tunai" type="button">
+                  <i class="ph ph-money" aria-hidden="true"></i>
+                  <span>Tunai</span>
+                </button>
+                <button data-payment="QRIS" type="button">
+                  <i class="ph ph-qr-code" aria-hidden="true"></i>
+                  <span>QRIS</span>
+                </button>
+              </div>
+              <div class="discount-box" id="discountBox">
+                <p class="eyebrow">Voucher Diskon</p>
+                <label>
+                  Pilih voucher
+                  <select id="discountVoucherSelect">
+                    <option value="">Tanpa voucher</option>
+                  </select>
+                </label>
+                <div class="voucher-apply-row">
+                  <button class="secondary-button compact" id="applyDiscountVoucher" type="button">Terapkan</button>
+                  <button class="secondary-button compact" id="clearDiscountVoucher" type="button">Hapus</button>
+                </div>
+                <p class="voucher-discount-info" id="voucherDiscountInfo">Voucher dibuat Owner di tab Analitik.</p>
+              </div>
+              <label>
+                <span id="paidAmountLabel">Dibayar</span>
+                <input id="paidAmount" type="number" min="0" step="any" inputmode="numeric" placeholder="0" />
+                <small class="rupiah-preview" id="paidAmountPreview" aria-live="polite"></small>
+              </label>
+              <div class="quick-cash-row" id="quickCashRow" role="group" aria-label="Tombol cepat uang tunai">
+                <button class="quick-cash-btn" type="button" data-quick-cash="exact">Uang Pas</button>
+                <button class="quick-cash-btn" type="button" data-quick-cash="20000">20.000</button>
+                <button class="quick-cash-btn" type="button" data-quick-cash="50000">50.000</button>
+                <button class="quick-cash-btn" type="button" data-quick-cash="100000">100.000</button>
+              </div>
+              <div class="change-line">
+                <span>Kembalian</span>
+                <strong id="changeDue">Rp0</strong>
+              </div>
+              <label class="toggle-line checkout-wifi-line" id="checkoutWifiLine">
+                <input id="checkoutWifiReceipt" type="checkbox" />
+                Cetak QR WiFi di struk
+              </label>
+            </div>
+          </section>
+        </div>
+        <div class="modal-actions">
+          <button class="secondary-button" id="clearCart" type="button">Batalkan</button>
+          <div class="modal-action-primary">
+            <button class="secondary-button" id="billOrderBtn" type="button">Bayar Nanti</button>
+            <button class="primary-button" type="submit">Bayar &amp; Cetak</button>
+          </div>
+        </div>
+      </form>
+    </section>
+
+    <section class="order-modal custom-order-modal" id="customOrderModal" aria-label="Tambah custom order" aria-hidden="true">
+      <form class="order-card custom-order-card" id="customOrderForm">
+        <div class="modal-head">
+          <div>
+            <p class="eyebrow">Jual Bean</p>
+            <h2>Bean Kopi</h2>
+          </div>
+          <button class="icon-button modal-close" id="cancelCustomOrder" type="button" title="Tutup custom order">
+            <i class="ph ph-x" aria-hidden="true"></i>
+          </button>
+        </div>
+        <div class="custom-order-body">
+          <div class="order-field-grid">
+            <label>
+              Bean kopi
+              <select id="customOrderIngredient" required></select>
+            </label>
+            <label>
+              Jumlah bahan
+              <input id="customOrderIngredientQty" type="number" min="0.01" step="0.01" placeholder="250" required />
+            </label>
+            <label>
+              Satuan
+              <input id="customOrderIngredientUnit" type="text" value="-" readonly />
+            </label>
+          </div>
+          <label>
+            Harga jual
+            <input id="customOrderPrice" type="number" min="0" step="any" inputmode="numeric" placeholder="0" required />
+            <small class="rupiah-preview" id="customOrderPricePreview" aria-live="polite"></small>
+          </label>
+          <p class="staff-drink-info custom-order-info" id="customOrderInfo">Custom Order hanya mengambil bahan kategori Bean Kopi dan tetap mengurangi stock saat checkout.</p>
+        </div>
+        <div class="modal-actions">
+          <button class="secondary-button" id="customOrderCancelBtn" type="button">Batal</button>
+          <button class="primary-button" type="submit">Tambah ke Keranjang</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="order-modal stock-edit-modal" id="stockEditModal" aria-label="Edit stock aktif" aria-hidden="true">
+      <form class="order-card stock-edit-card" id="stockEditForm">
+        <div class="modal-head">
+          <div>
+            <p class="eyebrow">Stock aktif</p>
+            <h2>Edit Stock Bahan</h2>
+          </div>
+          <button class="icon-button modal-close" id="cancelStockEdit" type="button" title="Tutup edit stock">
+            <i class="ph ph-x" aria-hidden="true"></i>
+          </button>
+        </div>
+        <div class="stock-edit-body">
+          <div class="stock-edit-meta">
+            <span>Nama bahan</span>
+            <strong id="stockEditName">-</strong>
+          </div>
+          <div class="stock-edit-meta">
+            <span>Satuan</span>
+            <strong id="stockEditUnit">-</strong>
+          </div>
+          <div class="stock-edit-meta stock-edit-current">
+            <span>Stock aktif saat ini</span>
+            <strong id="stockEditCurrent">0</strong>
+          </div>
+          <label class="stock-slider-field">
+            Atur stock aktif
+            <input id="stockEditSlider" type="range" min="0" max="1000" step="0.01" value="0" />
+          </label>
+          <label>
+            Input angka manual
+            <input id="stockEditInput" type="number" min="0" step="0.01" value="0" />
+          </label>
+          <div class="stock-edit-summary" id="stockEditSummary">Belum ada perubahan.</div>
+        </div>
+        <div class="modal-actions">
+          <button class="secondary-button" id="stockEditCancelBtn" type="button">Batal</button>
+          <button class="primary-button" type="submit">Konfirmasi Update Stock</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="order-modal employee-delete-modal" id="employeeDeleteModal" aria-label="Konfirmasi hapus crew" aria-hidden="true">
+      <form class="order-card confirm-card" id="employeeDeleteForm">
+        <div class="modal-head">
+          <div>
+            <p class="eyebrow">Crew</p>
+            <h2>Hapus Crew?</h2>
+          </div>
+          <button class="icon-button modal-close" id="cancelEmployeeDelete" type="button" title="Batal hapus">
+            <i class="ph ph-x" aria-hidden="true"></i>
+          </button>
+        </div>
+        <div class="confirm-body">
+          <p>Apakah kamu yakin ingin menghapus crew ini?</p>
+          <strong id="employeeDeleteName">-</strong>
+        </div>
+        <div class="modal-actions">
+          <button class="secondary-button" id="employeeDeleteCancelBtn" type="button">Batal</button>
+          <button class="primary-button danger-button" type="submit">Hapus</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="order-modal daily-cash-modal" id="dailyCashModal" aria-label="Catat kas harian" aria-hidden="true">
+      <form class="order-card confirm-card daily-cash-card" id="dailyCashForm">
+        <div class="modal-head">
+          <div>
+            <p class="eyebrow">Owner · Analitik</p>
+            <h2>Kas Harian</h2>
+          </div>
+          <button class="icon-button modal-close" id="cancelDailyCash" type="button" title="Tutup input Kas Harian">
+            <i class="ph ph-x" aria-hidden="true"></i>
+          </button>
+        </div>
+        <div class="confirm-body daily-cash-body">
+          <strong id="dailyCashDateLabel">-</strong>
+          <p>Masukkan kas yang disiapkan untuk kembalian hari berikutnya.</p>
+          <label>
+            Kas untuk kembalian
+            <input id="dailyCashAmount" type="number" min="0" step="any" inputmode="numeric" placeholder="25000" required />
+            <small class="rupiah-preview" id="dailyCashAmountPreview" aria-live="polite"></small>
+          </label>
+          <small>Catatan ini tidak memengaruhi omzet atau arus kas.</small>
+        </div>
+        <div class="modal-actions">
+          <button class="secondary-button" id="dailyCashCancelBtn" type="button">Batal</button>
+          <button class="primary-button" type="submit">Simpan Kas Harian</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="order-modal transaction-edit-modal" id="transactionEditModal" aria-label="Edit struk" aria-hidden="true">
+      <form class="order-card transaction-edit-card" id="transactionEditForm">
+        <div class="modal-head">
+          <div>
+            <p class="eyebrow">Owner</p>
+            <h2>Edit Struk</h2>
+          </div>
+          <button class="icon-button modal-close" id="transactionEditCloseBtn" type="button" title="Tutup edit struk">
+            <i class="ph ph-x" aria-hidden="true"></i>
+          </button>
+        </div>
+        <div class="transaction-edit-body">
+          <div class="transaction-edit-meta">
+            <div>
+              <span>Kode struk</span>
+              <strong id="transactionEditCode">-</strong>
+            </div>
+            <div>
+              <span>Total lama</span>
+              <strong id="transactionEditOldTotal">Rp0</strong>
+            </div>
+            <div>
+              <span>Total baru</span>
+              <strong id="transactionEditNewTotal">Rp0</strong>
+            </div>
+          </div>
+          <div class="transaction-edit-list" id="transactionEditItems"></div>
+          <div class="transaction-edit-add">
+            <label>
+              Tambah menu
+              <select id="transactionEditAddMenu"></select>
+            </label>
+            <button class="secondary-button" id="transactionEditAddBtn" type="button">Tambah</button>
+          </div>
+          <div class="order-field-grid">
+            <label>
+              Pembayaran
+              <select id="transactionEditPayment">
+                <option value="Tunai">Tunai</option>
+                <option value="QRIS">QRIS</option>
+                <option value="GoFood">GoFood</option>
+                <option value="GrabFood">GrabFood</option>
+                <option value="ShopeeFood">ShopeeFood</option>
+              </select>
+            </label>
+            <label>
+              Alasan koreksi
+              <input id="transactionEditReason" type="text" placeholder="contoh: salah input jumlah" required />
+            </label>
+          </div>
+          <p class="transaction-edit-warning">Perubahan ini akan mengubah laporan, summary, dan stok bahan baku.</p>
+        </div>
+        <div class="modal-actions">
+          <button class="secondary-button" id="transactionEditCancelBtn" type="button">Batal</button>
+          <button class="primary-button" type="submit">Simpan Koreksi</button>
+        </div>
+      </form>
+    </section>
+
+
+
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="Navigasi kasir">
+        <div class="brand-block">
+          <div class="brand-mark" aria-hidden="true">
+            <img src="assets/logo-miginew.png?v=20" alt="" width="34" height="34" />
+          </div>
+          <div>
+            <p class="eyebrow">Kopi Migi</p>
+            <h1>Kasir</h1>
+          </div>
+        </div>
+
+        <nav class="nav-tabs" aria-label="Tampilan">
+          <button class="nav-tab active" data-view="pos" type="button" title="Kasir — proses pesanan">
+            <span class="tab-icon" aria-hidden="true">
+              <i class="ph ph-cash-register"></i>
+            </span>
+            <span class="nav-label">Kasir</span>
+          </button>
+          <button class="nav-tab" data-view="orders" type="button" id="navTabOrders" title="Order — lihat daftar pesanan masuk">
+            <span class="tab-icon" aria-hidden="true">
+              <i class="ph ph-receipt"></i>
+            </span>
+            <span class="nav-label">Order</span>
+            <span class="nav-kitchen-badge" id="navKitchenBadge" hidden>0</span>
+          </button>
+          <button class="nav-tab" data-view="menu" type="button" title="Menu — kelola daftar produk">
+            <span class="tab-icon" aria-hidden="true">
+              <i class="ph ph-list-bullets"></i>
+            </span>
+            <span class="nav-label">Menu</span>
+          </button>
+          <button class="nav-tab" data-view="stock" type="button" title="Bahan Baku — stok dan inventaris">
+            <span class="tab-icon" aria-hidden="true">
+              <i class="ph ph-basket"></i>
+            </span>
+            <span class="nav-label">Bahan Baku</span>
+          </button>
+          <button class="nav-tab" data-view="cashflow" type="button" title="Arus Kas — pemasukan dan pengeluaran">
+            <span class="tab-icon" aria-hidden="true">
+              <i class="ph ph-currency-dollar"></i>
+            </span>
+            <span class="nav-label">Arus Kas</span>
+          </button>
+          <button class="nav-tab" data-view="analytics" type="button" title="Analitik — laporan penjualan">
+            <span class="tab-icon" aria-hidden="true">
+              <i class="ph ph-chart-bar"></i>
+            </span>
+            <span class="nav-label">Analitik</span>
+          </button>
+          <button class="nav-tab owner-only" data-view="staff" type="button" title="Crew — kelola karyawan dan jadwal">
+            <span class="tab-icon" aria-hidden="true">
+              <i class="ph ph-users-three"></i>
+            </span>
+            <span class="nav-label">Crew</span>
+          </button>
+          <button class="nav-tab" data-view="settings" type="button" title="Pengaturan — printer, profil toko, dan konfigurasi">
+            <span class="tab-icon" aria-hidden="true">
+              <i class="ph ph-gear-six"></i>
+            </span>
+            <span class="nav-label">Pengaturan</span>
+          </button>
+        </nav>
+
+        <div class="shift-card">
+          <p class="muted">Shift hari ini</p>
+          <span class="active-shift-pill" id="activeShiftLabel">Shift 1 aktif</span>
+          <strong id="shiftTotal">Rp0</strong>
+          <span id="shiftCount">0 transaksi</span>
+          <div class="shift-actions">
+            <button class="secondary-button compact" id="closeShiftBtn" type="button">Siapkan Laporan Shift</button>
+          </div>
+        </div>
+      </aside>
+
+      <main class="workspace">
+        <header class="page-head">
+          <div class="shift-chip" id="shiftChip" aria-live="polite">
+            <i class="ph ph-receipt" aria-hidden="true"></i>
+            <span id="shiftChipCount">0 order</span>
+          </div>
+          <div class="head-meta">
+            <div class="workday-meta">
+              <span id="todayLabel"></span>
+              <strong id="clockLabel">00:00</strong>
+            </div>
+            <div class="active-employee-card" id="activeEmployeeCard">
+              <strong id="activeEmployeeHeader">-</strong>
+            </div>
+            <button class="printer-toggle fullscreen-toggle" id="fullscreenToggle" type="button" title="Fullscreen" aria-label="Fullscreen">
+              <i class="ph ph-corners-out" aria-hidden="true"></i>
+            </button>
+            <div class="printer-menu-wrap">
+              <button class="printer-toggle disconnected" id="printerToggle" type="button" title="Printer termal" aria-expanded="false">
+                <i class="ph ph-printer" aria-hidden="true"></i>
+              </button>
+              <span class="printer-badge hidden" id="printerBadge" title="Label printer belum tersambung"></span>
+              <div class="printer-dropdown" id="printerDropdown">
+                <!-- Tab bar -->
+                <div class="printer-tab-bar" role="tablist" aria-label="Pilih printer">
+                  <button class="printer-tab active" id="printerTabKasir" data-printer-tab="kasir" role="tab" aria-selected="true" type="button"><i class="ph ph-receipt" aria-hidden="true"></i> Kasir</button>
+                  <button class="printer-tab" id="printerTabLabel" data-printer-tab="label" role="tab" aria-selected="false" type="button"><i class="ph ph-tag" aria-hidden="true"></i> Label Cup</button>
+                </div>
+
+                <!-- Panel: Printer Kasir -->
+                <div class="printer-panel" id="printerPanelKasir">
+                  <div class="printer-dropdown-head">
+                    <div>
+                      <p class="eyebrow">Printer Bluetooth</p>
+                      <strong>Struk Pelanggan</strong>
+                    </div>
+                    <span class="printer-status disconnected" id="printerStatus">Terputus</span>
+                  </div>
+                  <label>
+                    Ukuran kertas
+                    <select id="printerPaperSize">
+                      <option value="58mm">58mm</option>
+                      <option value="80mm">80mm</option>
+                    </select>
+                  </label>
+                  <button class="primary-button full-button" id="connectPrinter" type="button">Sambungkan Printer</button>
+                  <button class="secondary-button full-button" id="testLogoPrint" type="button">Test Logo</button>
+                  <p class="printer-hint" id="printerHint">Gunakan Chrome/Brave desktop jika tombol Bluetooth tidak muncul.</p>
+                </div>
+
+                <!-- Panel: Printer Label Cup -->
+                <div class="printer-panel" id="printerPanelLabel" hidden>
+                  <div class="printer-dropdown-head">
+                    <div>
+                      <p class="eyebrow">Printer Label</p>
+                      <strong>Label Cup / Kemasan</strong>
+                    </div>
+                    <span class="printer-status disconnected" id="labelPrinterStatus">Terputus</span>
+                  </div>
+                  <button class="primary-button full-button" id="connectLabelPrinter" type="button">Sambungkan Label Printer</button>
+                  <button class="secondary-button full-button" id="testLabelPrint" type="button">Test Label</button>
+                  <p class="printer-hint" id="labelPrinterHint">Gunakan tab <strong>Pengaturan</strong> (Owner) untuk mengubah ukuran stiker, metode feed, margin, dan tata letak tulisan.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        <section class="view-panel active" id="view-pos">
+          <div class="topbar">
+            <label class="search-field">
+              <i class="ph ph-magnifying-glass" aria-hidden="true"></i>
+              <input id="menuSearch" type="search" placeholder="Cari menu atau kategori" />
+            </label>
+            <div class="topbar-right">
+              <div class="segmented" role="tablist" aria-label="Kategori menu" id="categoryTabs"></div>
+              <button class="secondary-button compact" id="openCustomOrder" type="button" title="Jual bean kopi (biji kopi) langsung dari stok bahan baku dengan harga manual">Custom Order</button>
+              <button class="ghost-button" id="resetFilter" type="button" title="Reset filter" aria-label="Reset filter">
+                <i class="ph ph-funnel-simple" aria-hidden="true"></i>
+              </button>
+            </div>
+          </div>
+
+          <div class="pos-grid">
+            <section class="menu-section" aria-label="Daftar menu">
+              <div class="menu-grid" id="menuGrid"></div>
+              <input id="tableNumber" type="hidden" />
+            </section>
+            <aside class="checkout-panel" aria-label="Ringkasan order">
+              <div class="cart-header">
+                <div>
+                  <p class="eyebrow">Order aktif</p>
+                  <h3 id="cartTitle">Keranjang kosong</h3>
+                </div>
+                <button class="ghost-button" id="clearCartPanel" type="button" title="Batalkan order">
+                  <i class="ph ph-x" aria-hidden="true"></i>
+                </button>
+              </div>
+              <div class="cart-context" id="dineTakeBox">
+                <div class="segmented dine-take-tabs" id="dineTakeTabs" role="group" aria-label="Tipe penyajian">
+                  <button class="active" data-service-type="dine_in" type="button">
+                    <i class="ph ph-coffee" aria-hidden="true"></i> Dine In
+                  </button>
+                  <button data-service-type="take_away" type="button">
+                    <i class="ph ph-bag" aria-hidden="true"></i> Take Away
+                  </button>
+                </div>
+                <div class="customer-name-field">
+                  <i class="ph ph-user" aria-hidden="true"></i>
+                  <input id="customerName" type="text" placeholder="Nama customer (opsional)" autocomplete="off" maxlength="60" />
+                </div>
+              </div>
+              <div class="cart-list" id="cartList"></div>
+              <div class="totals">
+                <div><span>Subtotal</span><strong id="cartSubtotal">Rp0</strong></div>
+                <div class="grand"><span>Total</span><strong id="cartGrandTotal">Rp0</strong></div>
+              </div>
+              <button class="primary-button full-button" id="checkoutBtn" type="button" title="Proses pesanan (F2)">
+                <i class="ph ph-caret-right" aria-hidden="true"></i>
+                Proses Pesanan
+              </button>
+            </aside>
+          </div>
+        </section>
+
+        <section class="view-panel" id="view-orders">
+          <div class="section-heading order-heading">
+            <div>
+              <p class="eyebrow">Order masuk</p>
+              <h3>Daftar Pesanan</h3>
+            </div>
+            <div class="segmented order-status-tabs" id="orderStatusTabs" role="tablist" aria-label="Status order">
+              <button class="active" data-order-status="unpaid" type="button">Belum Dibayar <span id="unpaidOrderCount">0</span></button>
+              <button data-order-status="kitchen" type="button">Diproses <span id="kitchenOrderCount">0</span></button>
+              <button data-order-status="paid" type="button">Selesai <span id="paidOrderCount">0</span></button>
+            </div>
+            <input class="order-date-filter" id="paidOrderDate" type="date" hidden />
+            <div class="segmented order-category-tabs" id="paidOrderCategoryTabs" role="tablist" aria-label="Kategori order sudah dibayar" hidden></div>
+          </div>
+          <div class="history-list order-list" id="orderList"></div>
+          <section class="history-panel pending-sync-panel">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">Offline</p>
+                <h3>Transaksi Pending</h3>
+              </div>
+              <button class="secondary-button compact" id="manualSyncOrdersBtn" type="button">Sync Manual</button>
+            </div>
+            <div class="history-list" id="pendingSyncList"></div>
+          </section>
+        </section>
+
+        <section class="view-panel" id="view-menu">
+          <div class="management-grid">
+            <section class="settings-panel">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">Atur sendiri</p>
+                  <h3>Tambah / Edit Menu</h3>
+                </div>
+              </div>
+              <form id="menuForm" class="stack-form">
+                <input id="menuId" type="hidden" />
+                <label>
+                  Nama menu
+                  <input id="menuName" type="text" placeholder="Contoh: Iced Americano" required />
+                </label>
+                <label>
+                  Kategori
+                  <select id="menuCategorySelect" required></select>
+                  <input class="hidden-field" id="menuCategoryCustom" type="text" placeholder="Tulis kategori baru" />
+                  <input id="menuCategory" type="hidden" />
+                </label>
+                <label>
+                  Harga
+                  <input id="menuPrice" type="number" min="0" step="any" inputmode="numeric" placeholder="25000" required />
+                  <small class="rupiah-preview" id="menuPricePreview" aria-live="polite"></small>
+                </label>
+                <label class="toggle-line">
+                  <input id="menuPrintLabel" type="checkbox" checked />
+                  Cetak stiker label cup untuk produk ini
+                </label>
+                <label>
+                  Gambar menu
+                  <input id="menuImageFile" type="file" accept="image/*" />
+                  <input id="menuImage" type="hidden" />
+                </label>
+                <div class="image-preview" id="menuImagePreview">Belum ada gambar</div>
+                <div class="recipe-editor">
+                  <div class="recipe-editor-head">
+                    <span>Bahan yang dipakai</span>
+                    <button class="secondary-button compact" id="addRecipeIngredient" type="button">Tambah Bahan</button>
+                  </div>
+                  <div class="recipe-ingredient-rows" id="recipeIngredientRows"></div>
+                </div>
+                <div class="button-row">
+                  <button class="secondary-button" id="cancelMenuEdit" type="button">Batal</button>
+                  <button class="primary-button" id="menuSubmitBtn" type="submit">Simpan Menu</button>
+                </div>
+              </form>
+            </section>
+            <section class="menu-table-panel">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">Daftar aktif</p>
+                  <h3>Menu & Harga</h3>
+                </div>
+              </div>
+              <label class="search-field menu-edit-search-field">
+                <i class="ph ph-magnifying-glass" aria-hidden="true"></i>
+                <input id="menuEditSearch" type="search" placeholder="Cari menu aktif, kategori, atau harga" />
+              </label>
+              <div class="segmented menu-edit-category-tabs" id="menuEditCategoryTabs" role="tablist" aria-label="Kategori daftar menu"></div>
+              <div class="menu-table" id="menuTable"></div>
+            </section>
+          </div>
+
+        </section>
+
+        <section class="view-panel" id="view-stock">
+          <div class="inventory-grid">
+            <section class="settings-panel">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">Daftar Harga Bahan</p>
+                  <h3>Set Harga Bahan Baku</h3>
+                </div>
+              </div>
+              <form id="purchaseForm" class="stack-form">
+                <label>
+                  Nama bahan
+                  <input id="purchaseMenuId" type="text" placeholder="Kopi beans / Syrup / SKM" required />
+                </label>
+                <label>
+                  Kategori bahan
+                  <select id="ingredientCategorySelect" required></select>
+                  <input class="hidden-field" id="ingredientCategoryCustom" type="text" placeholder="Tulis kategori bahan baru" />
+                  <input id="ingredientCategory" type="hidden" />
+                </label>
+                <div class="order-field-grid">
+                  <label>
+                    Jumlah acuan harga
+                    <input id="purchaseQty" type="number" min="0.01" step="0.01" placeholder="1000" required />
+                  </label>
+                  <label>
+                    Satuan
+                    <select id="ingredientUnit" required>
+                      <option value="gram">gram</option>
+                      <option value="ml">ml</option>
+                      <option value="pcs">pcs</option>
+                    </select>
+                  </label>
+                </div>
+                <label>
+                  Harga total acuan
+                  <input id="purchaseCost" type="number" min="0" step="any" inputmode="numeric" placeholder="100000" required />
+                  <small class="rupiah-preview" id="purchaseCostPreview" aria-live="polite"></small>
+                </label>
+                  <input id="purchaseNote" type="hidden" />
+                <button class="primary-button full-button" type="submit">Simpan Harga Bahan</button>
+              </form>
+            </section>
+
+            <section class="menu-table-panel">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">Stok aktif</p>
+                  <h3>Grafik Stok Bahan</h3>
+                </div>
+                <button class="secondary-button compact owner-only" id="syncTodayStockBtn" type="button">Sinkron Stok Hari Ini</button>
+              </div>
+              <div class="segmented stock-category-tabs" id="stockCategoryTabs" role="tablist" aria-label="Kategori stok bahan"></div>
+              <div class="stock-alert" id="stockAlert" hidden></div>
+              <div class="stock-table compact-stock-list" id="stockAvailabilityList"></div>
+            </section>
+
+            <section class="menu-table-panel price-list-panel">
+              <button class="price-list-toggle" id="priceListToggle" type="button" aria-expanded="false" aria-controls="priceListContent">
+                <span>
+                  <small>Gudang</small>
+                  <strong>Daftar Harga Bahan Baku</strong>
+                </span>
+                <span class="accordion-chevron" aria-hidden="true"><i class="ph ph-caret-down"></i></span>
+              </button>
+              <div class="accordion-content" id="priceListContent">
+                <div class="stock-table" id="stockTable"></div>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <section class="view-panel" id="view-cashflow">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Keuangan</p>
+              <h3>Arus Kas</h3>
+            </div>
+            <div class="analytics-actions cashflow-controls">
+              <div class="segmented cashflow-period-tabs" id="cashflowPeriodTabs" role="tablist" aria-label="Periode arus kas">
+                <button class="active" data-cashflow-period="month" type="button">Bulanan</button>
+                <button data-cashflow-period="day" type="button">Harian</button>
+              </div>
+              <input id="cashflowMonth" type="month" aria-label="Bulan arus kas" />
+              <input id="cashflowDate" type="date" aria-label="Tanggal arus kas" hidden />
+            </div>
+          </div>
+
+          <!-- Summary cards -->
+          <div class="metric-grid">
+            <article class="metric-card cashflow-in">
+              <span>Kas Masuk</span>
+              <strong id="cfTotalIn">Rp0</strong>
+              <small id="cfInCount">0 transaksi</small>
+            </article>
+            <article class="metric-card cashflow-out">
+              <span>Kas Keluar</span>
+              <strong id="cfTotalOut">Rp0</strong>
+              <small id="cfOutCount">0 pembelian</small>
+            </article>
+            <article class="metric-card cashflow-net">
+              <span>Saldo Bersih</span>
+              <strong id="cfNet">Rp0</strong>
+              <small id="cfNetLabel">bulan ini</small>
+            </article>
+          </div>
+
+          <div class="analytics-grid cashflow-content-grid">
+            <!-- Form tambah pengeluaran manual -->
+            <section class="settings-panel">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">Catat Manual</p>
+                  <h3>Tambah Pengeluaran</h3>
+                </div>
+              </div>
+              <form id="cashflowExpenseForm" class="stack-form">
+                <label>
+                  Kategori
+                  <select id="cfExpenseCategory">
+                    <option value="Operasional">Operasional</option>
+                    <option value="Bahan Baku">Bahan Baku</option>
+                    <option value="Peralatan">Peralatan</option>
+                    <option value="Lain-lain">Lain-lain</option>
+                  </select>
+                </label>
+                <div class="cashflow-entry-grid">
+                  <label>
+                    Keterangan
+                    <input id="cfExpenseNote" type="text" placeholder="Beli gelas, bayar listrik, dll" required />
+                  </label>
+                  <div class="order-field-grid" id="cfIngredientQtyWrap" hidden>
+                    <label>
+                      Jumlah
+                      <input id="cfExpenseQty" type="number" min="0.01" step="0.01" placeholder="1000" />
+                    </label>
+                    <label>
+                      Satuan
+                      <select id="cfExpenseUnit">
+                        <option value="gram">gram</option>
+                        <option value="ml">ml</option>
+                        <option value="pcs">pcs</option>
+                      </select>
+                    </label>
+                  </div>
+                  <label>
+                    Harga total
+                    <input id="cfExpenseAmount" type="number" min="0" step="any" inputmode="numeric" placeholder="50000" required />
+                    <small class="rupiah-preview" id="cfExpenseAmountPreview" aria-live="polite"></small>
+                  </label>
+                </div>
+                <button class="primary-button full-button" type="submit">Catat Pengeluaran</button>
+              </form>
+            </section>
+
+            <!-- Riwayat arus kas -->
+            <section class="history-panel">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">Riwayat</p>
+                  <h3>Mutasi Kas per Hari</h3>
+                </div>
+              </div>
+              <div class="cashflow-history-controls">
+                <div class="cashflow-search-wrap">
+                  <i class="ph ph-magnifying-glass" aria-hidden="true"></i>
+                  <input type="search" id="cashflowSearch" placeholder="Cari mutasi..." autocomplete="off" />
+                </div>
+                <div class="segmented cashflow-filter-tabs" id="cfFilterTabs" role="tablist" aria-label="Filter mutasi arus kas">
+                  <button class="active" data-cf-filter="all" type="button">Semua</button>
+                  <button data-cf-filter="in" type="button">Masuk</button>
+                  <button data-cf-filter="Operasional" type="button">Operasional</button>
+                  <button data-cf-filter="Bahan Baku" type="button">Bahan Baku</button>
+                  <button data-cf-filter="Peralatan" type="button">Peralatan</button>
+                  <button data-cf-filter="Lain-lain" type="button">Lain-lain</button>
+                </div>
+              </div>
+              <div class="history-list" id="cashflowList"></div>
+            </section>
+          </div>
+        </section>
+
+        <section class="view-panel" id="view-analytics">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Ringkasan bisnis</p>
+              <h3>Analitik</h3>
+            </div>
+            <div class="analytics-actions">
+              <input id="analyticsMonth" type="month" />
+              <input id="analyticsDate" type="date" />
+              <input id="analyticsYear" type="number" min="2020" max="2100" step="1" aria-label="Tahun analitik" />
+              <div class="segmented chart-range-tabs" id="chartRangeTabs" role="tablist" aria-label="Rentang grafik">
+                <button class="active" data-chart-range="daily" type="button">Harian</button>
+                <button data-chart-range="monthly" type="button">Bulanan</button>
+                <button data-chart-range="yearly" type="button">Tahunan</button>
+              </div>
+            </div>
+          </div>
+          <div class="metric-grid">
+            <article class="metric-card"><span id="analyticsRevenueLabel">Omset bulan ini</span><strong id="monthRevenue">Rp0</strong></article>
+            <article class="metric-card"><span id="analyticsTunaiLabel">Tunai bulan ini</span><strong id="monthTunaiRevenue">Rp0</strong></article>
+            <article class="metric-card"><span id="analyticsQrisLabel">QRIS bulan ini</span><strong id="monthQrisRevenue">Rp0</strong></article>
+            <article class="metric-card"><span id="analyticsAverageLabel">Rata-rata / hari jualan</span><strong id="avgDailyRevenue">Rp0</strong></article>
+            <article class="metric-card"><span>Transaksi</span><strong id="monthTransactions">0</strong></article>
+            <article class="metric-card"><span>Item terjual</span><strong id="monthItems">0</strong></article>
+            <article class="metric-card owner-analytics-only"><span id="analyticsDiscountLabel">Diskon bulan ini</span><strong id="monthDiscountTotal">Rp0</strong></article>
+            <article class="metric-card owner-analytics-only"><span>Transaksi diskon</span><strong id="monthDiscountCount">0</strong></article>
+          </div>
+          <section class="history-panel chart-panel">
+            <div class="section-heading">
+              <div>
+                  <p class="eyebrow">Kurva penjualan</p>
+                  <h3>Grafik Omset</h3>
+              </div>
+            </div>
+            <canvas id="revenueChart" width="980" height="360"></canvas>
+          </section>
+          <section class="history-panel discount-analytics-panel owner-analytics-only">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">Owner</p>
+                <h3>Voucher Diskon</h3>
+              </div>
+            </div>
+            <form class="voucher-form" id="discountVoucherForm">
+              <label>
+                Kode voucher
+                <input id="voucherCode" type="text" placeholder="contoh: MIGI10" />
+              </label>
+              <div class="voucher-field-grid">
+                <label>
+                  Tipe
+                  <select id="voucherType">
+                    <option value="percent">Persen (%)</option>
+                    <option value="nominal">Nominal (Rp)</option>
+                  </select>
+                </label>
+                <label>
+                  Nilai
+                  <input id="voucherValue" type="number" min="0" step="any" inputmode="numeric" placeholder="10 atau 5000" />
+                </label>
+              </div>
+              <label>
+                Catatan
+                <input id="voucherNote" type="text" placeholder="Promo pelajar, loyalty, dll" />
+              </label>
+              <button class="primary-button" id="saveVoucherBtn" type="submit">Simpan Voucher</button>
+            </form>
+            <div class="discount-analytics-list" id="discountVoucherList"></div>
+          </section>
+          <section class="history-panel discount-analytics-panel owner-analytics-only">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">Owner</p>
+                <h3>Analitik Pemakaian Voucher</h3>
+              </div>
+            </div>
+            <div class="discount-analytics-list" id="discountAnalyticsList"></div>
+          </section>
+          <div class="analytics-grid daily-sales-grid">
+            <section class="history-panel">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">Hari ini</p>
+                  <h3>Summary Penjualan</h3>
+                </div>
+                <div class="report-actions">
+                  <button class="secondary-button compact owner-analytics-only" id="inputDailyCashBtn" type="button">
+                    <i class="ph ph-wallet" aria-hidden="true"></i>
+                    Input Kas Harian
+                  </button>
+                  <button class="secondary-button compact" id="copyDailyReport" type="button">
+                    <i class="ph ph-copy" aria-hidden="true"></i>
+                    Copy
+                  </button>
+                  <button class="secondary-button compact whatsapp-button" id="shareDailyReport" type="button">
+                    <i class="ph ph-whatsapp-logo" aria-hidden="true"></i>
+                    WhatsApp
+                  </button>
+                  <button class="secondary-button compact" id="downloadDailyPdf" type="button">
+                    <i class="ph ph-file-pdf" aria-hidden="true"></i>
+                    Unduh PDF
+                  </button>
+                  <span class="report-share-status" id="dailyReportShareStatus"></span>
+                </div>
+              </div>
+              <div class="daily-summary" id="dailySummary"></div>
+              <pre class="daily-report-text" id="dailyReportText"></pre>
+            </section>
+            <section class="history-panel owner-analytics-only">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">Owner</p>
+                  <h3>Bahan Baku Keluar</h3>
+                </div>
+              </div>
+              <div class="ingredient-out-list" id="ingredientOutList"></div>
+            </section>
+            <section class="history-panel">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">Menu</p>
+                  <h3>Best Seller</h3>
+                </div>
+              </div>
+              <div class="bestseller-list" id="bestsellerList"></div>
+            </section>
+          </div>
+          <section class="history-panel analytics-insight-panel">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">Catatan</p>
+                <h3>Ringkasan</h3>
+              </div>
+            </div>
+            <div class="insight-list" id="insightList"></div>
+          </section>
+        </section>
+
+        <!-- ============ TAB CREW ============ -->
+        <section class="view-panel" id="view-staff" style="padding-bottom: 100px;">
+          <div class="management-grid">
+
+            <!-- Kehadiran Hari Ini -->
+            <section class="settings-panel staff-full-col">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">Absensi</p>
+                  <h3>Kehadiran Hari Ini</h3>
+                </div>
+                <span class="staff-today-date" id="staffTodayDate"></span>
+              </div>
+              <div id="staffTodayTable"></div>
+            </section>
+
+            <!-- Rekap Kehadiran / Penggajian -->
+            <section class="settings-panel staff-full-col">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">Penggajian</p>
+                  <h3>Rekap Kehadiran</h3>
+                </div>
+              </div>
+              <div class="staff-range-controls">
+                <div class="staff-quick-presets">
+                  <button class="staff-preset-btn active" data-range-preset="month" type="button">Bulan Ini</button>
+                  <button class="staff-preset-btn" data-range-preset="7days" type="button">7 Hari Terakhir</button>
+                </div>
+                <div class="staff-date-inputs">
+                  <label>
+                    <span>Dari</span>
+                    <div class="input-with-icon">
+                      <i class="ph ph-calendar-blank"></i>
+                      <input type="date" id="staffDateFrom" />
+                    </div>
+                  </label>
+                  <label>
+                    <span>Sampai</span>
+                    <div class="input-with-icon">
+                      <i class="ph ph-calendar-blank"></i>
+                      <input type="date" id="staffDateTo" />
+                    </div>
+                  </label>
+                  <button class="primary-button compact-btn" id="staffRangeBtn" type="button">
+                    <i class="ph ph-funnel"></i>
+                    Tampilkan
+                  </button>
+                </div>
+              </div>
+              <div id="staffSummaryTable"></div>
+            </section>
+
+            <!-- Manajemen Petugas -->
+            <section class="settings-panel">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">Akun kasir</p>
+                  <h3>Pengaturan Petugas</h3>
+                </div>
+              </div>
+              <form class="employee-add-form" id="employeeAddForm">
+                <label>
+                  Tambah petugas
+                  <input id="employeeNewName" type="text" placeholder="Nama crew/helper" />
+                </label>
+                <button class="secondary-button" type="submit">Tambah</button>
+              </form>
+              <div class="employee-list" id="employeeList"></div>
+            </section>
+
+            <!-- Pengaturan Role -->
+            <section class="settings-panel">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">Akses kasir</p>
+                  <h3>Pengaturan Role</h3>
+                </div>
+              </div>
+              <form class="employee-add-form" id="roleAddForm">
+                <label>
+                  Tambah role
+                  <input id="roleNewName" type="text" placeholder="Nama role (misal: Barista, Kasir)" required />
+                </label>
+                <button class="secondary-button" type="submit">Tambah</button>
+              </form>
+              <div class="employee-list" id="roleList"></div>
+            </section>
+
+          </div>
+        </section>
+        <!-- ============ AKHIR TAB CREW ============ -->
+
+        <section class="view-panel" id="view-settings" style="padding-bottom: 100px;">
+          <div class="management-grid">
+            <!-- Sesi Aktif: accessible untuk owner & cashier -->
+            <section class="settings-panel">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">Akun kasir</p>
+                  <h3>Sesi Aktif</h3>
+                </div>
+              </div>
+              <div class="employee-active-box">
+                <div>
+                  <span>Petugas aktif</span>
+                  <strong id="employeeName">-</strong>
+                </div>
+                <span class="employee-status-badge" id="employeeStatusBadge">Aktif</span>
+              </div>
+              <p class="employee-active-note" id="employeeActiveNote">Transaksi berikutnya akan memakai nama petugas aktif ini.</p>
+              <button class="secondary-button" id="logoutBtn" type="button">
+                <i class="ph ph-sign-out" aria-hidden="true"></i>
+                Logout
+              </button>
+            </section>
+            <section class="settings-panel">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">Perangkat terpisah</p>
+                  <h3>Akses Photobooth</h3>
+                </div>
+              </div>
+              <a class="secondary-button full-button text-link-button" href="/photobooth/" target="_blank" rel="noopener">Buka Halaman Booth</a>
+            </section>
+            <!-- Monitor Perangkat / Device Monitor (Owner only) -->
+            <section class="settings-panel owner-analytics-only staff-full-col">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">Keamanan Akses</p>
+                  <h3>Perangkat Terhubung &amp; Login</h3>
+                </div>
+                <button class="secondary-button compact" id="refreshDevicesBtn" type="button">
+                  <i class="ph ph-arrows-clockwise"></i> Refresh
+                </button>
+              </div>
+              <p class="settings-note" style="margin-bottom: 12px;">Owner dapat memantau perangkat yang sedang aktif/login dan mengeluarkan paksa (force logout) perangkat tertentu.</p>
+              <div id="activeDevicesContainer">
+                <div class="empty-state">Memuat perangkat terhubung...</div>
+              </div>
+            </section>
+            <section class="settings-panel owner-analytics-only">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">Struk pelanggan</p>
+                  <h3>QR WiFi Tamu</h3>
+                </div>
+              </div>
+              <form class="wifi-settings-form" id="wifiSettingsForm">
+                <label class="toggle-line">
+                  <input id="wifiReceiptEnabled" type="checkbox" />
+                  Cetak QR WiFi pada struk lunas
+                </label>
+                
+                <!-- Info Tampilan Saat WiFi Aktif (Menyembunyikan Form Edit) -->
+                <div id="wifiDisplayInfo" class="menu-row hidden-field" style="margin-top: 10px;">
+                  <div class="menu-row-main">
+                    <span class="menu-thumb" style="background: rgba(0, 52, 155, 0.06); border-radius: 8px; display: flex; justify-content: center; align-items: center; width: 42px; height: 42px;">
+                      <i class="ph ph-wifi-high" style="font-size: 18px; color: var(--accent);"></i>
+                    </span>
+                    <div>
+                      <strong id="wifiDisplaySsid" style="font-size: 13px; color: var(--ink);">Kopi Migi Guest</strong>
+                      <span id="wifiDisplayPassword" style="font-size: 11px; color: var(--muted); display: block; margin-top: 2px;">Password: ••••••••</span>
+                    </div>
+                  </div>
+                  <div class="history-actions">
+                    <button type="button" class="secondary-button compact" id="btnEditWifi">Edit</button>
+                  </div>
+                </div>
+
+                <!-- Form Edit/Input WiFi -->
+                <div id="wifiFieldsContainer" class="wifi-fields-container hidden-field" style="margin-top: 10px; display: flex; flex-direction: column; gap: 10px;">
+                  <label>
+                    Nama WiFi
+                    <input id="wifiName" type="text" autocomplete="off" placeholder="Kopi Migi Guest" />
+                  </label>
+                  <label>
+                    Password WiFi
+                    <div class="password-input-wrap">
+                      <input id="wifiPassword" type="password" autocomplete="new-password" placeholder="Masukkan password WiFi tamu" />
+                      <button type="button" class="password-toggle" id="toggleWifiPassword" aria-label="Tampilkan password" tabindex="-1">
+                        <i class="ph ph-eye" id="toggleWifiPasswordIcon"></i>
+                      </button>
+                    </div>
+                  </label>
+                  <p class="settings-note" style="margin: 0; font-size: 11px; color: var(--muted);">Gunakan jaringan WiFi tamu. QR dicetak sebelum ucapan terima kasih.</p>
+                  <button class="primary-button" type="submit">Simpan Pengaturan WiFi</button>
+                </div>
+              </form>
+            </section>
+            <section class="settings-panel owner-analytics-only">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">Printer Label</p>
+                  <h3>Tata Letak Stiker Cup</h3>
+                </div>
+              </div>
+              
+              <div style="padding: 12px 0;">
+                <p style="font-size: 13px; color: var(--muted); margin-bottom: 12px;">
+                  Sesuaikan tata letak teks, ukuran font, lebar area, dan posisi stiker secara bebas dengan pratinjau interaktif.
+                </p>
+                <button class="secondary-button" id="openLabelSettingsBtn" type="button" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 16px;">
+                  <i class="ph ph-sliders" style="font-size: 16px;"></i>
+                  Edit Tata Letak Stiker
+                </button>
+                <!-- Read-only Preview Canvas -->
+                <div style="background: rgba(0,0,0,0.02); border: 1px solid var(--border); padding: 16px; border-radius: 8px; display: flex; flex-direction: column; align-items: center; overflow: hidden; position: relative;">
+                  <div style="width: 100%; display: flex; justify-content: center; align-items: center; overflow: visible; height: 160px; margin: 8px 0;">
+                    <div id="labelReadOnlyPreviewPaper" style="background: #e2e8f0; width: 384px; height: 160px; position: relative; border: 1px dashed #cbd5e1; border-radius: 6px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05); overflow: hidden; transform-origin: center center;">
+                      <div id="labelReadOnlyPreviewSticker" style="background: #ffffff; width: 320px; height: 160px; position: absolute; left: 8px; top: 0; border-radius: 4px; box-shadow: 0 4px 10px rgba(0,0,0,0.08); box-sizing: border-box; color: #000000; font-family: var(--font-body); line-height: 1.25; overflow: hidden; user-select: none;">
+                        <div id="labelReadOnlyPreviewLogo" style="position: absolute; left: 12px; top: 12px; width: 32px; height: 32px; border-radius: 3px; overflow: hidden; box-sizing: border-box; display: none;"><img src="assets/logo-migi-print.png" alt="Logo Migi" style="width: 100%; height: 100%; object-fit: contain; filter: grayscale(1) contrast(1.8);"></div>
+                        <div id="labelReadOnlyPreviewCustomImage" style="position: absolute; left: 260px; top: 12px; width: 48px; height: 48px; border-radius: 3px; overflow: hidden; box-sizing: border-box; display: none;"><img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'/%3E" alt="Gambar dekorasi label" style="width: 100%; height: 100%; object-fit: contain; filter: grayscale(1) contrast(1.8);"></div>
+                        
+                        <div id="labelReadOnlyPreviewDrinkName" style="position: absolute; left: 12px; top: 12px; padding: 2px 4px; border-radius: 3px; overflow: hidden; max-height: 48px; word-break: break-word; box-sizing: border-box;">
+                          Kopi Susu Migi
+                        </div>
+                        
+                        <div id="labelReadOnlyPreviewNotes" style="position: absolute; left: 12px; top: 48px; padding: 2px 4px; border-radius: 3px; overflow: hidden; max-height: 48px; word-break: break-word; box-sizing: border-box;">
+                          Ice * Less Sugar
+                        </div>
+                        
+                        <div id="labelReadOnlyPreviewOrderCode" style="position: absolute; left: 12px; top: 84px; padding: 2px 4px; border-radius: 3px; overflow: hidden; max-height: 48px; word-break: break-word; box-sizing: border-box;">
+                          #SB-001
+                        </div>
+                        
+                        <div id="labelReadOnlyPreviewCustomer" style="position: absolute; left: 12px; top: 110px; padding: 2px 4px; border-radius: 3px; overflow: hidden; max-height: 48px; word-break: break-word; box-sizing: border-box;">
+                          Teman Migi
+                        </div>
+                        <div id="labelReadOnlyPreviewServiceType" style="position: absolute; left: 214px; top: 88px; width: 64px; padding: 2px 4px; border-radius: 3px; overflow: hidden; max-height: 24px; word-break: break-word; box-sizing: border-box;">DI</div>
+
+                        <div id="labelReadOnlyPreviewCounter" style="position: absolute; left: 240px; top: 84px; padding: 2px 4px; border-radius: 3px; overflow: hidden; max-height: 48px; word-break: break-word; box-sizing: border-box;">
+                          [1/1]
+                        </div>
+                        
+                        <div id="labelReadOnlyPreviewCustomText" style="position: absolute; left: 150px; top: 12px; padding: 2px 4px; border-radius: 3px; overflow: hidden; max-height: 48px; word-break: break-word; box-sizing: border-box;">
+                          TEKS KUSTOM
+                        </div>
+                        
+                        <div id="labelReadOnlyPreviewBarcode" style="position: absolute; left: 60px; top: 130px; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; justify-content: center; overflow: hidden; background: white;">
+                          <div class="mock-barcode-lines" style="width: 100%; height: calc(100% - 10px); display: flex; align-items: stretch; gap: 1px; padding: 2px; box-sizing: border-box;">
+                            <div style="flex: 1; background: #000; height: 100%;"></div>
+                            <div style="flex: 2; background: #000; height: 100%;"></div>
+                            <div style="flex: 1; background: #000; height: 100%;"></div>
+                            <div style="flex: 3; background: #000; height: 100%;"></div>
+                            <div style="flex: 1; background: #000; height: 100%;"></div>
+                            <div style="flex: 2; background: #000; height: 100%;"></div>
+                            <div style="flex: 1; background: #000; height: 100%;"></div>
+                            <div style="flex: 1; background: #000; height: 100%;"></div>
+                            <div style="flex: 3; background: #000; height: 100%;"></div>
+                            <div style="flex: 2; background: #000; height: 100%;"></div>
+                            <div style="flex: 1; background: #000; height: 100%;"></div>
+                            <div style="flex: 2; background: #000; height: 100%;"></div>
+                            <div style="flex: 1; background: #000; height: 100%;"></div>
+                            <div style="flex: 3; background: #000; height: 100%;"></div>
+                          </div>
+                          <span style="font-size: 9.5px; font-family: monospace; line-height: 8px; margin: 0; color: #000; user-select: none;">12345678</span>
+                        </div>
+                        
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+            <section class="settings-panel">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">Sinkronisasi</p>
+                  <h3>Status Data</h3>
+                </div>
+              </div>
+              <div class="sync-status-card" id="syncStatusCard">
+                <span id="connectionStatus">Online</span>
+                <strong id="pendingSyncCount">0 pending</strong>
+                <button class="secondary-button compact" id="manualSyncBtn" type="button">Sync</button>
+              </div>
+              <div class="app-version-row">
+                <span>Versi aplikasi</span>
+                <strong>39</strong>
+              </div>
+            </section>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <section class="order-modal" id="itemCustomModal" aria-label="Kustomisasi Item" aria-hidden="true">
+      <form class="order-card compact-card" id="itemCustomForm">
+        <div class="modal-head">
+          <div>
+            <p class="eyebrow">Kustomisasi</p>
+            <h2 id="customItemName">Nama Minuman</h2>
+          </div>
+          <button class="icon-button modal-close" id="closeItemCustom" type="button">
+            <i class="ph ph-x"></i>
+          </button>
+        </div>
+        
+        <div class="custom-options-grid">
+          <!-- Porsi Target (muncul jika Qty > 1) -->
+          <div class="custom-group" id="customApplyGroup" hidden>
+            <p class="custom-label">Kustomisasi Untuk</p>
+            <div class="segmented" role="radiogroup" id="customApplyTarget">
+              <button type="button" class="active" data-value="ALL" id="customApplyAllBtn">Semua Porsi</button>
+              <button type="button" data-value="ONE">Pisahkan 1 Porsi Ini</button>
+            </div>
+          </div>
+
+          <!-- Pilihan Suhu -->
+          <div class="custom-group">
+            <p class="custom-label">Suhu</p>
+            <div class="segmented" role="radiogroup" id="customTemp">
+              <button type="button" class="active" data-value="ICE">Dingin (Ice)</button>
+              <button type="button" data-value="HOT">Panas (Hot)</button>
+            </div>
+          </div>
+
+          <!-- Level Es (hanya untuk minuman dingin) -->
+          <div class="custom-group" id="customIceGroup">
+            <p class="custom-label">Level Es</p>
+            <div class="segmented" role="radiogroup" id="customIce">
+              <button type="button" class="active" data-value="NORMAL ICE">Normal</button>
+              <button type="button" data-value="LESS ICE">Less Ice</button>
+              <button type="button" data-value="NO ICE">No Ice</button>
+              <button type="button" data-value="EXTRA ICE">Extra Ice</button>
+            </div>
+          </div>
+          
+          <!-- Pilihan Gula -->
+          <div class="custom-group">
+            <p class="custom-label">Level Gula</p>
+            <div class="segmented" role="radiogroup" id="customSugar">
+              <button type="button" class="active" data-value="NORMAL">Normal</button>
+              <button type="button" data-value="LESS SUGAR">Less Sugar</button>
+              <button type="button" data-value="NO SUGAR">No Sugar</button>
+            </div>
+          </div>
+
+          <!-- Pilihan Ukuran -->
+          <div class="custom-group">
+            <p class="custom-label">Ukuran</p>
+            <div class="segmented" role="radiogroup" id="customSize">
+              <button type="button" class="active" data-value="REGULAR">Regular</button>
+              <button type="button" data-value="LARGE">Large</button>
+            </div>
+          </div>
+
+          <!-- Catatan Custom -->
+          <div class="custom-group">
+            <label class="custom-label" for="customTextNote">
+              Catatan Tambahan
+              <input type="text" id="customTextNote" placeholder="Contoh: extra shot, creamer, dll" autocomplete="off" />
+            </label>
+          </div>
+        </div>
+
+        <button class="primary-button full-button" type="submit">Simpan Kustomisasi</button>
+      </form>
+    </section>
+    </section>
+
+    <!-- Modal Pengaturan Tata Letak Stiker -->
+    <section class="order-modal" id="labelSettingsModal" aria-label="Pengaturan Tata Letak Stiker Cup" aria-hidden="true">
+      <div class="order-card" style="max-width: 600px; width: 95%; max-height: 90vh;">
+        <div class="modal-head" style="padding-bottom: 12px; border-bottom: 1px solid var(--border);">
+          <div>
+            <p class="eyebrow">Printer Label</p>
+            <h2>Tata Letak Stiker Cup</h2>
+          </div>
+          <button class="icon-button modal-close" id="closeLabelSettingsBtn" type="button">
+            <i class="ph ph-x"></i>
+          </button>
+        </div>
+        
+        <div style="max-height: 70vh; overflow-y: auto; padding: 12px 16px 16px 16px; display: flex; flex-direction: column; gap: 16px;">
+          <!-- Live Preview Stiker -->
+          <div style="background: rgba(0,0,0,0.02); border: 1px solid var(--border); padding: 16px; border-radius: 8px; display: flex; flex-direction: column; align-items: center; overflow: hidden; position: relative;">
+            <span style="font-size: 11px; font-weight: 600; color: var(--muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; text-align: center;">Geser objek · tarik handle untuk resize</span>
+            <div style="width: 100%; display: flex; justify-content: center; align-items: center; overflow: visible; height: 160px; margin: 8px 0;">
+              <div id="labelPreviewPaper" style="background: #e2e8f0; width: 384px; height: 160px; position: relative; border: 1px dashed #cbd5e1; border-radius: 6px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05); overflow: hidden; transform-origin: center center;">
+                <div id="labelPreviewSticker" style="background: #ffffff; width: 320px; height: 160px; position: absolute; left: 8px; top: 0; border-radius: 4px; box-shadow: 0 4px 10px rgba(0,0,0,0.08); box-sizing: border-box; color: #000000; font-family: var(--font-body); line-height: 1.25; overflow: hidden; user-select: none;">
+                  <div id="labelPreviewLogo" style="position: absolute; left: 12px; top: 12px; width: 32px; height: 32px; cursor: move; border: 1px dashed var(--selected-line); border-radius: 3px; overflow: hidden; box-sizing: border-box; display: none;">
+                    <img src="assets/logo-migi-print.png" alt="Logo Migi" style="width: 100%; height: 100%; object-fit: contain; filter: grayscale(1) contrast(1.8);">
+                  </div>
+                  <div class="label-preview-item" id="labelPreviewCustomImage" style="left: 260px; top: 12px; width: 48px; height: 48px; display: none;">
+                    <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'/%3E" alt="Gambar dekorasi label" style="width: 100%; height: 100%; object-fit: contain; filter: grayscale(1) contrast(1.8); pointer-events: none;">
+                  </div>
+                  
+                  <div class="label-preview-item" id="labelPreviewDrinkName" style="left: 12px; top: 12px;">
+                    Kopi Susu Migi
+                  </div>
+                  
+                  <div class="label-preview-item" id="labelPreviewNotes" style="left: 12px; top: 48px;">
+                    Ice * Less Sugar
+                  </div>
+                  
+                  <div class="label-preview-item" id="labelPreviewOrderCode" style="left: 12px; top: 84px;">
+                    #SB-001
+                  </div>
+                  
+                  <div class="label-preview-item" id="labelPreviewCustomer" style="left: 12px; top: 110px;">
+                    Teman Migi
+                  </div>
+                  <div class="label-preview-item" id="labelPreviewServiceType" style="left: 214px; top: 88px; width: 64px;">DI</div>
+
+                  <div class="label-preview-item" id="labelPreviewCounter" style="left: 240px; top: 84px;">
+                    [1/1]
+                  </div>
+                  
+                  <div class="label-preview-item" id="labelPreviewCustomText" style="left: 150px; top: 12px;">
+                    TEKS KUSTOM
+                  </div>
+                  
+                  <div class="label-preview-item" id="labelPreviewBarcode" style="left: 60px; top: 130px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: white;">
+                    <div class="mock-barcode-lines" style="width: 100%; height: calc(100% - 10px); display: flex; align-items: stretch; gap: 1px; padding: 2px; box-sizing: border-box;">
+                      <div style="flex: 1; background: #000; height: 100%;"></div>
+                      <div style="flex: 2; background: #000; height: 100%;"></div>
+                      <div style="flex: 1; background: #000; height: 100%;"></div>
+                      <div style="flex: 3; background: #000; height: 100%;"></div>
+                      <div style="flex: 1; background: #000; height: 100%;"></div>
+                      <div style="flex: 2; background: #000; height: 100%;"></div>
+                      <div style="flex: 1; background: #000; height: 100%;"></div>
+                      <div style="flex: 1; background: #000; height: 100%;"></div>
+                      <div style="flex: 3; background: #000; height: 100%;"></div>
+                      <div style="flex: 2; background: #000; height: 100%;"></div>
+                      <div style="flex: 1; background: #000; height: 100%;"></div>
+                      <div style="flex: 2; background: #000; height: 100%;"></div>
+                      <div style="flex: 1; background: #000; height: 100%;"></div>
+                      <div style="flex: 3; background: #000; height: 100%;"></div>
+                    </div>
+                    <span style="font-size: 9.5px; font-family: monospace; line-height: 8px; margin: 0; color: #000; user-select: none;">12345678</span>
+                  </div>
+                  
+                </div>
+              </div>
+            </div>
+            </div>
+            <span id="labelPreviewCaption" style="font-size: 11px; color: var(--muted); margin-top: 6px; text-align: center;">Abu-abu = area printer 58 mm, putih = stiker 40 × 20 mm.</span>
+            <span id="labelLayoutCollisionWarning" style="display: none; font-size: 11px; color: var(--danger); margin-top: 4px; text-align: center; font-weight: 700;"></span>
+          </div>
+
+          <!-- Konfigurasi Global -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; background: rgba(0,0,0,0.01); padding: 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px;">
+            <label style="display: flex; flex-direction: column; gap: 4px;">
+              Mode Mesin Cetak Label
+              <select id="labelPrinterPrintEngine">
+                <option value="bitmap" selected>Mode Grafis (Teroptimasi)</option>
+                <option value="native">Mode Teks ESC/POS (Super Kilat)</option>
+              </select>
+            </label>
+            <label style="display: flex; flex-direction: column; gap: 4px;">
+              Ukuran stiker
+              <select id="labelPrinterPaperSize">
+                <option value="50x30mm">50 × 30 mm</option>
+                <option value="40x20mm" selected>40 × 20 mm</option>
+                <option value="30x15mm">30 × 15 mm</option>
+                <option value="58mm">58 mm (continuous)</option>
+              </select>
+            </label>
+            <label style="display: flex; flex-direction: column; gap: 4px;">
+              Metode Feed Kertas
+              <select id="labelPrinterFeedMethod">
+                <option value="gap" selected>Sensor Gap (GS FF)</option>
+                <option value="manual">Pitch Manual (ESC J)</option>
+              </select>
+            </label>
+            <label style="display: flex; flex-direction: column; gap: 4px;">
+              Jeda Antar Label (ms)
+              <input type="number" id="labelPrinterDelay" value="300" min="100" max="3000" step="50">
+            </label>
+            <div style="display: flex; flex-direction: column; justify-content: center; gap: 4px; grid-column: 1 / -1;">
+              <div style="display: flex; justify-content: space-between; font-weight: 500;">
+                <span>Posisi Horizontal (dots)</span>
+                <span id="labelStickerOffsetXVal" style="font-family: monospace;">64</span>
+              </div>
+              <input type="range" id="labelStickerOffsetX" min="0" max="64" value="64" style="width: 100%;">
+            </div>
+            <div id="labelPrinterManualSettings" style="display: none; grid-column: 1 / -1; padding: 10px; border: 1px dashed var(--border); border-radius: 6px; background: var(--paper);">
+              <label style="display: flex; flex-direction: column; gap: 4px;">
+                Pitch Antar Label (dots)
+                <input type="number" id="labelPrinterPitch" value="160" min="80" max="600" step="1">
+                <span style="font-size: 10px; color: var(--muted);">Naikkan bila cetakan berikutnya terlalu ke atas; turunkan bila terlalu ke bawah.</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Konfigurasi Elemen-Elemen -->
+          <div style="display: flex; flex-direction: column; gap: 12px;">
+            
+            <!-- Nama Produk -->
+            <div style="display: flex; flex-direction: column; gap: 6px; padding: 8px; border: 1px solid var(--border); border-radius: 6px; background: rgba(0,0,0,0.01);">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; cursor: pointer; user-select: none; margin: 0;">
+                  <input type="checkbox" id="labelDrinkNameEnabled" checked style="width: 15px; height: 15px; min-height: 15px; min-width: 15px; max-width: 15px; max-height: 15px; margin: 0; cursor: pointer; accent-color: var(--accent);"> Nama Produk
+                </label>
+              </div>
+              <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; margin-top: 2px;">
+                <span>Format Teks</span>
+                <label class="label-format-toggle" title="Tebal" aria-label="Tebal">
+                  <input type="checkbox" id="labelDrinkNameBold" checked>
+                  <span class="label-format-icon"><strong>B</strong></span>
+                </label>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 4px; font-size: 11px; margin-top: 4px;">
+                <div style="display: flex; justify-content: space-between;">
+                  <span>Ukuran teks (px)</span>
+                  <span id="labelDrinkNameFontSizeVal" class="label-size-value">1</span>
+                </div>
+                <input type="range" id="labelDrinkNameFontSize" min="10" max="32" step="1" value="16" style="width: 100%;">
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 4px; font-size: 11px; margin-top: 4px;">
+                <div style="display: flex; justify-content: space-between;"><span>Tinggi area nama (px)</span><span id="labelDrinkNameHeightVal" class="label-size-value">48</span></div>
+                <input type="range" id="labelDrinkNameHeight" min="20" max="100" step="1" value="48" style="width: 100%;">
+              </div>
+              <input type="hidden" id="labelDrinkNameWidth" value="200">
+            </div>
+
+            <!-- Catatan Varian -->
+            <div style="display: flex; flex-direction: column; gap: 6px; padding: 8px; border: 1px solid var(--border); border-radius: 6px; background: rgba(0,0,0,0.01);">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; cursor: pointer; user-select: none; margin: 0;">
+                  <input type="checkbox" id="labelNotesEnabled" checked style="width: 15px; height: 15px; min-height: 15px; min-width: 15px; max-width: 15px; max-height: 15px; margin: 0; cursor: pointer; accent-color: var(--accent);"> Catatan Varian
+                </label>
+              </div>
+              <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; margin-top: 2px;">
+                <span>Format Teks</span>
+                <label class="label-format-toggle" title="Tebal" aria-label="Tebal">
+                  <input type="checkbox" id="labelNotesBold">
+                  <span class="label-format-icon"><strong>B</strong></span>
+                </label>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 4px; font-size: 11px; margin-top: 4px;">
+                <div style="display: flex; justify-content: space-between;">
+                  <span>Ukuran teks (px)</span>
+                  <span id="labelNotesFontSizeVal" class="label-size-value">1</span>
+                </div>
+                <input type="range" id="labelNotesFontSize" min="10" max="32" step="1" value="16" style="width: 100%;">
+              </div>
+              <input type="hidden" id="labelNotesWidth" value="280">
+            </div>
+
+            <!-- Nomor Pesanan -->
+            <div style="display: flex; flex-direction: column; gap: 6px; padding: 8px; border: 1px solid var(--border); border-radius: 6px; background: rgba(0,0,0,0.01);">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; cursor: pointer; user-select: none; margin: 0;">
+                  <input type="checkbox" id="labelOrderCodeEnabled" checked style="width: 15px; height: 15px; min-height: 15px; min-width: 15px; max-width: 15px; max-height: 15px; margin: 0; cursor: pointer; accent-color: var(--accent);"> Nomor Pesanan
+                </label>
+              </div>
+              <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; margin-top: 2px;">
+                <span>Format Teks</span>
+                <label class="label-format-toggle" title="Tebal" aria-label="Tebal">
+                  <input type="checkbox" id="labelOrderCodeBold">
+                  <span class="label-format-icon"><strong>B</strong></span>
+                </label>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 4px; font-size: 11px; margin-top: 4px;">
+                <div style="display: flex; justify-content: space-between;">
+                  <span>Ukuran teks (px)</span>
+                  <span id="labelOrderCodeFontSizeVal" class="label-size-value">1</span>
+                </div>
+                <input type="range" id="labelOrderCodeFontSize" min="10" max="32" step="1" value="16" style="width: 100%;">
+              </div>
+              <input type="hidden" id="labelOrderCodeWidth" value="120">
+            </div>
+
+            <!-- Nama Pengunjung -->
+            <div style="display: flex; flex-direction: column; gap: 6px; padding: 8px; border: 1px solid var(--border); border-radius: 6px; background: rgba(0,0,0,0.01);">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; cursor: pointer; user-select: none; margin: 0;">
+                  <input type="checkbox" id="labelCustomerEnabled" checked style="width: 15px; height: 15px; min-height: 15px; min-width: 15px; max-width: 15px; max-height: 15px; margin: 0; cursor: pointer; accent-color: var(--accent);"> Nama Pengunjung
+                </label>
+              </div>
+              <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; margin-top: 2px;">
+                <span>Format Teks</span>
+                <label class="label-format-toggle" title="Tebal" aria-label="Tebal">
+                  <input type="checkbox" id="labelCustomerBold">
+                  <span class="label-format-icon"><strong>B</strong></span>
+                </label>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 4px; font-size: 11px; margin-top: 4px;">
+                <div style="display: flex; justify-content: space-between;">
+                  <span>Ukuran teks (px)</span>
+                  <span id="labelCustomerFontSizeVal" class="label-size-value">1</span>
+                </div>
+                <input type="range" id="labelCustomerFontSize" min="10" max="32" step="1" value="16" style="width: 100%;">
+              </div>
+              <input type="hidden" id="labelCustomerWidth" value="150">
+            </div>
+
+            <!-- Nomor Item (Counter) -->
+            <div style="display: flex; flex-direction: column; gap: 6px; padding: 8px; border: 1px solid var(--border); border-radius: 6px; background: rgba(0,0,0,0.01);">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; cursor: pointer; user-select: none; margin: 0;">
+                  <input type="checkbox" id="labelCounterEnabled" checked style="width: 15px; height: 15px; min-height: 15px; min-width: 15px; max-width: 15px; max-height: 15px; margin: 0; cursor: pointer; accent-color: var(--accent);"> Nomor Item (Counter)
+                </label>
+              </div>
+              <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; margin-top: 2px;">
+                <span>Format Teks</span>
+                <label class="label-format-toggle" title="Tebal" aria-label="Tebal">
+                  <input type="checkbox" id="labelCounterBold">
+                  <span class="label-format-icon"><strong>B</strong></span>
+                </label>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 4px; font-size: 11px; margin-top: 4px;">
+                <div style="display: flex; justify-content: space-between;">
+                  <span>Ukuran teks (px)</span>
+                  <span id="labelCounterFontSizeVal" class="label-size-value">1</span>
+                </div>
+                <input type="range" id="labelCounterFontSize" min="10" max="32" step="1" value="16" style="width: 100%;">
+              </div>
+              <input type="hidden" id="labelCounterWidth" value="80">
+            </div>
+
+            <!-- Teks Kustom Tambahan -->
+            <div style="display: flex; flex-direction: column; gap: 6px; padding: 8px; border: 1px solid var(--border); border-radius: 6px; background: rgba(0,0,0,0.01);">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; cursor: pointer; user-select: none; margin: 0;">
+                  <input type="checkbox" id="labelCustomTextEnabled" style="width: 15px; height: 15px; min-height: 15px; min-width: 15px; max-width: 15px; max-height: 15px; margin: 0; cursor: pointer; accent-color: var(--accent);"> Teks Kustom Tambahan
+                </label>
+              </div>
+              <div style="display: flex; gap: 8px; align-items: center; margin-top: 2px;">
+                <input type="text" id="labelCustomTextValue" placeholder="Masukkan teks kustom..." value="TEMAN" style="flex: 1; padding: 4px 6px; font-size: 12px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-surface); color: var(--ink);">
+                <label class="label-format-toggle" title="Tebal" aria-label="Tebal">
+                  <input type="checkbox" id="labelCustomTextBold" checked>
+                  <span class="label-format-icon"><strong>B</strong></span>
+                </label>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 4px; font-size: 11px; margin-top: 4px;">
+                <div style="display: flex; justify-content: space-between;">
+                  <span>Ukuran teks (px)</span>
+                  <span id="labelCustomTextFontSizeVal" class="label-size-value">1</span>
+                </div>
+                <input type="range" id="labelCustomTextFontSize" min="10" max="32" step="1" value="16" style="width: 100%;">
+              </div>
+              <input type="hidden" id="labelCustomTextWidth" value="100">
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 6px; padding: 8px; border: 1px solid var(--border); border-radius: 6px; background: rgba(0,0,0,0.01);">
+              <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; cursor: pointer; user-select: none; margin: 0;"><input type="checkbox" id="labelServiceTypeEnabled" checked style="width: 15px; height: 15px; accent-color: var(--accent);"> Dine In / Take Away</label>
+              <div style="display: flex; justify-content: space-between; font-size: 11px;"><span>Ukuran teks (px)</span><span id="labelServiceTypeFontSizeVal" class="label-size-value">16</span></div>
+              <input type="range" id="labelServiceTypeFontSize" min="10" max="32" step="1" value="16" style="width: 100%;">
+            </div>
+            <!-- Barcode Random/Transaksi -->
+            <div style="display: flex; flex-direction: column; gap: 6px; padding: 8px; border: 1px solid var(--border); border-radius: 6px; background: rgba(0,0,0,0.01);">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; cursor: pointer; user-select: none; margin: 0;">
+                  <input type="checkbox" id="labelBarcodeEnabled" style="width: 15px; height: 15px; min-height: 15px; min-width: 15px; max-width: 15px; max-height: 15px; margin: 0; cursor: pointer; accent-color: var(--accent);"> Barcode (CODE39)
+                </label>
+              </div>
+              <input type="hidden" id="labelBarcodeWidth" value="200">
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 6px; padding: 8px; border: 1px solid var(--border); border-radius: 6px; background: rgba(0,0,0,0.01);">
+              <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; cursor: pointer; user-select: none; margin: 0;">
+                <input type="checkbox" id="labelLogoEnabled" style="width: 15px; height: 15px; min-height: 15px; min-width: 15px; max-width: 15px; max-height: 15px; margin: 0; cursor: pointer; accent-color: var(--accent);"> Logo Migi (hitam)
+              </label>
+              <input type="hidden" id="labelLogoWidth" value="32">
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 8px; padding: 8px; border: 1px solid var(--border); border-radius: 6px; background: rgba(0,0,0,0.01);">
+              <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; cursor: pointer; user-select: none; margin: 0;">
+                <input type="checkbox" id="labelCustomImageEnabled" style="width: 15px; height: 15px; min-height: 15px; min-width: 15px; max-width: 15px; max-height: 15px; margin: 0; cursor: pointer; accent-color: var(--accent);"> Gambar Lucu / Dekorasi
+              </label>
+              <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                <label class="secondary-button compact" style="cursor: pointer; margin: 0;">
+                  Pilih Gambar
+                  <input type="file" id="labelCustomImageFile" accept="image/png,image/jpeg,image/webp" hidden>
+                </label>
+                <button class="secondary-button compact danger-text" id="removeLabelCustomImage" type="button">Hapus Gambar</button>
+              </div>
+              <small id="labelCustomImageHint" style="color: var(--muted); line-height: 1.4;">PNG/JPG/WebP maks. 5 MB. Gambar otomatis diperkecil dan dicetak hitam-putih.</small>
+              <input type="hidden" id="labelCustomImageWidth" value="48">
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer" style="padding: 12px 16px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; background: var(--bg-surface-dim);">
+          <button class="primary-button" id="saveLabelSettingsBtn" type="button" style="flex: 1; justify-content: center; height: 38px;">
+            Simpan Perubahan
+          </button>
+        </div>
+      </div>
+    </section>
+    <section class="receipt-paper" id="receiptPaper" aria-label="Struk cetak"></section>
+
+    <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+    <div class="toast toast--urgent" id="toastUrgent" role="alert" aria-live="assertive" aria-atomic="true"></div>
+
+    <script src="app.js?v=160"></script>
+  </body>
+</html>

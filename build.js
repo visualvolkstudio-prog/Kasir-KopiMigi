@@ -40,13 +40,19 @@ async function build() {
   console.log(`  styles.css: ${cssBefore}KB → ${cssAfter}KB`);
 
   // --- Copy other static files ---
-  const staticFiles = ["index.html", "landing.html", "manifest.json", "offline.html", "sw.js", "vercel.json"];
+  const staticFiles = ["manifest.json", "offline.html", "sw.js", "vercel.json"];
   for (const file of staticFiles) {
     const srcFile = path.join(__dirname, file);
     if (fs.existsSync(srcFile)) {
       fs.copyFileSync(srcFile, path.join(dist, file));
     }
   }
+
+  // landing.html → index.html (root domain, public landing page)
+  fs.copyFileSync(path.join(__dirname, "landing.html"), path.join(dist, "index.html"));
+
+  // index.html (POS app) → pos.html (served at /app via rewrite)
+  fs.copyFileSync(path.join(__dirname, "index.html"), path.join(dist, "pos.html"));
 
   // Copy directories
   const staticDirs = ["assets", "photobooth", "api"];
