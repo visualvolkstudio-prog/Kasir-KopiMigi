@@ -1372,6 +1372,28 @@ button { cursor: pointer; }
 }
 .text-link-button { text-decoration: none; }
 
+.btn-loading {
+  position: relative;
+  pointer-events: none;
+  opacity: 0.85;
+  padding-right: 40px !important;
+}
+.btn-loading::after {
+  content: "";
+  position: absolute;
+  top: calc(50% - 9px);
+  right: 16px;
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: btn-spin 0.7s linear infinite;
+}
+@keyframes btn-spin {
+  to { transform: rotate(360deg); }
+}
+
 .compact { min-height: 34px; font-size: 12.5px; }
 
 .primary-button .ph,

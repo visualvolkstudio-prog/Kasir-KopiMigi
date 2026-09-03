@@ -1509,6 +1509,10 @@ async function finishLogin(role, employee, shift, dutyRole = "karyawan", token =
   localStorage.setItem(storageKeys.activeShift, shift);
   writeJson(storageKeys.auth, createAuthSession({ employee, shift, role, dutyRole: normalizedDutyRole, token: token || state.pendingLogin?.token || getAuth()?.token || "" }));
   if (role === "cashier") registerShiftAssignment(employee, shift, normalizedDutyRole);
+
+  // Pastikan data cloud terbaru sudah tersinkronisasi sebelum membuka dashboard
+  await syncCloudData();
+
   setLoginEmployeeStep(false);
   renderEmployeeControls();
   applyAccessControls();
@@ -1522,41 +1526,55 @@ async function finishLogin(role, employee, shift, dutyRole = "karyawan", token =
   }
   updateDevicePresence().catch(() => null);
   if (role === "owner") refreshActiveCashierPresence().catch(() => null);
-  syncCloudData();
+  
   return true;
 }
 
 async function login(event) {
   event.preventDefault();
+  
   if (state.pendingLogin?.role === "cashier") {
     const employee = els.loginEmployee?.value || getEmployeeRoster()[0] || "";
-    await finishLogin("cashier", employee, getLoginShiftValue(), els.loginDutyRole?.value || "karyawan", state.pendingLogin.token || "");
+    const prevText = els.loginSubmitBtn.textContent;
+    els.loginSubmitBtn.disabled = true;
+    els.loginSubmitBtn.textContent = "Loading";
+    els.loginSubmitBtn.classList.add("btn-loading");
+    
+    const success = await finishLogin("cashier", employee, getLoginShiftValue(), els.loginDutyRole?.value || "karyawan", state.pendingLogin.token || "");
+    if (!success) {
+      els.loginSubmitBtn.disabled = false;
+      els.loginSubmitBtn.textContent = prevText;
+      els.loginSubmitBtn.classList.remove("btn-loading");
+    }
     return;
   }
 
   const username = els.loginUsername.value.trim();
   const password = els.loginPassword.value;
   els.loginSubmitBtn.disabled = true;
+  els.loginSubmitBtn.textContent = "Loading";
+  els.loginSubmitBtn.classList.add("btn-loading");
+
   try {
     const loginResult = await postSupabaseAction("login", { username, password });
     const role = loginResult.role;
     const token = loginResult.token || "";
     const shift = autoShiftName();
+    
     if (role === "owner") {
       await finishLogin("owner", "Owner", shift, "owner", token);
+      // Wait for navigation, don't revert button
       return;
     }
 
-    els.loginSubmitBtn.textContent = "Memuat crew...";
     state.pendingLogin = { role: "cashier", token, checkedAt: new Date().toISOString() };
     await preloadEmployeesForLogin();
     renderEmployeeControls();
-    setLoginEmployeeStep(true);
+    setLoginEmployeeStep(true); // this resets text
     if (!els.loginEmployee?.value) {
       toast("Daftar crew belum tersedia. Tambahkan crew dari akun Owner.");
       renderEmployeeControls();
     }
-    return;
   } catch {
     setLoginEmployeeStep(false);
     els.loginHint.textContent = "Username atau password salah.";
@@ -1565,8 +1583,10 @@ async function login(event) {
     els.loginPassword.focus();
   } finally {
     els.loginSubmitBtn.disabled = false;
+    els.loginSubmitBtn.classList.remove("btn-loading");
   }
 }
+
 
 async function recordLogoutSession(auth = getAuth()) {
   if (!navigator.onLine || !auth?.loggedIn) return;
