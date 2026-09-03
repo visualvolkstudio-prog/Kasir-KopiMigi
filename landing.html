@@ -12,31 +12,36 @@
   <meta property="og:type" content="website" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300..900;1,9..40,400..900&display=swap" rel="stylesheet" />
+  <!-- Barlow Condensed for the hero headline (tall, narrow, bold — like Formula Condensed) -->
+  <!-- DM Sans for body text (existing brand font) -->
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800;900&family=DM+Sans:ital,opsz,wght@0,9..40,300..700;1,9..40,400..500&display=swap" rel="stylesheet" />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --blue:       #00349b;
-      --blue-dark:  #002278;
-      --blue-soft:  #e8edf8;
-      --ink:        #0a0c14;
-      --ink-mid:    #3a3d4a;
-      --ink-muted:  #7a7d8c;
-      --line:       #e4e6ef;
-      --white:      #ffffff;
+      --blue:      #00349b;
+      --blue-dk:   #002278;
+      --blue-soft: #eaeffa;
+      --ink:       #080a12;
+      --ink-mid:   #383b4a;
+      --ink-muted: #767990;
+      --line:      #e4e6ef;
+      --white:     #ffffff;
+      --font-disp: "Barlow Condensed", "DM Sans", system-ui, sans-serif;
+      --font-body: "DM Sans", system-ui, sans-serif;
     }
 
     html { scroll-behavior: smooth; }
 
     body {
-      font-family: "DM Sans", system-ui, sans-serif;
+      font-family: var(--font-body);
       background: var(--white);
       color: var(--ink);
       min-height: 100svh;
       display: grid;
       grid-template-rows: auto 1fr auto;
       -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
     }
 
     /* ── NAV ── */
@@ -44,21 +49,20 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 1.25rem clamp(1.5rem, 5vw, 4rem);
+      padding: 1.125rem clamp(1.5rem, 5vw, 4.5rem);
       border-bottom: 1px solid var(--line);
     }
 
     .nav-brand {
       display: flex;
       align-items: center;
-      gap: .625rem;
+      gap: .5rem;
       text-decoration: none;
-      color: var(--ink);
     }
 
     .nav-logo {
-      width: 28px;
-      height: 28px;
+      width: 26px;
+      height: 26px;
       object-fit: contain;
     }
 
@@ -71,13 +75,13 @@
 
     .nav-badge {
       font-size: .6875rem;
-      font-weight: 600;
-      letter-spacing: .06em;
+      font-weight: 500;
+      letter-spacing: .05em;
       text-transform: uppercase;
       color: var(--ink-muted);
       border: 1px solid var(--line);
       border-radius: 999px;
-      padding: .2rem .65rem;
+      padding: .2rem .7rem;
     }
 
     /* ── HERO ── */
@@ -85,78 +89,89 @@
       display: flex;
       flex-direction: column;
       justify-content: center;
-      padding: clamp(3rem, 8vw, 7rem) clamp(1.5rem, 5vw, 4rem);
-      gap: 0;
+      padding: clamp(3rem, 7vw, 6rem) clamp(1.5rem, 5vw, 4.5rem);
     }
 
-    .hero-eyebrow {
+    /* stagger delays via custom property */
+    .anim { opacity: 0; animation: rise .65s cubic-bezier(.22,1,.36,1) forwards; }
+    .anim-1 { animation-delay: .05s; }
+    .anim-2 { animation-delay: .15s; }
+    .anim-3 { animation-delay: .27s; }
+    .anim-4 { animation-delay: .38s; }
+    .anim-5 { animation-delay: .50s; }
+
+    @keyframes rise {
+      from { opacity: 0; transform: translateY(22px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .hero-label {
       display: flex;
       align-items: center;
-      gap: .5rem;
-      margin-bottom: 1.75rem;
-      opacity: 0;
-      animation: fade-up .55s .05s cubic-bezier(.22,1,.36,1) forwards;
+      gap: .45rem;
+      margin-bottom: 1.5rem;
     }
 
-    .eyebrow-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
+    .label-line {
+      width: 24px;
+      height: 2px;
       background: var(--blue);
+      border-radius: 2px;
       flex-shrink: 0;
     }
 
-    .eyebrow-text {
-      font-size: .8125rem;
+    .label-text {
+      font-size: .8rem;
       font-weight: 600;
-      letter-spacing: .07em;
+      letter-spacing: .08em;
       text-transform: uppercase;
       color: var(--blue);
     }
 
+    /* THE HEADLINE — Barlow Condensed, massive */
     .hero-headline {
-      font-size: clamp(3.5rem, 13vw, 9rem);
+      font-family: var(--font-disp);
+      font-size: clamp(5rem, 18vw, 12rem);
       font-weight: 900;
-      line-height: .92;
-      letter-spacing: -.04em;
+      line-height: .88;
+      letter-spacing: -.01em;
+      text-transform: uppercase;
       color: var(--ink);
-      margin-bottom: clamp(1.5rem, 4vw, 3rem);
-      opacity: 0;
-      animation: fade-up .6s .12s cubic-bezier(.22,1,.36,1) forwards;
+      margin-bottom: clamp(1.75rem, 3.5vw, 3rem);
     }
 
-    .hero-headline em {
-      font-style: normal;
+    .hero-headline .accent {
       color: var(--blue);
+      /* Thin horizontal rule under the accent word */
+      display: block;
+      border-bottom: 4px solid var(--blue);
+      padding-bottom: .05em;
+      width: fit-content;
     }
 
     .hero-sub {
-      font-size: clamp(1rem, 2.2vw, 1.25rem);
+      font-size: clamp(.9375rem, 1.6vw, 1.125rem);
       font-weight: 400;
       color: var(--ink-muted);
-      line-height: 1.55;
-      max-width: 46ch;
-      margin-bottom: clamp(2.5rem, 5vw, 4rem);
-      opacity: 0;
-      animation: fade-up .6s .22s cubic-bezier(.22,1,.36,1) forwards;
+      line-height: 1.6;
+      max-width: 44ch;
+      margin-bottom: clamp(2rem, 4vw, 3.5rem);
     }
 
-    /* ── INFO CHIPS ── */
+    /* ── INFO PILLS ── */
     .info-row {
       display: flex;
       flex-wrap: wrap;
-      align-items: center;
-      gap: .625rem;
-      margin-bottom: clamp(2rem, 4vw, 3rem);
-      opacity: 0;
-      animation: fade-up .55s .32s cubic-bezier(.22,1,.36,1) forwards;
+      gap: .5rem;
+      margin-bottom: clamp(2rem, 3.5vw, 3rem);
+      list-style: none;
     }
 
     .chip {
       display: inline-flex;
       align-items: center;
-      gap: .5rem;
-      padding: .5rem 1rem;
+      gap: .45rem;
+      padding: .475rem 1rem;
       border-radius: 999px;
       border: 1.5px solid var(--line);
       font-size: .875rem;
@@ -164,7 +179,7 @@
       color: var(--ink-mid);
       background: var(--white);
       white-space: nowrap;
-      transition: border-color .18s, background .18s;
+      transition: border-color .18s, background .18s, color .18s;
     }
 
     .chip:hover {
@@ -174,62 +189,51 @@
     }
 
     .chip svg {
-      width: 15px;
-      height: 15px;
+      width: 14px;
+      height: 14px;
       flex-shrink: 0;
-      color: var(--blue);
+      stroke: var(--blue);
     }
 
     /* ── CTA ── */
     .cta-row {
       display: flex;
       flex-wrap: wrap;
-      gap: .75rem;
       align-items: center;
-      opacity: 0;
-      animation: fade-up .55s .42s cubic-bezier(.22,1,.36,1) forwards;
+      gap: .75rem;
     }
 
-    .btn-primary {
+    .btn {
       display: inline-flex;
       align-items: center;
       gap: .5rem;
-      padding: .75rem 1.5rem;
+      padding: .75rem 1.625rem;
       border-radius: 10px;
-      background: var(--blue);
-      color: var(--white);
       font-family: inherit;
       font-size: .9375rem;
       font-weight: 600;
-      text-decoration: none;
       letter-spacing: -.01em;
-      border: 2px solid var(--blue);
-      transition: background .18s, transform .15s;
+      text-decoration: none;
+      border: 2px solid transparent;
       cursor: pointer;
+      transition: background .17s, border-color .17s, transform .15s, color .17s;
     }
 
-    .btn-primary:hover {
-      background: var(--blue-dark);
-      border-color: var(--blue-dark);
+    .btn:active { transform: scale(.98); }
+
+    .btn-fill {
+      background: var(--blue);
+      color: var(--white);
+      border-color: var(--blue);
+    }
+
+    .btn-fill:hover {
+      background: var(--blue-dk);
+      border-color: var(--blue-dk);
       transform: translateY(-1px);
     }
 
-    .btn-primary:active { transform: translateY(0); }
-
-    .btn-primary svg {
-      width: 17px;
-      height: 17px;
-    }
-
-    /* ── DIVIDER RULE ── */
-    .hero-rule {
-      width: 100%;
-      height: 1px;
-      background: var(--line);
-      margin: clamp(3rem, 6vw, 5rem) 0 0;
-      opacity: 0;
-      animation: fade .7s .55s ease forwards;
-    }
+    .btn svg { width: 17px; height: 17px; flex-shrink: 0; }
 
     /* ── FOOTER ── */
     footer {
@@ -237,8 +241,8 @@
       align-items: center;
       justify-content: space-between;
       flex-wrap: wrap;
-      gap: .75rem;
-      padding: 1.25rem clamp(1.5rem, 5vw, 4rem);
+      gap: .5rem;
+      padding: 1.125rem clamp(1.5rem, 5vw, 4.5rem);
       border-top: 1px solid var(--line);
     }
 
@@ -247,12 +251,12 @@
       color: var(--ink-muted);
     }
 
-    .footer-tag {
-      font-size: .8125rem;
-      color: var(--ink-muted);
+    .footer-loc {
       display: flex;
       align-items: center;
       gap: .35rem;
+      font-size: .8125rem;
+      color: var(--ink-muted);
     }
 
     .footer-dot {
@@ -260,42 +264,25 @@
       height: 5px;
       border-radius: 50%;
       background: var(--blue);
-      display: inline-block;
+      flex-shrink: 0;
     }
 
-    /* ── ANIMATIONS ── */
-    @keyframes fade-up {
-      from { opacity: 0; transform: translateY(18px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
+    /* ── POLISH ── */
+    ::selection { background: var(--blue); color: var(--white); }
 
-    @keyframes fade {
-      from { opacity: 0; }
-      to   { opacity: 1; }
-    }
-
-    /* ── SELECTION ── */
-    ::selection {
-      background: var(--blue);
-      color: var(--white);
-    }
-
-    /* ── FOCUS ── */
     :focus-visible {
       outline: 2px solid var(--blue);
       outline-offset: 3px;
       border-radius: 4px;
     }
 
-    /* ── SCROLLBAR ── */
-    ::-webkit-scrollbar { width: 6px; background: transparent; }
-    ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 99px; }
-    ::-webkit-scrollbar-thumb:hover { background: #c0c3d0; }
+    ::-webkit-scrollbar { width: 5px; background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #d0d3e0; border-radius: 99px; }
+    ::-webkit-scrollbar-thumb:hover { background: #b0b3c4; }
 
-    /* ── RESPONSIVE ── */
-    @media (max-width: 480px) {
-      .hero-headline { letter-spacing: -.03em; }
+    @media (max-width: 420px) {
       .nav-badge { display: none; }
+      .hero-headline { font-size: clamp(4rem, 22vw, 6rem); }
     }
   </style>
 </head>
@@ -304,48 +291,48 @@
   <!-- NAV -->
   <nav aria-label="Navigasi utama">
     <a class="nav-brand" href="/" aria-label="Kopi Migi beranda">
-      <img class="nav-logo" src="/assets/logo-miginew-transparent.png" alt="" aria-hidden="true" />
+      <img class="nav-logo" src="/assets/logo-miginew-transparent.png" alt="" aria-hidden="true" width="26" height="26" />
       <span class="nav-name">Kopi Migi</span>
     </a>
-    <span class="nav-badge">Garut · Est. 2020</span>
+    <span class="nav-badge" aria-hidden="true">Garut · Est. 2020</span>
   </nav>
 
   <!-- HERO -->
   <main>
-    <div class="hero-eyebrow" aria-hidden="true">
-      <span class="eyebrow-dot"></span>
-      <span class="eyebrow-text">Kedai Kopi · Garut, Jawa Barat</span>
+
+    <div class="hero-label anim anim-1" aria-hidden="true">
+      <span class="label-line"></span>
+      <span class="label-text">Kedai Kopi · Garut, Jawa Barat</span>
     </div>
 
-    <h1 class="hero-headline">
-      Nikmati<br>Setiap<br><em>Tegukan.</em>
+    <h1 class="hero-headline anim anim-2">
+      Nikmati<br>
+      Setiap<br>
+      <span class="accent">Tegukan.</span>
     </h1>
 
-    <p class="hero-sub">
+    <p class="hero-sub anim anim-3">
       Kopi Migi hadir setiap hari untuk menemani momen terbaikmu —
       dari pagi yang tenang hingga malam yang hangat.
     </p>
 
-    <div class="info-row" role="list" aria-label="Info kedai">
-      <span class="chip" role="listitem">
-        <!-- clock icon -->
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <ul class="info-row anim anim-4" role="list" aria-label="Info kedai">
+      <li class="chip">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
         </svg>
         10:00 – 23:00 · Setiap hari
-      </span>
-      <span class="chip" role="listitem">
-        <!-- pin icon -->
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      </li>
+      <li class="chip">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
         </svg>
         Garut, Jawa Barat
-      </span>
-    </div>
+      </li>
+    </ul>
 
-    <div class="cta-row">
-      <a class="btn-primary" href="https://instagram.com/kopimigi" target="_blank" rel="noopener" aria-label="Ikuti Kopi Migi di Instagram">
-        <!-- instagram icon -->
+    <div class="cta-row anim anim-5">
+      <a class="btn btn-fill" href="https://instagram.com/kopimigi" target="_blank" rel="noopener" aria-label="Ikuti kami di Instagram @kopimigi">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <rect x="2" y="2" width="20" height="20" rx="5" ry="5"/>
           <circle cx="12" cy="12" r="4"/>
@@ -354,19 +341,16 @@
         @kopimigi
       </a>
       <!-- WhatsApp — aktifkan setelah nomor tersedia
-      <a class="btn-primary" style="background:transparent;color:var(--blue);" href="https://wa.me/628xxxxxxxxxx" target="_blank" rel="noopener">
-        WhatsApp
-      </a>
+      <a class="btn btn-outline" href="https://wa.me/628xxxxxxxxxx" target="_blank" rel="noopener">WhatsApp</a>
       -->
     </div>
 
-    <div class="hero-rule" aria-hidden="true"></div>
   </main>
 
   <!-- FOOTER -->
   <footer>
     <span class="footer-copy">© 2025 Kopi Migi. Semua hak dilindungi.</span>
-    <span class="footer-tag">
+    <span class="footer-loc">
       <span class="footer-dot" aria-hidden="true"></span>
       Garut, Jawa Barat, Indonesia
     </span>
