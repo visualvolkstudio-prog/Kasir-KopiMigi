@@ -1007,15 +1007,32 @@ function todayShiftAssignments(today = dateKey()) {
   const resetIds = new Set(
     resetOverrides.filter((r) => r.date === today).map((r) => r.employeeId)
   );
-  const transactionAssignments = getHistory()
-    .filter((entry) => transactionReportDate(entry) === today && entry.employee && entry.employee !== "Owner")
-    .map((entry) => ({
+  // Kumpulkan transaksi hari ini per karyawan, ambil waktu transaksi paling awal sebagai loginAt fallback
+  const todayTransactions = getHistory().filter(
+    (entry) => transactionReportDate(entry) === today && entry.employee && entry.employee !== "Owner"
+  );
+  const earliestTxByEmployee = new Map();
+  todayTransactions.forEach((entry) => {
+    const empId = entry.employeeId || assignmentEmployeeId(entry.employee);
+    if (!empId) return;
+    const txTime = entry.createdAt || entry.created_at || "";
+    if (!txTime) return;
+    const existing = earliestTxByEmployee.get(empId);
+    if (!existing || new Date(txTime) < new Date(existing)) {
+      earliestTxByEmployee.set(empId, txTime);
+    }
+  });
+  const transactionAssignments = todayTransactions.map((entry) => {
+    const empId = entry.employeeId || assignmentEmployeeId(entry.employee);
+    return {
       date: today,
       employee: entry.employee,
-      employeeId: entry.employeeId || assignmentEmployeeId(entry.employee),
+      employeeId: empId,
       shift: normalizeShift(entry.shift || "Shift 1"),
+      loginAt: earliestTxByEmployee.get(empId) || "",
       source: "transaction",
-    }));
+    };
+  });
   const byEmployee = new Map();
   // 1. Masukkan transaksi dulu sebagai fallback (kecuali yang sudah di-reset owner)
   transactionAssignments.forEach((entry) => {

@@ -709,6 +709,62 @@ async function addEmployee(body) {
   return { status: 200, payload: { success: true, employee: employee || { name } } };
 }
 
+async function syncCheckin(body) {
+  const a = body.assignment;
+  if (!a || !a.employee || !a.shift || !a.loginAt) {
+    return { status: 400, payload: { success: false, error: "Data checkin tidak lengkap (employee, shift, loginAt wajib ada)." } };
+  }
+
+  // Baca settings global saat ini
+  const rows = await supabaseFetch("app_settings?select=*&key=eq.global&limit=1");
+  const settingsRow = Array.isArray(rows) ? rows[0] : null;
+  const settings = settingsRow?.value || {};
+
+  const existing = Array.isArray(settings.shiftAssignments) ? settings.shiftAssignments : [];
+  const empId = a.employeeId || String(a.employee || "").toLowerCase().replace(/\s+/g, "-");
+  const shift = a.shift;
+  const key = `${a.date}:${empId}:${shift}`;
+
+  // Merge: hanya update jika loginAt baru lebih awal atau belum ada
+  const merged = new Map();
+  existing.forEach((entry) => {
+    if (!entry || !entry.date) return;
+    const eId = entry.employeeId || String(entry.employee || "").toLowerCase().replace(/\s+/g, "-");
+    const eKey = `${entry.date}:${eId}:${entry.shift}`;
+    merged.set(eKey, entry);
+  });
+
+  const prev = merged.get(key);
+  const incomingTime = new Date(a.loginAt).getTime();
+  const shouldUpdate =
+    !prev ||
+    !prev.loginAt ||
+    isNaN(new Date(prev.loginAt).getTime()) ||
+    incomingTime < new Date(prev.loginAt).getTime(); // simpan yang paling awal (jam masuk pertama)
+
+  if (shouldUpdate) {
+    merged.set(key, {
+      date: a.date,
+      employee: a.employee,
+      employeeId: empId,
+      shift,
+      dutyRole: a.dutyRole || "karyawan",
+      loginAt: a.loginAt,
+    });
+  }
+
+  const updatedAssignments = [...merged.values()].sort((x, y) => (x.date || "").localeCompare(y.date || ""));
+  const updatedSettings = { ...settings, shiftAssignments: updatedAssignments.slice(-200) };
+
+  await supabaseFetch("app_settings?on_conflict=key", {
+    method: "POST",
+    prefer: "resolution=merge-duplicates,return=representation",
+    body: [{ key: "global", value: updatedSettings, updated_at: toIso() }],
+  });
+
+  return { status: 200, payload: { success: true, updated: shouldUpdate } };
+}
+
 async function syncSettings(body) {
   const value = body.settings;
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -897,6 +953,8 @@ async function dispatch(body, req) {
   const role = auth.session.role;
 
   switch (body.action) {
+    case "sync-checkin":
+      return syncCheckin(body);
     case "sync-transaction":
       return syncTransaction(body);
     case "get-transactions":
