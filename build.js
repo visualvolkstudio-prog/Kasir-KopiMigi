@@ -40,7 +40,7 @@ async function build() {
   console.log(`  styles.css: ${cssBefore}KB → ${cssAfter}KB`);
 
   // --- Copy other static files ---
-  const staticFiles = ["index.html", "manifest.json", "offline.html", "sw.js", "vercel.json"];
+  const staticFiles = ["index.html", "landing.html", "manifest.json", "offline.html", "sw.js", "vercel.json"];
   for (const file of staticFiles) {
     const srcFile = path.join(__dirname, file);
     if (fs.existsSync(srcFile)) {

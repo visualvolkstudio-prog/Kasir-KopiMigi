@@ -1,7 +1,8 @@
-const CACHE_NAME = "kasir-migi-v161";
+const CACHE_NAME = "kasir-migi-v162";
 const APP_SHELL = [
-  "/",
+  "/app",
   "/index.html",
+  "/landing.html",
   "/styles.css",
   "/app.js",
   "/manifest.json",
@@ -58,7 +59,7 @@ self.addEventListener("fetch", (event) => {
   }
 
   const url = new URL(request.url);
-  if (["/", "/app.js", "/styles.css", "/index.html"].includes(url.pathname)) {
+  if (["/app", "/app.js", "/styles.css", "/index.html"].includes(url.pathname)) {
     event.respondWith(
       fetch(request)
         .then((response) => {
