@@ -51,8 +51,10 @@ async function build() {
   // landing.html → index.html (root domain, public landing page)
   fs.copyFileSync(path.join(__dirname, "landing.html"), path.join(dist, "index.html"));
 
-  // index.html (POS app) → pos.html (served at /app via rewrite)
-  fs.copyFileSync(path.join(__dirname, "index.html"), path.join(dist, "pos.html"));
+  // index.html (POS app) → app/index.html (served at /app)
+  const appDir = path.join(dist, "app");
+  if (!fs.existsSync(appDir)) fs.mkdirSync(appDir, { recursive: true });
+  fs.copyFileSync(path.join(__dirname, "index.html"), path.join(appDir, "index.html"));
 
   // Copy directories
   const staticDirs = ["assets", "photobooth", "api"];
