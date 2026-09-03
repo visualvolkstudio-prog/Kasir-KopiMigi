@@ -1510,8 +1510,15 @@ async function finishLogin(role, employee, shift, dutyRole = "karyawan", token =
   writeJson(storageKeys.auth, createAuthSession({ employee, shift, role, dutyRole: normalizedDutyRole, token: token || state.pendingLogin?.token || getAuth()?.token || "" }));
   if (role === "cashier") registerShiftAssignment(employee, shift, normalizedDutyRole);
 
-  // Pastikan data cloud terbaru sudah tersinkronisasi sebelum membuka dashboard
-  await syncCloudData();
+  // Tarik data cloud dengan batas waktu maksimal 3 detik, selebihnya lanjut di background
+  if (navigator.onLine) {
+    await Promise.race([
+      syncCloudData(),
+      new Promise(resolve => setTimeout(resolve, 3000))
+    ]);
+  } else {
+    syncCloudData();
+  }
 
   setLoginEmployeeStep(false);
   renderEmployeeControls();
