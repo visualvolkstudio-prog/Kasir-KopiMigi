@@ -37,7 +37,7 @@ html, body {
   display: flex;
   width: max-content;
   /* Very slow scroll */
-  animation: scroll 45s linear infinite;
+  animation: scroll 20s linear infinite;
 }
 
 .tape-row {
