@@ -1,0 +1,97 @@
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --blue:   #00349b;
+  --yellow: #f5c800;
+  --white:  #ffffff;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  background: var(--blue);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: "Barlow Condensed", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* TICKER */
+.ticker-wrap {
+  width: 100%;
+  overflow: hidden;
+  transform: rotate(-4deg) scaleX(1.05);
+}
+
+.ticker-track {
+  display: flex;
+  width: max-content;
+  animation: scroll 12s linear infinite;
+}
+
+.ticker-track:hover { animation-play-state: paused; }
+
+.ticker-row {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  white-space: nowrap;
+  padding: 1.25rem 0;
+}
+
+.ticker-item {
+  font-size: clamp(2.5rem, 7vw, 5rem);
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: -.01em;
+  color: var(--yellow);
+  padding: 0 1.5rem;
+  line-height: 1;
+}
+
+.ticker-dot {
+  font-size: clamp(1.5rem, 4vw, 2.5rem);
+  color: var(--yellow);
+  opacity: .5;
+  flex-shrink: 0;
+}
+
+@keyframes scroll {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+
+/* LOGO */
+.logo-wrap {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  gap: .75rem;
+  z-index: 10;
+}
+
+.logo-img {
+  width: clamp(48px, 8vw, 80px);
+  height: clamp(48px, 8vw, 80px);
+  object-fit: contain;
+  filter: brightness(0) invert(1);
+  opacity: .9;
+}
+
+.logo-name {
+  font-size: clamp(.875rem, 2vw, 1.125rem);
+  font-weight: 800;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: var(--white);
+  opacity: .6;
+}
