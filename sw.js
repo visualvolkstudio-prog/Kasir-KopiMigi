@@ -1,4 +1,4 @@
-const CACHE_NAME = "kasir-migi-v163";
+const CACHE_NAME = "kasir-migi-v165";
 const APP_SHELL = [
   "/app",
   "/pos.html",
@@ -20,7 +20,10 @@ const APP_SHELL = [
   "/photobooth/",
   "/photobooth/index.html",
   "/photobooth/style.css",
-  "/photobooth/app.js"
+  "/photobooth/app.js",
+  "/assets/phosphor.css",
+  "/assets/phosphor/Phosphor.woff2",
+  "/assets/phosphor/Phosphor-Fill.woff2"
 ];
 
 self.addEventListener("install", (event) => {

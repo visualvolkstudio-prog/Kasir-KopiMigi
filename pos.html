@@ -9,20 +9,23 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="Kopi Migi" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <link rel="manifest" href="/manifest.json?v=22" />
-    <link rel="icon" href="/assets/favicon-migi.png?v=22" />
-    <link rel="apple-touch-icon" href="/assets/pwa-icon-512.png?v=22" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="icon" href="/assets/favicon-migi.png" />
+    <link rel="apple-touch-icon" href="/assets/pwa-icon-512.png" />
     <link rel="preconnect" href="https://cdn.jsdelivr.net" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/regular/style.css" />
+    <link rel="preload" href="assets/phosphor/Phosphor.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="assets/phosphor/Phosphor-Fill.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="assets/phosphor.css?v=23" />
+    <base href="/" />
     <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:ital,opsz,wght@0,9..40,300..900;1,9..40,300..900&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="styles.css?v=160" />
   </head>
   <body>
     <section class="login-screen" id="loginScreen" aria-label="Login kasir">
       <form class="login-card" id="loginForm">
-        <img src="assets/logo-miginew-transparent.png?v=20" alt="Logo Migi" width="48" height="48" />
+        <img src="assets/logo-miginew-transparent.png" alt="Logo Migi" width="48" height="48" />
         <p class="eyebrow">Kopi Migi</p>
         <h2>Masuk</h2>
         <label class="login-credential-field">
@@ -427,7 +430,7 @@
       <aside class="sidebar" aria-label="Navigasi kasir">
         <div class="brand-block">
           <div class="brand-mark" aria-hidden="true">
-            <img src="assets/logo-miginew.png?v=20" alt="" width="34" height="34" />
+            <img src="assets/logo-miginew.png" alt="" width="34" height="34" />
           </div>
           <div>
             <p class="eyebrow">Kopi Migi</p>

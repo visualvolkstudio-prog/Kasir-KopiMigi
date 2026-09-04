@@ -8014,6 +8014,7 @@ function cacheCloudTransactions(transactions = [], localPending = []) {
   sortTransactionsNewestFirst(list).forEach(merge);
   sortTransactionsNewestFirst(getHistory()).forEach(merge);
   sortTransactionsNewestFirst(localPending).forEach(merge);
+  sortTransactionsNewestFirst(getOrderDrafts()).forEach(merge);
 
   const merged = sortTransactionsNewestFirst([...byId.values()]);
   const unpaid = merged.filter(isUnpaidTransaction).map((entry) => ({ ...entry, status: "unpaid", payment: entry.payment || "Bill" }));
