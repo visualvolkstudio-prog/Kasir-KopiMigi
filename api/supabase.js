@@ -652,6 +652,17 @@ async function getInventory() {
   };
 }
 
+async function getCashflow() {
+  const expenses = await supabaseFetch("cashflow_expenses?select=*&order=created_at.desc&limit=150");
+  return {
+    status: 200,
+    payload: {
+      success: true,
+      cashflowExpenses: expenses.map(toLocalExpense),
+    },
+  };
+}
+
 async function syncEmployees(body) {
   const restoreKeys = new Set((Array.isArray(body?.restoreNames) ? body.restoreNames : []).map(employeeKey).filter(Boolean));
   let deletedRows = await getDeletedEmployeeRows();
@@ -968,6 +979,8 @@ async function dispatch(body, req) {
       return bootstrapData();
     case "sync-cashflow":
       return syncCashflow(body);
+    case "get-cashflow":
+      return getCashflow();
     case "sync-inventory":
       return syncInventory(body);
     case "get-inventory":

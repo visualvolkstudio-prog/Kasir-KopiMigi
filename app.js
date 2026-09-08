@@ -7949,6 +7949,21 @@ async function pullInventoryFromSupabase({ render = false } = {}) {
   return false;
 }
 
+async function pullCashflowFromSupabase({ render = false } = {}) {
+  if (!navigator.onLine || !isLoggedIn()) return false;
+  try {
+    const result = await postSupabaseAction("get-cashflow");
+    if (result?.success && Array.isArray(result.cashflowExpenses)) {
+      writeJson(storageKeys.cashflowExpenses, result.cashflowExpenses.slice(0, 2000));
+      if (render) renderCashflow();
+      return true;
+    }
+  } catch {
+    return false;
+  }
+  return false;
+}
+
 async function addEmployeeInCloud(name) {
   if (!navigator.onLine) throw new Error("Koneksi internet diperlukan.");
   return postSupabaseAction("add-employee", { name });
@@ -11047,6 +11062,7 @@ function scheduleRealtimePoll() {
       try {
         await syncPendingTransactions({ pull: false }).catch(() => null);
         await pullTransactionsFromSupabase({ render: false, limit: 10 });
+        await pullCashflowFromSupabase({ render: false }).catch(() => null);
         renderHistory();
         renderOrders();
         renderCashflow();
