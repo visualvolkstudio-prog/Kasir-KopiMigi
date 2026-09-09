@@ -63,14 +63,13 @@ html, body {
 .hero-text {
   font-family: "Barlow Condensed", system-ui, sans-serif;
   font-weight: 900;
-  font-size: clamp(2.5rem, 11.5vw, 8.5rem);
+  font-size: clamp(2rem, 7vw, 5.5rem);
   text-transform: uppercase;
   letter-spacing: -0.01em;
   line-height: 1.05;
   color: var(--text);
   width: 100%;
   max-width: 100%;
-  /* Baris boleh wrap antar .word, tapi tidak di tengah kata */
   overflow-wrap: normal;
   word-break: normal;
 }
