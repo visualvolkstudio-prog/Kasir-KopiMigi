@@ -4060,22 +4060,34 @@ async function connectPrinter() {
     }
     if (!service) throw new Error("Service printer tidak ditemukan.");
 
-    let characteristic = null;
+    const characteristicCandidates = [];
     for (const uuid of bleCharacteristicUuids) {
       try {
-        characteristic = await service.getCharacteristic(uuid);
-        break;
+        const candidate = await service.getCharacteristic(uuid);
+        if (candidate.properties.write || candidate.properties.writeWithoutResponse) {
+          characteristicCandidates.push(candidate);
+        }
       } catch {}
     }
-    if (!characteristic) {
-      const chars = await service.getCharacteristics();
-      characteristic = chars.find((entry) => entry.properties.write || entry.properties.writeWithoutResponse);
-    }
+    const serviceCharacteristics = await service.getCharacteristics().catch(() => []);
+    serviceCharacteristics.forEach((candidate) => {
+      if (
+        (candidate.properties.write || candidate.properties.writeWithoutResponse) &&
+        !characteristicCandidates.some((entry) => entry.uuid === candidate.uuid)
+      ) {
+        characteristicCandidates.push(candidate);
+      }
+    });
+    // Prioritaskan ACK (write-with-response) agar struk panjang tidak kehilangan paket.
+    const characteristic = characteristicCandidates.find((entry) => entry.properties.write)
+      || characteristicCandidates.find((entry) => entry.properties.writeWithoutResponse)
+      || null;
     if (!characteristic) throw new Error("Characteristic printer tidak ditemukan.");
 
     state.printerCharacteristic = characteristic;
-    setPrinterStatus("Tersambung", "connected", `${state.printerDevice.name || "Printer ESC/POS"} siap untuk cetak struk.`);
-    toast("Printer termal tersambung.");
+    const transportMode = characteristic.properties.write ? "ACK aman" : "tanpa ACK";
+    setPrinterStatus("Tersambung", "connected", `${state.printerDevice.name || "Printer ESC/POS"} siap cetak struk · ${transportMode}.`);
+    toast(`Printer termal tersambung (${transportMode}).`);
   } catch (error) {
     console.error("Printer connection error:", error);
     state.printerCharacteristic = null;
@@ -7080,13 +7092,22 @@ function saveItemCustomization(event) {
 
 async function printThermalReceipt(transaction, kind = "paid") {
   try {
-    await writePrinterChunks(await encodeEscPosReceipt(transaction, kind));
+    // preferResponse=true: gunakan writeValueWithResponse jika tersedia agar
+    // paket struk panjang mendapat ACK dari printer dan tidak hilang di tengah jalan.
+    await writePrinterChunks(await encodeEscPosReceipt(transaction, kind), state.printerCharacteristic, 18, true);
     toast("Struk dikirim ke printer termal.");
     return true;
   } catch (error) {
-    state.printerCharacteristic = null;
+    console.warn("[Receipt] Cetak struk gagal:", error);
+    // Null-kan characteristic hanya jika GATT memang sudah terputus.
+    // Error sementara (buffer penuh, timeout) tidak perlu mematikan koneksi —
+    // printer masih tersambung dan bisa dicoba cetak ulang tanpa konek ulang.
+    const gattDisconnected = !state.printerDevice?.gatt?.connected;
+    if (gattDisconnected) {
+      state.printerCharacteristic = null;
+      promptPrinterConnection();
+    }
     toast(`Cetak Bluetooth gagal: ${error.message}`);
-    promptPrinterConnection();
     return false;
   }
 }
