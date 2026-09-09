@@ -14,7 +14,7 @@
 
   /* ── Brand palette ── */
   --c-yellow:  #f5c800;   /* Kuning Migi  */
-  --c-orange:  #f05a1a;   /* Burnt orange — lebih cerah */
+  --c-orange:  #f4956a;   /* Orange soft  */
   --c-migi:    var(--c-yellow);   /* MIGI → kuning */
 
   --c-locate:  var(--c-orange);   /* KAMI → orange  */
@@ -37,8 +37,8 @@ html, body {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  align-items: center;
-  text-align: center;
+  align-items: flex-start;
+  text-align: left;
   min-height: 100dvh;
   width: 100%;
   padding: clamp(2rem, 8vw, 5rem) clamp(1rem, 5vw, 3rem);

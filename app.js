@@ -6386,7 +6386,8 @@ async function writeLabelPrinterChunks(bytes) {
     true,
   );
   const hasWriteResponse = Boolean(characteristic.properties.write);
-  await new Promise((resolve) => setTimeout(resolve, hasWriteResponse ? 150 : 350));
+  // Delay dikurangi ~50% — printer masih punya waktu cukup memproses buffer UART.
+  await new Promise((resolve) => setTimeout(resolve, hasWriteResponse ? 80 : 200));
 
   // Header GS v 0 sepanjang 13 byte dikirim terpisah agar parser sudah
   // mengunci ukuran raster sebelum aliran piksel dimulai.
@@ -6403,7 +6404,7 @@ async function writeLabelPrinterChunks(bytes) {
       true,
       { chunkSize: hasWriteResponse ? 20 : 13 },
     );
-    await new Promise((resolve) => setTimeout(resolve, hasWriteResponse ? 60 : 200));
+    await new Promise((resolve) => setTimeout(resolve, hasWriteResponse ? 30 : 100));
   }
 
   // BLE pacing teroptimasi: writeWithResponse sudah mendapat ACK GATT dari printer,
@@ -6422,7 +6423,7 @@ async function writeLabelPrinterChunks(bytes) {
       chunkSize: hasWriteResponse ? 20 : 16,
     },
   );
-  await new Promise((resolve) => setTimeout(resolve, hasWriteResponse ? 40 : 300));
+  await new Promise((resolve) => setTimeout(resolve, hasWriteResponse ? 20 : 150));
 }
 
 function enqueueLabelPrint(task) {
@@ -6744,10 +6745,12 @@ async function encodeCupLabel(transaction, item, itemIndex, totalItems) {
 // Render one label as a monochrome bitmap so the printer receives the same
 // font, positions, and wrapping that the preview uses. This is slower than
 // native text but avoids firmware-specific ESC/POS font differences.
+let _labelFontLoaded = false;
 async function encodeCupLabelBitmap(transaction, item, itemIndex, totalItems) {
   const settings = getLabelPrinterSettings();
-  if (document.fonts?.load) {
+  if (!_labelFontLoaded && document.fonts?.load) {
     await document.fonts.load("16px Geist");
+    _labelFontLoaded = true;
   }
   const { width: stickerWidth, height: stickerHeight } = getLabelPaperDimensions(settings);
   const printerWidth = LABEL_PRINTER_WIDTH_DOTS;
@@ -6803,24 +6806,10 @@ async function encodeCupLabelBitmap(transaction, item, itemIndex, totalItems) {
     if (element.isImage) {
       const sourceImage = loadedImages.get(element.imageSrc);
       if (!sourceImage) return;
-      const logoCanvas = document.createElement("canvas");
-      logoCanvas.width = Math.max(1, Math.round(element.width));
-      logoCanvas.height = Math.max(1, Math.round(element.height));
-      const logoCtx = logoCanvas.getContext("2d", { willReadFrequently: true });
-      logoCtx.fillStyle = "#ffffff";
-      logoCtx.fillRect(0, 0, logoCanvas.width, logoCanvas.height);
-      logoCtx.drawImage(sourceImage, 0, 0, logoCanvas.width, logoCanvas.height);
-      const logoPixels = logoCtx.getImageData(0, 0, logoCanvas.width, logoCanvas.height);
-      for (let index = 0; index < logoPixels.data.length; index += 4) {
-        const luminance = 0.299 * logoPixels.data[index] + 0.587 * logoPixels.data[index + 1] + 0.114 * logoPixels.data[index + 2];
-        const dark = logoPixels.data[index + 3] > 30 && luminance < 180;
-        logoPixels.data[index] = dark ? 0 : 255;
-        logoPixels.data[index + 1] = dark ? 0 : 255;
-        logoPixels.data[index + 2] = dark ? 0 : 255;
-        logoPixels.data[index + 3] = 255;
-      }
-      logoCtx.putImageData(logoPixels, 0, 0);
-      ctx.drawImage(logoCanvas, x, y);
+      // Gambar langsung ke main canvas; pass rasterisasi di bawah sudah
+      // mem-threshold setiap pixel (luminance < 180) sehingga tidak perlu
+      // intermediate canvas terpisah — lebih hemat memori dan lebih cepat.
+      ctx.drawImage(sourceImage, x, y, Math.max(1, Math.round(element.width)), Math.max(1, Math.round(element.height)));
       return;
     }
     if (element.barcode) {
