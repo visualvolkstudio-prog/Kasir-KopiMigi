@@ -14,7 +14,7 @@
 
   /* ── Brand palette ── */
   --c-yellow:  #f5c800;   /* Kuning Migi  */
-  --c-orange:  #f4956a;   /* Orange soft  */
+  --c-orange:  #f05a1a;   /* Orange terang */
   --c-migi:    var(--c-yellow);   /* MIGI → kuning */
 
   --c-locate:  var(--c-orange);   /* KAMI → orange  */
@@ -70,13 +70,15 @@ html, body {
   color: var(--text);
   width: 100%;
   max-width: 100%;
-  overflow-wrap: break-word;
-  word-break: break-word;
+  /* Baris boleh wrap antar .word, tapi tidak di tengah kata */
+  overflow-wrap: normal;
+  word-break: normal;
 }
 
-/* Each .word is inline — text wraps naturally */
+/* Each .word is inline — text wraps naturally between words, never inside */
 .word {
   display: inline;
+  white-space: nowrap;   /* ← jangan potong di tengah kata */
   opacity: 0;
   /* JS adds animation-fill-mode inline */
 }
@@ -92,6 +94,7 @@ a.word {
   text-decoration-thickness: 0.07em;
   cursor: pointer;
   display: inline;
+  white-space: nowrap;   /* ← sama, jangan potong link */
   transition: text-decoration-color 0.25s ease, opacity 0.15s;
 }
 
