@@ -51,9 +51,32 @@ const DEFAULT_MENU = [
   { id: "air",    name: "Air Mineral",            category: "Air Minum",  price: 8000  },
 ];
 
-const STORAGE_KEY = "kopishop-pos-menu";
+const STORAGE_KEY  = "kopishop-pos-menu";
+const MENU_CACHE   = "kopimigi-menu-v1";
+const MENU_URL     = "/menu.json";
 
-function getMenuData() {
+async function getMenuData() {
+  // 1. Coba ambil dari Cache Storage (bisa offline)
+  try {
+    const cache = await caches.open(MENU_CACHE);
+    const cached = await cache.match(MENU_URL);
+    if (cached) {
+      const data = await cached.json();
+      if (data?.length) {
+        // Refresh cache di background tanpa block UI
+        fetchAndCacheMenu(cache);
+        return data;
+      }
+    }
+  } catch (_) {}
+
+  // 2. Fetch langsung dari server, simpan ke cache
+  try {
+    const cache = await caches.open(MENU_CACHE);
+    return await fetchAndCacheMenu(cache);
+  } catch (_) {}
+
+  // 3. Fallback: localStorage (kasir device)
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
@@ -61,8 +84,17 @@ function getMenuData() {
       if (parsed?.length) return parsed;
     }
   } catch (_) {}
-  // Fallback: data hardcoded untuk pengunjung yang tidak punya localStorage kasir
+
+  // 4. Fallback akhir: data hardcoded
   return DEFAULT_MENU;
+}
+
+async function fetchAndCacheMenu(cache) {
+  const res = await fetch(MENU_URL, { cache: "no-cache" });
+  if (!res.ok) throw new Error("fetch menu failed");
+  const clone = res.clone();
+  cache.put(MENU_URL, clone);
+  return res.json();
 }
 
 function getCategories() {
@@ -135,8 +167,8 @@ function formatPrice(price) {
   return "Rp " + Number(price).toLocaleString("id-ID");
 }
 
-function renderMenu(category) {
-  const allItems = getMenuData();
+async function renderMenu(category) {
+  const allItems = await getMenuData();
   const list = document.getElementById("menuList");
   const items = allItems.filter(item =>
     item.category?.toLowerCase() === category.toLowerCase()
@@ -157,9 +189,8 @@ function renderMenu(category) {
   `).join("");
 }
 
-function buildMenuTabs() {
+async function buildMenuTabs() {
   const categories = getCategories();
-  const allItems = getMenuData();
   const tabContainer = document.querySelector(".menu-tabs");
 
   tabContainer.innerHTML = categories.map((cat, i) => `
