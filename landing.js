@@ -6,10 +6,9 @@
    • Built-in Menu bottom sheet — sinkron dengan app POS
 ═════════════════════════════════════════════════════════ */
 
-// ── MENU DATA — sinkron dengan POS app via localStorage ──
-const STORAGE_KEY = "kopishop-pos-menu";
+// ── MENU DATA — hardcoded agar tampil untuk semua pengunjung ──
+// Update file ini setiap ada perubahan menu di app
 
-// Urutan dan kategori yang ditampilkan di landing — tetap dan berurutan
 const MENU_CATEGORIES = [
   "Kopi",
   "Manual Brew",
@@ -20,32 +19,44 @@ const MENU_CATEGORIES = [
   "Air Minum",
 ];
 
-// Fallback jika belum ada data dari app
 const DEFAULT_MENU = [
-  { id: "esp",     name: "Espresso",         category: "Kopi",         price: 18000 },
-  { id: "cap",     name: "Cappuccino",        category: "Kopi",         price: 28000 },
-  { id: "lat",     name: "Cafe Latte",        category: "Kopi",         price: 30000 },
-  { id: "aren",    name: "Kopi Susu Aren",    category: "Kopi",         price: 26000 },
-  { id: "v60",     name: "V60",               category: "Manual Brew",  price: 30000 },
-  { id: "chemex",  name: "Chemex",            category: "Manual Brew",  price: 32000 },
-  { id: "amer",    name: "Americano",         category: "Americano",    price: 22000 },
-  { id: "botol",   name: "Cold Brew Botol",   category: "Botolan",      price: 35000 },
-  { id: "matcha",  name: "Matcha Latte",      category: "Milk Based",   price: 32000 },
-  { id: "choco",   name: "Iced Chocolate",    category: "Milk Based",   price: 29000 },
-  { id: "croi",    name: "Butter Croissant",  category: "Pastries",     price: 24000 },
-  { id: "air",     name: "Air Mineral",       category: "Air Minum",    price: 8000  },
+  // ── Kopi ──
+  { id: "esp",    name: "Espresso",              category: "Kopi",       price: 18000 },
+  { id: "cap",    name: "Cappuccino",             category: "Kopi",       price: 28000 },
+  { id: "lat",    name: "Cafe Latte",             category: "Kopi",       price: 30000 },
+  { id: "aren",   name: "Kopi Susu Aren",         category: "Kopi",       price: 26000 },
+
+  // ── Manual Brew ──
+  { id: "ktc",    name: "Kopi Tubruk Classic",    category: "Manual Brew", price: 10000 },
+  { id: "kth",    name: "Kopi Tubruk Honey",      category: "Manual Brew", price: 13000 },
+  { id: "ktf",    name: "Kopi Tubruk Fermentasi", category: "Manual Brew", price: 13000 },
+  { id: "ktn",    name: "Kopi Tubruk Natural",    category: "Manual Brew", price: 10000 },
+  { id: "ktfw",   name: "Kopi Tubruk Fullwash",   category: "Manual Brew", price: 10000 },
+  { id: "ktl",    name: "Kopi Tubruk Lanang",     category: "Manual Brew", price: 10000 },
+
+  // ── Americano ──
+  { id: "amer",   name: "Americano",              category: "Americano",  price: 22000 },
+
+  // ── Botolan ──
+  { id: "botol",  name: "Cold Brew Botol",        category: "Botolan",    price: 35000 },
+
+  // ── Milk Based ──
+  { id: "matcha", name: "Matcha Latte",           category: "Milk Based", price: 32000 },
+  { id: "choco",  name: "Iced Chocolate",         category: "Milk Based", price: 29000 },
+
+  // ── Pastries ──
+  { id: "croi",   name: "Butter Croissant",       category: "Pastries",   price: 24000 },
+
+  // ── Air Minum ──
+  { id: "air",    name: "Air Mineral",            category: "Air Minum",  price: 8000  },
 ];
 
 function getMenuData() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return JSON.parse(raw);
-  } catch (_) {}
+  // Selalu pakai DEFAULT_MENU — pelanggan tidak punya localStorage kasir
   return DEFAULT_MENU;
 }
 
 function getCategories() {
-  // Selalu tampilkan semua 7 kategori — tab tidak hilang meski data kosong
   return MENU_CATEGORIES;
 }
 
