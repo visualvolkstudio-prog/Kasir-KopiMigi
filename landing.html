@@ -4,15 +4,24 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Kopi Migi</title>
-  <meta name="theme-color" content="#111111" />
+  <meta name="theme-color" content="#00349b" />
   <meta name="description" content="Kopi Migi — kedai kopi lokal yang cozy. Temukan kami, pesan online, atau cek menu langsung di sini." />
   <link rel="icon" href="/assets/favicon-migi.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;900&family=DM+Sans:wght@400;600&family=Geist:wght@600&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;900&family=DM+Sans:ital,wght@0,400;0,600;1,400&family=DM+Mono:wght@500;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/landing.css" />
 </head>
 <body>
+
+  <!--
+    THESIS: Kopi Migi hadir sebagai kekuatan — biru Migi drenched, teks besar adalah antarmuka itu sendiri, bukan dekorasi.
+    OWN-WORLD: #00349b drenched, kuning #f5c800 aksen satu-satunya, Barlow Condensed 900 di skala raksasa, DM Sans detail. Tidak ada card.
+    STORY: Tiba → tahu ini Kopi Migi → pilih aksi (pesan / menu / lokasi) → langsung.
+    FIRST VIEWPORT: Logo kecil atas, satu blok teks hero penuh layar dengan kata-kata interaktif berwarna, kicker muted di bawah, tape kuning diagonal fixed.
+    FORM: Polish established world — identitas dipertahankan, detail dinaikkan ke premium.
+    FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance
+  -->
 
   <!-- ══ HOPPER ══ -->
   <div class="hopper" id="hopper" aria-hidden="true">
@@ -30,13 +39,15 @@
 
     <!-- Big flowing text — colored words are interactive -->
     <div class="hero-text" aria-label="Hi ! Teman, selamat datang di Kopimigi. Lebih dekat dengan kami, pesan online, atau cek menu dulu?">
-      <span class="word plain">HI ! </span><span class="word plain" style="color:var(--c-orange)">TEMAN, </span><span class="word plain">SELAMAT DATANG DI </span><span class="word brand" data-action="brand">KOPIMIGI. </span><span class="word plain">LEBIH DEKAT DENGAN </span><a class="word link link--locate" data-action="locate" href="https://share.google/izH59vsLJ6Ty6YNZX" target="_blank" rel="noopener">KAMI</a><span class="word plain">, </span><a class="word link link--order" data-action="order" href="#" role="button">PESAN&nbsp;ONLINE</a><span class="word plain">, </span><span class="word plain">ATAU CEK </span><a class="word link link--menu" data-action="menu" href="#" role="button">MENU</a><span class="word plain"> DULU?</span>
+      <span class="word plain">HI !&nbsp;</span><span class="word plain" style="color:var(--c-orange)">TEMAN,&nbsp;</span><span class="word plain">SELAMAT DATANG DI&nbsp;</span><span class="word brand" data-action="brand">KOPIMIGI.&nbsp;</span><span class="word plain">LEBIH DEKAT DENGAN&nbsp;</span><a class="word link link--locate" data-action="locate" href="https://share.google/izH59vsLJ6Ty6YNZX" target="_blank" rel="noopener">KAMI</a><span class="word plain">,&nbsp;</span><a class="word link link--order" data-action="order" href="#" role="button">PESAN&nbsp;ONLINE</a><span class="word plain">,&nbsp;</span><span class="word plain">ATAU CEK&nbsp;</span><a class="word link link--menu" data-action="menu" href="#" role="button">MENU</a><span class="word plain">&nbsp;DULU?</span>
     </div>
+
+    <p class="hero-kicker" aria-hidden="true">Garut, Jawa Barat &nbsp;·&nbsp; Buka setiap hari</p>
 
   </main>
 
   <!-- ══ DIAGONAL TAPE ══ -->
-  <div class="tape" role="marquee" aria-label="Kopi Migi — Coffee & Culture">
+  <div class="tape" role="marquee" aria-label="Kopi Migi — Coffee &amp; Culture">
     <div class="tape-track" id="tapeTrack">
       <div class="tape-row" id="tapeRow">
         <span class="tape-item">KOPIMIGI</span>
@@ -79,7 +90,7 @@
         <span class="order-link-text">ShopeeFood</span>
         <span class="order-link-arrow">↗</span>
       </a>
-      <a class="order-link order-link--wa" href="https://wa.me/6281234567890" target="_blank" rel="noopener noreferrer">
+      <a class="order-link order-link--wa" href="https://wa.me/6288973598878" target="_blank" rel="noopener noreferrer">
         <span class="order-link-icon">💬</span>
         <span class="order-link-text">WhatsApp</span>
         <span class="order-link-arrow">↗</span>
@@ -95,11 +106,7 @@
       <p class="panel-label">Menu</p>
       <button class="panel-close" id="menuClose" aria-label="Tutup panel">✕</button>
     </div>
-    <div class="menu-tabs" role="tablist">
-      <button class="menu-tab active" data-category="kopi"    role="tab" aria-selected="true">Kopi</button>
-      <button class="menu-tab"        data-category="nonkopi" role="tab" aria-selected="false">Non-Kopi</button>
-      <button class="menu-tab"        data-category="makanan" role="tab" aria-selected="false">Makanan</button>
-    </div>
+    <div class="menu-tabs" role="tablist"></div>
     <div class="menu-list" id="menuList"></div>
   </div>
 

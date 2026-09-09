@@ -20,35 +20,22 @@ const MENU_CATEGORIES = [
 ];
 
 const DEFAULT_MENU = [
-  // ── Kopi ──
-  { id: "esp",    name: "Espresso",              category: "Kopi",       price: 18000 },
-  { id: "cap",    name: "Cappuccino",             category: "Kopi",       price: 28000 },
-  { id: "lat",    name: "Cafe Latte",             category: "Kopi",       price: 30000 },
-  { id: "aren",   name: "Kopi Susu Aren",         category: "Kopi",       price: 26000 },
-
-  // ── Manual Brew ──
-  { id: "ktc",    name: "Kopi Tubruk Classic",    category: "Manual Brew", price: 10000 },
-  { id: "kth",    name: "Kopi Tubruk Honey",      category: "Manual Brew", price: 13000 },
-  { id: "ktf",    name: "Kopi Tubruk Fermentasi", category: "Manual Brew", price: 13000 },
-  { id: "ktn",    name: "Kopi Tubruk Natural",    category: "Manual Brew", price: 10000 },
-  { id: "ktfw",   name: "Kopi Tubruk Fullwash",   category: "Manual Brew", price: 10000 },
-  { id: "ktl",    name: "Kopi Tubruk Lanang",     category: "Manual Brew", price: 10000 },
-
-  // ── Americano ──
-  { id: "amer",   name: "Americano",              category: "Americano",  price: 22000 },
-
-  // ── Botolan ──
-  { id: "botol",  name: "Cold Brew Botol",        category: "Botolan",    price: 35000 },
-
-  // ── Milk Based ──
-  { id: "matcha", name: "Matcha Latte",           category: "Milk Based", price: 32000 },
-  { id: "choco",  name: "Iced Chocolate",         category: "Milk Based", price: 29000 },
-
-  // ── Pastries ──
-  { id: "croi",   name: "Butter Croissant",       category: "Pastries",   price: 24000 },
-
-  // ── Air Minum ──
-  { id: "air",    name: "Air Mineral",            category: "Air Minum",  price: 8000  },
+  { id: "esp",   name: "Espresso",              category: "Kopi",        price: 18000 },
+  { id: "cap",   name: "Cappuccino",             category: "Kopi",        price: 28000 },
+  { id: "lat",   name: "Cafe Latte",             category: "Kopi",        price: 30000 },
+  { id: "aren",  name: "Kopi Susu Aren",         category: "Kopi",        price: 26000 },
+  { id: "ktc",   name: "Kopi Tubruk Classic",    category: "Manual Brew", price: 10000 },
+  { id: "kth",   name: "Kopi Tubruk Honey",      category: "Manual Brew", price: 13000 },
+  { id: "ktf",   name: "Kopi Tubruk Fermentasi", category: "Manual Brew", price: 13000 },
+  { id: "ktn",   name: "Kopi Tubruk Natural",    category: "Manual Brew", price: 10000 },
+  { id: "ktfw",  name: "Kopi Tubruk Fullwash",   category: "Manual Brew", price: 10000 },
+  { id: "ktl",   name: "Kopi Tubruk Lanang",     category: "Manual Brew", price: 10000 },
+  { id: "amer",  name: "Americano",              category: "Americano",   price: 22000 },
+  { id: "botol", name: "Cold Brew Botol",        category: "Botolan",     price: 35000 },
+  { id: "matcha",name: "Matcha Latte",           category: "Milk Based",  price: 32000 },
+  { id: "choco", name: "Iced Chocolate",         category: "Milk Based",  price: 29000 },
+  { id: "croi",  name: "Butter Croissant",       category: "Pastries",    price: 24000 },
+  { id: "air",   name: "Air Mineral",            category: "Air Minum",   price: 8000  },
 ];
 
 const STORAGE_KEY  = "kopishop-pos-menu";
@@ -174,7 +161,7 @@ async function renderMenu(category) {
   );
 
   if (!items.length) {
-    list.innerHTML = `<p style="padding:1.5rem 0;color:var(--text-muted);font-family:'Barlow Condensed',sans-serif;font-size:1.1rem;letter-spacing:0.05em;text-transform:uppercase;">SEGERA HADIR ✦</p>`;
+    list.innerHTML = `<p class="menu-empty">SEGERA HADIR ✦</p>`;
     return;
   }
 
