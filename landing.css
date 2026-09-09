@@ -75,12 +75,10 @@ html, body {
   word-break: normal;
 }
 
-/* Each .word is inline — text wraps naturally between words, never inside */
+/* Each .word is inline — text wraps naturally between spans */
 .word {
   display: inline;
-  white-space: nowrap;   /* ← jangan potong di tengah kata */
   opacity: 0;
-  /* JS adds animation-fill-mode inline */
 }
 
 .word.plain  { color: var(--text); }
@@ -94,7 +92,6 @@ a.word {
   text-decoration-thickness: 0.07em;
   cursor: pointer;
   display: inline;
-  white-space: nowrap;   /* ← sama, jangan potong link */
   transition: text-decoration-color 0.25s ease, opacity 0.15s;
 }
 
