@@ -6,36 +6,66 @@
    • Built-in Menu bottom sheet — sinkron dengan app POS
 ═════════════════════════════════════════════════════════ */
 
-// ── MENU DATA — hardcoded agar tampil untuk semua pengunjung ──
-// Update file ini setiap ada perubahan menu di app
+// ── MENU DATA — disinkronkan dengan POS (menu.json) ──
+// Update menu.json jika ada perubahan menu di kasir
 
 const MENU_CATEGORIES = [
   "Kopi",
-  "Manual Brew",
   "Americano",
   "Botolan",
   "Milk Based",
+  "Manual BREW",
   "Pastries",
   "Air Minum",
 ];
 
 const DEFAULT_MENU = [
-  { id: "esp",   name: "Espresso",              category: "Kopi",        price: 18000 },
-  { id: "cap",   name: "Cappuccino",             category: "Kopi",        price: 28000 },
-  { id: "lat",   name: "Cafe Latte",             category: "Kopi",        price: 30000 },
-  { id: "aren",  name: "Kopi Susu Aren",         category: "Kopi",        price: 26000 },
-  { id: "ktc",   name: "Kopi Tubruk Classic",    category: "Manual Brew", price: 10000 },
-  { id: "kth",   name: "Kopi Tubruk Honey",      category: "Manual Brew", price: 13000 },
-  { id: "ktf",   name: "Kopi Tubruk Fermentasi", category: "Manual Brew", price: 13000 },
-  { id: "ktn",   name: "Kopi Tubruk Natural",    category: "Manual Brew", price: 10000 },
-  { id: "ktfw",  name: "Kopi Tubruk Fullwash",   category: "Manual Brew", price: 10000 },
-  { id: "ktl",   name: "Kopi Tubruk Lanang",     category: "Manual Brew", price: 10000 },
-  { id: "amer",  name: "Americano",              category: "Americano",   price: 22000 },
-  { id: "botol", name: "Cold Brew Botol",        category: "Botolan",     price: 35000 },
-  { id: "matcha",name: "Matcha Latte",           category: "Milk Based",  price: 32000 },
-  { id: "choco", name: "Iced Chocolate",         category: "Milk Based",  price: 29000 },
-  { id: "croi",  name: "Butter Croissant",       category: "Pastries",    price: 24000 },
-  { id: "air",   name: "Air Mineral",            category: "Air Minum",   price: 8000  },
+  { id: "bcc",  name: "Butterscotch Creamy Coffee",  category: "Kopi",       price: 17000 },
+  { id: "ca",   name: "Coffee Aren",                 category: "Kopi",       price: 15000 },
+  { id: "ch",   name: "Coffee Hazelnut",             category: "Kopi",       price: 17000 },
+  { id: "hcl",  name: "Hot Caffe Latte",             category: "Kopi",       price: 17000 },
+  { id: "hc",   name: "Hot Cappucino",               category: "Kopi",       price: 17000 },
+  { id: "hks",  name: "Hot Kopi Susu",               category: "Kopi",       price: 12000 },
+  { id: "hmo",  name: "Hot Moccachino",              category: "Kopi",       price: 17000 },
+  { id: "icl",  name: "Iced Caffe Latte",            category: "Kopi",       price: 17000 },
+  { id: "ic",   name: "Iced Cappucino",              category: "Kopi",       price: 17000 },
+  { id: "kcm",  name: "KopSu Classic Migi",          category: "Kopi",       price: 12000 },
+  { id: "kcm2", name: "KopSu Creamy Migi",           category: "Kopi",       price: 15000 },
+  { id: "sccc", name: "Salted Creamy Caramel Coffee",category: "Kopi",       price: 17000 },
+  { id: "sm",   name: "Signature Mazagran",          category: "Kopi",       price: 20000 },
+  { id: "iac",  name: "Iced Americano Classic",      category: "Americano",  price: 12000 },
+  { id: "iaf",  name: "Iced Americano Fruity",       category: "Americano",  price: 15000 },
+  { id: "iafw", name: "Iced Americano Fullwash",     category: "Americano",  price: 15000 },
+  { id: "iah",  name: "Iced Americano Honey",        category: "Americano",  price: 15000 },
+  { id: "ian",  name: "Iced Americano Natural",      category: "Americano",  price: 15000 },
+  { id: "iar",  name: "Iced Americano Robusta",      category: "Americano",  price: 12000 },
+  { id: "iaw",  name: "Iced Americano Wine",         category: "Americano",  price: 15000 },
+  { id: "ka1l", name: "Kopi Aren 1 Liter",           category: "Botolan",    price: 65000 },
+  { id: "ksc1", name: "Kopi Susu Classic 1 Liter",   category: "Botolan",    price: 55000 },
+  { id: "cbm",  name: "Choco Big Muffin",            category: "Pastries",   price: 7500  },
+  { id: "cc",   name: "Classic Cookies",             category: "Pastries",   price: 5000  },
+  { id: "mc",   name: "Marmer Cake",                 category: "Pastries",   price: 5000  },
+  { id: "mm",   name: "mini Muffin",                 category: "Pastries",   price: 4000  },
+  { id: "mp",   name: "mini Pudding",                category: "Pastries",   price: 3000  },
+  { id: "r",    name: "Roti",                        category: "Pastries",   price: 6000  },
+  { id: "sd",   name: "Sweet Donut",                 category: "Pastries",   price: 5000  },
+  { id: "cb",   name: "Cleo Besar",                  category: "Air Minum",  price: 6000  },
+  { id: "ck",   name: "Cleo Kecil",                  category: "Air Minum",  price: 2500  },
+  { id: "dke",  name: "Double Kick Espresso",        category: "Manual BREW", price: 15000 },
+  { id: "ktc",  name: "Kopi Tubruk Classic",         category: "Manual BREW", price: 10000 },
+  { id: "ktf",  name: "Kopi Tubruk Fermentasion",   category: "Manual BREW", price: 13000 },
+  { id: "ktfw", name: "Kopi Tubruk Fullwash",        category: "Manual BREW", price: 10000 },
+  { id: "kth",  name: "Kopi Tubruk Honey",           category: "Manual BREW", price: 13000 },
+  { id: "ktl",  name: "Kopi Tubruk Lanang",          category: "Manual BREW", price: 10000 },
+  { id: "ktn",  name: "Kopi Tubruk Natural",         category: "Manual BREW", price: 10000 },
+  { id: "sse",  name: "Single Shot Espresso",        category: "Manual BREW", price: 8000  },
+  { id: "v",    name: "V60/Japanese",                category: "Manual BREW", price: 15000 },
+  { id: "vd",   name: "Vietnam Drip",                category: "Manual BREW", price: 10000 },
+  { id: "ccl",  name: "Classic Choco Latte",         category: "Milk Based",  price: 13000 },
+  { id: "ml",   name: "Matcha Latte",                category: "Milk Based",  price: 15000 },
+  { id: "srv",  name: "Smooth Red Velvet",           category: "Milk Based",  price: 13000 },
+  { id: "sl",   name: "Strawberry Latte",            category: "Milk Based",  price: 13000 },
+  { id: "ta",   name: "Taroo Ajaa",                  category: "Milk Based",  price: 15000 },
 ];
 
 const STORAGE_KEY  = "kopishop-pos-menu";
@@ -87,15 +117,13 @@ function getCategories() {
   return MENU_CATEGORIES;
 }
 
-// ── HOPPER CONFIG ────────────────────────────────────────
-const HOPPER_MAP = {
-  locate: ["📍", "🗺️", "🧭"],
-  order:  ["🛵", "🚀", "📦"],
-  menu:   ["☕", "🍵", "🧋"],
-  brand:  ["🐾", "✨", "💙"],
+// ── HOPPER CONFIG — SVG icons (bukan emoji) ──────────────
+const HOPPER_ICONS = {
+  locate: `<svg width="30" height="30" viewBox="0 0 24 24" fill="#00349b" xmlns="http://www.w3.org/2000/svg"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>`,
+  order:  `<svg width="30" height="30" viewBox="0 0 24 24" fill="#00349b" xmlns="http://www.w3.org/2000/svg"><path d="M19 6h-2c0-2.76-2.24-5-5-5S7 3.24 7 6H5c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-7-3c1.66 0 3 1.34 3 3H9c0-1.66 1.34-3 3-3zm0 10c-1.66 0-3-1.34-3-3h2c0 .55.45 1 1 1s1-.45 1-1h2c0 1.66-1.34 3-3 3z"/></svg>`,
+  menu:   `<svg width="30" height="30" viewBox="0 0 24 24" fill="#00349b" xmlns="http://www.w3.org/2000/svg"><path d="M20 3H4v10c0 2.21 1.79 4 4 4h6c2.21 0 4-1.79 4-4v-3h2c1.11 0 2-.89 2-2V5c0-1.11-.89-2-2-2zm0 5h-2V5h2v3zM4 19h16v2H4z"/></svg>`,
+  brand:  `<svg width="30" height="30" viewBox="0 0 24 24" fill="#00349b" xmlns="http://www.w3.org/2000/svg"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>`,
 };
-
-function randFrom(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 
 // ── HOPPER ELEMENT ───────────────────────────────────────
 const hopper      = document.getElementById("hopper");
@@ -103,9 +131,7 @@ const hopperEmoji = document.getElementById("hopperEmoji");
 let hopperTimeout = null;
 
 function showHopper(x, y, type) {
-  // pick emoji
-  const emojis = HOPPER_MAP[type] || ["✨"];
-  hopperEmoji.textContent = randFrom(emojis);
+  hopperEmoji.innerHTML = HOPPER_ICONS[type] || HOPPER_ICONS.brand;
 
   // position
   hopper.style.left = x + "px";
