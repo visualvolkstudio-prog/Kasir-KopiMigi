@@ -51,8 +51,17 @@ const DEFAULT_MENU = [
   { id: "air",    name: "Air Mineral",            category: "Air Minum",  price: 8000  },
 ];
 
+const STORAGE_KEY = "kopishop-pos-menu";
+
 function getMenuData() {
-  // Selalu pakai DEFAULT_MENU — pelanggan tidak punya localStorage kasir
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed?.length) return parsed;
+    }
+  } catch (_) {}
+  // Fallback: data hardcoded untuk pengunjung yang tidak punya localStorage kasir
   return DEFAULT_MENU;
 }
 
