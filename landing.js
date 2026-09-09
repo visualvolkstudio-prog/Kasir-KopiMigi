@@ -45,11 +45,8 @@ function getMenuData() {
 }
 
 function getCategories() {
-  // Selalu pakai urutan tetap — hanya tampilkan kategori yang ada isinya
-  const allItems = getMenuData();
-  return MENU_CATEGORIES.filter(cat =>
-    allItems.some(item => item.category === cat)
-  );
+  // Selalu tampilkan semua 7 kategori — tab tidak hilang meski data kosong
+  return MENU_CATEGORIES;
 }
 
 // ── HOPPER CONFIG ────────────────────────────────────────
@@ -124,7 +121,7 @@ function renderMenu(category) {
   const items = allItems.filter(item => item.category === category);
 
   if (!items.length) {
-    list.innerHTML = `<p style="padding:1rem 0;color:var(--text-muted);font-size:0.9rem;">Tidak ada item di kategori ini.</p>`;
+    list.innerHTML = `<p style="padding:1.5rem 0;color:var(--text-muted);font-family:'Barlow Condensed',sans-serif;font-size:1.1rem;letter-spacing:0.05em;text-transform:uppercase;">SEGERA HADIR ✦</p>`;
     return;
   }
 
