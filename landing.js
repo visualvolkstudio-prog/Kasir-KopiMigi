@@ -182,6 +182,20 @@ function buildMenuTabs() {
 // ── INIT ──────────────────────────────────────────────────
 document.addEventListener("DOMContentLoaded", () => {
 
+  // ── Tape: clone row sampai lebih dari lebar layar ────────
+  const tapeTrack = document.getElementById("tapeTrack");
+  const tapeRow   = document.getElementById("tapeRow");
+  if (tapeTrack && tapeRow) {
+    const rowW = tapeRow.offsetWidth || 600;
+    const copies = Math.ceil((window.innerWidth * 2) / rowW) + 1;
+    for (let i = 0; i < copies; i++) {
+      const clone = tapeRow.cloneNode(true);
+      clone.removeAttribute("id");
+      clone.setAttribute("aria-hidden", "true");
+      tapeTrack.appendChild(clone);
+    }
+  }
+
   // Stagger entrance
   animateWords();
 

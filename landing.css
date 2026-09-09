@@ -120,9 +120,8 @@ a.word:focus-visible { outline: 2px dashed currentColor; outline-offset: 4px; bo
 }
 
 .tape-track {
-  display: inline-flex;
+  display: flex;
   width: max-content;
-  animation: scroll 22s linear infinite;
   will-change: transform;
 }
 
@@ -131,6 +130,7 @@ a.word:focus-visible { outline: 2px dashed currentColor; outline-offset: 4px; bo
   align-items: center;
   white-space: nowrap;
   flex-shrink: 0;
+  animation: scroll 20s linear infinite;
 }
 
 .tape-item {
