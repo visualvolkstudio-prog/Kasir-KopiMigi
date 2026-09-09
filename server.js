@@ -12,16 +12,25 @@ const server = http.createServer((req, res) => {
 
   let body = "";
   req.on("data", (chunk) => { body += chunk; });
-  req.on("end", () => {
+  req.on("end", async () => {
     try {
       req.body = body ? JSON.parse(body) : {};
     } catch {
       req.body = {};
     }
-    handler(req, res);
+
+    const action = req.body?.action || "unknown";
+    try {
+      await handler(req, res);
+    } catch (error) {
+      console.error(`[ERROR] action=${action}:`, error.message, error.cause?.message || "");
+      res.statusCode = 500;
+      res.end(JSON.stringify({ success: false, error: error.message }));
+    }
   });
 });
 
 server.listen(PORT, "127.0.0.1", () => {
   console.log(`API server jalan di port ${PORT}`);
+  console.log(`SUPABASE_URL: ${process.env.SUPABASE_URL}`);
 });

@@ -49,7 +49,11 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          script: pm2 restart kasirmigi-api
+          script: |
+            pm2 delete kasirmigi-api || true
+            set -a && source /home/gilfram/kasirmigi/.env && set +a
+            PORT=3002 pm2 start /home/gilfram/kasirmigi/server.js --name kasirmigi-api
+            pm2 save
 
       - name: Done
         run: echo "✅ Deploy ke kopimigi.my.id selesai!"
