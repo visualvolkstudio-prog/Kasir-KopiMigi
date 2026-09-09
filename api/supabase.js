@@ -120,7 +120,7 @@ function assertSupabaseEnv() {
 
 async function supabaseFetch(path, options = {}) {
   assertSupabaseEnv();
-  const response = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+  const response = await fetch(`${SUPABASE_URL}/${path}`, {
     method: options.method || "GET",
     headers: {
       apikey: SUPABASE_SERVICE_ROLE_KEY,
