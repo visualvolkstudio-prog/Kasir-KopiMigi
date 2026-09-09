@@ -118,7 +118,9 @@ function formatPrice(price) {
 function renderMenu(category) {
   const allItems = getMenuData();
   const list = document.getElementById("menuList");
-  const items = allItems.filter(item => item.category === category);
+  const items = allItems.filter(item =>
+    item.category?.toLowerCase() === category.toLowerCase()
+  );
 
   if (!items.length) {
     list.innerHTML = `<p style="padding:1.5rem 0;color:var(--text-muted);font-family:'Barlow Condensed',sans-serif;font-size:1.1rem;letter-spacing:0.05em;text-transform:uppercase;">SEGERA HADIR ✦</p>`;
