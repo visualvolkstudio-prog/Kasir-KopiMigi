@@ -25,24 +25,23 @@ jobs:
       - name: Build frontend
         run: npm run build
 
-      - name: Deploy ke VPS
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          source: "dist/"
-          target: "/var/www/kasirmigi"
-          strip_components: 1
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Deploy frontend ke VPS
+        run: |
+          rsync -avz --delete -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
+            dist/ ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/var/www/kasirmigi/
 
       - name: Upload API files
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          source: "api/supabase.js,server.js"
-          target: "/home/gilfram/kasirmigi"
+        run: |
+          rsync -avz -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
+            api/supabase.js server.js \
+            ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:~/kasirmigi/
 
       - name: Restart PM2
         uses: appleboy/ssh-action@v1.0.3
