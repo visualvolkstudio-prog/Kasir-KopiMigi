@@ -13,7 +13,7 @@ const STORAGE_KEY = "kopishop-pos-menu";
 const MENU_CATEGORIES = [
   "Kopi",
   "Manual Brew",
-  "Americano Series",
+  "Americano",
   "Botolan",
   "Milk Based",
   "Pastries",
@@ -22,18 +22,18 @@ const MENU_CATEGORIES = [
 
 // Fallback jika belum ada data dari app
 const DEFAULT_MENU = [
-  { id: "esp",     name: "Espresso",         category: "Kopi",             price: 18000 },
-  { id: "cap",     name: "Cappuccino",        category: "Kopi",             price: 28000 },
-  { id: "lat",     name: "Cafe Latte",        category: "Kopi",             price: 30000 },
-  { id: "aren",    name: "Kopi Susu Aren",    category: "Kopi",             price: 26000 },
-  { id: "v60",     name: "V60",               category: "Manual Brew",      price: 30000 },
-  { id: "chemex",  name: "Chemex",            category: "Manual Brew",      price: 32000 },
-  { id: "amer",    name: "Americano",         category: "Americano Series", price: 22000 },
-  { id: "botol",   name: "Cold Brew Botol",   category: "Botolan",          price: 35000 },
-  { id: "matcha",  name: "Matcha Latte",      category: "Milk Based",       price: 32000 },
-  { id: "choco",   name: "Iced Chocolate",    category: "Milk Based",       price: 29000 },
-  { id: "croi",    name: "Butter Croissant",  category: "Pastries",         price: 24000 },
-  { id: "air",     name: "Air Mineral",       category: "Air Minum",        price: 8000  },
+  { id: "esp",     name: "Espresso",         category: "Kopi",         price: 18000 },
+  { id: "cap",     name: "Cappuccino",        category: "Kopi",         price: 28000 },
+  { id: "lat",     name: "Cafe Latte",        category: "Kopi",         price: 30000 },
+  { id: "aren",    name: "Kopi Susu Aren",    category: "Kopi",         price: 26000 },
+  { id: "v60",     name: "V60",               category: "Manual Brew",  price: 30000 },
+  { id: "chemex",  name: "Chemex",            category: "Manual Brew",  price: 32000 },
+  { id: "amer",    name: "Americano",         category: "Americano",    price: 22000 },
+  { id: "botol",   name: "Cold Brew Botol",   category: "Botolan",      price: 35000 },
+  { id: "matcha",  name: "Matcha Latte",      category: "Milk Based",   price: 32000 },
+  { id: "choco",   name: "Iced Chocolate",    category: "Milk Based",   price: 29000 },
+  { id: "croi",    name: "Butter Croissant",  category: "Pastries",     price: 24000 },
+  { id: "air",     name: "Air Mineral",       category: "Air Minum",    price: 8000  },
 ];
 
 function getMenuData() {
