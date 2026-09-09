@@ -317,8 +317,26 @@ a.word:focus-visible { outline: 2px dashed currentColor; outline-offset: 4px; bo
 .order-link--shopeefood { border-left: 3px solid #ee4d2d; }
 .order-link--wa         { border-left: 3px solid #25D366; }
 
-/* ══ MENU PANEL ══════════════════════════════════════════ */
-.panel--menu { max-height: 90dvh; }
+/* ══ MENU PANEL — FULLSCREEN ═════════════════════════════ */
+.panel--menu {
+  inset: 0;
+  border-radius: 0;
+  border-top: none;
+  max-height: 100dvh;
+  height: 100dvh;
+  transform: translateY(0) scale(0.97);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  display: flex;
+  flex-direction: column;
+}
+
+.panel--menu.open {
+  transform: translateY(0) scale(1);
+  opacity: 1;
+  pointer-events: all;
+}
 
 .menu-tabs {
   display: flex;
@@ -354,9 +372,12 @@ a.word:focus-visible { outline: 2px dashed currentColor; outline-offset: 4px; bo
 }
 
 .menu-list {
-  padding: 0 1.25rem 1rem;
+  padding: 0 1.25rem 2rem;
   display: flex;
   flex-direction: column;
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .menu-item {

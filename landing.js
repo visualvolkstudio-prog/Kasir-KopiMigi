@@ -7,36 +7,48 @@
 ═════════════════════════════════════════════════════════ */
 
 // ── MENU DATA — sinkron dengan POS app via localStorage ──
-// Key sama persis dengan yang dipakai di app.js
 const STORAGE_KEY = "kopishop-pos-menu";
 
-// Fallback jika belum ada data dari app (menu default Migi)
+// Urutan dan kategori yang ditampilkan di landing — tetap dan berurutan
+const MENU_CATEGORIES = [
+  "Kopi",
+  "Manual Brew",
+  "Americano Series",
+  "Botolan",
+  "Milk Based",
+  "Pastries",
+  "Air Minum",
+];
+
+// Fallback jika belum ada data dari app
 const DEFAULT_MENU = [
-  { id: "esp",        name: "Espresso",         category: "Kopi",      price: 18000 },
-  { id: "cap",        name: "Cappuccino",        category: "Kopi",      price: 28000 },
-  { id: "lat",        name: "Cafe Latte",        category: "Kopi",      price: 30000 },
-  { id: "aren",       name: "Kopi Susu Aren",    category: "Kopi",      price: 26000 },
-  { id: "matcha",     name: "Matcha Latte",      category: "Non Kopi",  price: 32000 },
-  { id: "choco",      name: "Iced Chocolate",    category: "Non Kopi",  price: 29000 },
-  { id: "croissant",  name: "Butter Croissant",  category: "Snack",     price: 24000 },
-  { id: "toast",      name: "Smoked Beef Toast", category: "Snack",     price: 36000 },
+  { id: "esp",     name: "Espresso",         category: "Kopi",             price: 18000 },
+  { id: "cap",     name: "Cappuccino",        category: "Kopi",             price: 28000 },
+  { id: "lat",     name: "Cafe Latte",        category: "Kopi",             price: 30000 },
+  { id: "aren",    name: "Kopi Susu Aren",    category: "Kopi",             price: 26000 },
+  { id: "v60",     name: "V60",               category: "Manual Brew",      price: 30000 },
+  { id: "chemex",  name: "Chemex",            category: "Manual Brew",      price: 32000 },
+  { id: "amer",    name: "Americano",         category: "Americano Series", price: 22000 },
+  { id: "botol",   name: "Cold Brew Botol",   category: "Botolan",          price: 35000 },
+  { id: "matcha",  name: "Matcha Latte",      category: "Milk Based",       price: 32000 },
+  { id: "choco",   name: "Iced Chocolate",    category: "Milk Based",       price: 29000 },
+  { id: "croi",    name: "Butter Croissant",  category: "Pastries",         price: 24000 },
+  { id: "air",     name: "Air Mineral",       category: "Air Minum",        price: 8000  },
 ];
 
 function getMenuData() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      // filter out Photobooth — tidak relevan untuk landing page
-      return parsed.filter(item => item.category !== "Photobooth");
-    }
+    if (raw) return JSON.parse(raw);
   } catch (_) {}
   return DEFAULT_MENU;
 }
 
-function getCategories(menuItems) {
-  return [...new Set(menuItems.map(item => item.category).filter(Boolean))].sort((a, b) =>
-    a.localeCompare(b, "id-ID")
+function getCategories() {
+  // Selalu pakai urutan tetap — hanya tampilkan kategori yang ada isinya
+  const allItems = getMenuData();
+  return MENU_CATEGORIES.filter(cat =>
+    allItems.some(item => item.category === cat)
   );
 }
 
@@ -127,8 +139,8 @@ function renderMenu(category) {
 }
 
 function buildMenuTabs() {
+  const categories = getCategories();
   const allItems = getMenuData();
-  const categories = getCategories(allItems);
   const tabContainer = document.querySelector(".menu-tabs");
 
   tabContainer.innerHTML = categories.map((cat, i) => `
@@ -192,16 +204,23 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("orderClose").addEventListener("click", () => closePanel("orderBackdrop", "orderPanel"));
   document.getElementById("orderBackdrop").addEventListener("click", () => closePanel("orderBackdrop", "orderPanel"));
 
-  // ── MENU ──────────────────────────────────────────────────
+  // ── MENU (fullscreen) ─────────────────────────────────
   document.querySelector('[data-action="menu"]').addEventListener("click", (e) => {
     e.preventDefault();
-    // Re-build tiap kali dibuka supaya selalu sinkron dengan app
     buildMenuTabs();
-    openPanel("menuBackdrop", "menuPanel");
+    // Fullscreen: hanya panel yang terbuka, backdrop tidak perlu
+    const panel = document.getElementById("menuPanel");
+    panel.classList.add("open");
+    panel.setAttribute("aria-hidden", "false");
+    document.body.style.overflow = "hidden";
   });
 
-  document.getElementById("menuClose").addEventListener("click", () => closePanel("menuBackdrop", "menuPanel"));
-  document.getElementById("menuBackdrop").addEventListener("click", () => closePanel("menuBackdrop", "menuPanel"));
+  document.getElementById("menuClose").addEventListener("click", () => {
+    const panel = document.getElementById("menuPanel");
+    panel.classList.remove("open");
+    panel.setAttribute("aria-hidden", "true");
+    document.body.style.overflow = "";
+  });
 
   // ── ESC key ───────────────────────────────────────────────
   document.addEventListener("keydown", (e) => {
