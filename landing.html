@@ -4,49 +4,118 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Kopi Migi</title>
-  <meta name="theme-color" content="#00349b" />
+  <meta name="theme-color" content="#111111" />
+  <meta name="description" content="Kopi Migi — kedai kopi lokal yang cozy. Temukan kami, pesan online, atau cek menu langsung di sini." />
   <link rel="icon" href="/assets/favicon-migi.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@900&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;900&family=DM+Sans:wght@400;600&family=Geist:wght@600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/landing.css" />
 </head>
 <body>
 
-  <!-- YELLOW TAPE BAND — diagonal, white text scrolling inside -->
-  <div class="tape" role="marquee" aria-label="Sedang dalam pembuatan">
+  <!-- ══ HOPPER ══ -->
+  <div class="hopper" id="hopper" aria-hidden="true">
+    <div class="hopper-inner">
+      <span class="hopper-emoji" id="hopperEmoji">☕</span>
+    </div>
+  </div>
+
+  <!-- ══ HERO ══ -->
+  <main class="hero">
+
+    <div class="hero-logo">
+      <img src="/assets/logo-miginew-transparent.png" alt="Kopi Migi" class="logo-img" />
+    </div>
+
+    <!-- Big flowing text — colored words are interactive -->
+    <div class="hero-text" aria-label="Hi Teman, selamat datang di Migi. Temukan Kami, Order Online, atau cek Menu dulu?">
+      <span class="word plain">HI! TEMAN,&nbsp;</span><span class="word plain">SELAMAT DATANG DI&nbsp;</span><span class="word brand" data-action="brand">MIGI.&nbsp;</span><span class="word plain">TEMUKAN&nbsp;</span><a class="word link link--locate" data-action="locate" href="https://share.google/izH59vsLJ6Ty6YNZX" target="_blank" rel="noopener">KAMI</a><span class="word plain">,&nbsp;</span><a class="word link link--order" data-action="order" href="#" role="button">ORDER&nbsp;ONLINE</a><span class="word plain">,&nbsp;</span><span class="word plain">ATAU CEK&nbsp;</span><a class="word link link--menu" data-action="menu" href="#" role="button">MENU</a><span class="word plain">&nbsp;DULU?</span>
+    </div>
+
+  </main>
+
+  <!-- ══ DIAGONAL TAPE ══ -->
+  <div class="tape" role="marquee" aria-label="Kopi Migi — Coffee & Culture">
     <div class="tape-track">
-      <!-- Set A -->
       <div class="tape-row">
-        <span class="tape-item">Sedang Dalam Pembuatan</span>
-        <span class="tape-dot" aria-hidden="true">◆</span>
-        <span class="tape-item">Sedang Dalam Pembuatan</span>
-        <span class="tape-dot" aria-hidden="true">◆</span>
-        <span class="tape-item">Sedang Dalam Pembuatan</span>
-        <span class="tape-dot" aria-hidden="true">◆</span>
-        <span class="tape-item">Sedang Dalam Pembuatan</span>
-        <span class="tape-dot" aria-hidden="true">◆</span>
-        <span class="tape-item">Sedang Dalam Pembuatan</span>
-        <span class="tape-dot" aria-hidden="true">◆</span>
-        <span class="tape-item">Sedang Dalam Pembuatan</span>
-        <span class="tape-dot" aria-hidden="true">◆</span>
+        <span class="tape-item">KOPIMIGI</span>
+        <span class="tape-dot">•</span>
+        <span class="tape-item">MINTA LAGI</span>
+        <span class="tape-dot">•</span>
+        <span class="tape-item">Coffee &amp; Culture</span>
+        <span class="tape-dot">•</span>
+        <span class="tape-item">KOPIMIGI</span>
+        <span class="tape-dot">•</span>
+        <span class="tape-item">MINTA LAGI</span>
+        <span class="tape-dot">•</span>
+        <span class="tape-item">Coffee &amp; Culture</span>
+        <span class="tape-dot">•</span>
       </div>
-      <!-- Set B (duplicate for seamless loop) -->
+      <!-- duplicate for seamless loop -->
       <div class="tape-row" aria-hidden="true">
-        <span class="tape-item">Sedang Dalam Pembuatan</span>
-        <span class="tape-dot">◆</span>
-        <span class="tape-item">Sedang Dalam Pembuatan</span>
-        <span class="tape-dot">◆</span>
-        <span class="tape-item">Sedang Dalam Pembuatan</span>
-        <span class="tape-dot">◆</span>
-        <span class="tape-item">Sedang Dalam Pembuatan</span>
-        <span class="tape-dot">◆</span>
-        <span class="tape-item">Sedang Dalam Pembuatan</span>
-        <span class="tape-dot">◆</span>
-        <span class="tape-item">Sedang Dalam Pembuatan</span>
-        <span class="tape-dot">◆</span>
+        <span class="tape-item">KOPIMIGI</span>
+        <span class="tape-dot">•</span>
+        <span class="tape-item">MINTA LAGI</span>
+        <span class="tape-dot">•</span>
+        <span class="tape-item">Coffee &amp; Culture</span>
+        <span class="tape-dot">•</span>
+        <span class="tape-item">KOPIMIGI</span>
+        <span class="tape-dot">•</span>
+        <span class="tape-item">MINTA LAGI</span>
+        <span class="tape-dot">•</span>
+        <span class="tape-item">Coffee &amp; Culture</span>
+        <span class="tape-dot">•</span>
       </div>
     </div>
+  </div>
+
+  <!-- ══ ORDER ONLINE PANEL ══ -->
+  <div class="panel-backdrop" id="orderBackdrop" aria-hidden="true"></div>
+  <div class="panel" id="orderPanel" role="dialog" aria-modal="true" aria-label="Order Online" aria-hidden="true">
+    <div class="panel-handle"></div>
+    <div class="panel-header">
+      <p class="panel-label">Order Online</p>
+      <button class="panel-close" id="orderClose" aria-label="Tutup panel">✕</button>
+    </div>
+    <div class="panel-links">
+      <a class="order-link order-link--gofood" href="https://gofood.co.id/garut/restaurant/kopi-migi-304d67ab-7e81-47e0-81cb-4eca2d12e34a?as=gmaps" target="_blank" rel="noopener noreferrer">
+        <span class="order-link-icon">🛵</span>
+        <span class="order-link-text">GoFood</span>
+        <span class="order-link-arrow">↗</span>
+      </a>
+      <a class="order-link order-link--grabfood" href="https://food.grab.com/id/id/restaurant/kopi-migi-coffee-shop-and-roastery-jayaraga-delivery/6-C76ECZDYBB5BRJ?" target="_blank" rel="noopener noreferrer">
+        <span class="order-link-icon">🚗</span>
+        <span class="order-link-text">GrabFood</span>
+        <span class="order-link-arrow">↗</span>
+      </a>
+      <a class="order-link order-link--shopeefood" href="https://shopeefood.co.id" target="_blank" rel="noopener noreferrer">
+        <span class="order-link-icon">🛍️</span>
+        <span class="order-link-text">ShopeeFood</span>
+        <span class="order-link-arrow">↗</span>
+      </a>
+      <a class="order-link order-link--wa" href="https://wa.me/6281234567890" target="_blank" rel="noopener noreferrer">
+        <span class="order-link-icon">💬</span>
+        <span class="order-link-text">WhatsApp</span>
+        <span class="order-link-arrow">↗</span>
+      </a>
+    </div>
+  </div>
+
+  <!-- ══ MENU PANEL ══ -->
+  <div class="panel-backdrop" id="menuBackdrop" aria-hidden="true"></div>
+  <div class="panel panel--menu" id="menuPanel" role="dialog" aria-modal="true" aria-label="Menu Kopi Migi" aria-hidden="true">
+    <div class="panel-handle"></div>
+    <div class="panel-header">
+      <p class="panel-label">Menu</p>
+      <button class="panel-close" id="menuClose" aria-label="Tutup panel">✕</button>
+    </div>
+    <div class="menu-tabs" role="tablist">
+      <button class="menu-tab active" data-category="kopi"    role="tab" aria-selected="true">Kopi</button>
+      <button class="menu-tab"        data-category="nonkopi" role="tab" aria-selected="false">Non-Kopi</button>
+      <button class="menu-tab"        data-category="makanan" role="tab" aria-selected="false">Makanan</button>
+    </div>
+    <div class="menu-list" id="menuList"></div>
   </div>
 
   <script src="/landing.js" defer></script>
