@@ -143,28 +143,52 @@ body::before {
 
 /* ── Clickable link words ───────────────────────────────── */
 a.word {
-  text-decoration: underline;
-  text-decoration-color: transparent;
-  text-underline-offset: 0.12em;
-  text-decoration-thickness: 0.08em;
+  /* wavy underline — always visible, not just on hover */
+  text-decoration: underline wavy;
+  text-decoration-color: currentColor;
+  text-decoration-thickness: 0.06em;
+  text-underline-offset: 0.14em;
   cursor: pointer;
   display: inline;
+  position: relative;
+
   transition:
-    text-decoration-color 0.22s ease,
-    color 0.22s ease,
-    opacity 0.15s ease;
+    transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1),
+    filter    0.18s ease,
+    text-decoration-thickness 0.18s ease,
+    letter-spacing 0.18s ease;
+
+  /* looping glow pulse — signals "tap me" even on mobile */
+  animation: wordLinkPulse 3s ease-in-out infinite;
+  /* delay so pulse starts after entrance animation (~1.2s) */
+  animation-delay: 1.4s;
+  animation-fill-mode: both;
 }
 
+@keyframes wordLinkPulse {
+  0%, 100% { filter: brightness(1)   drop-shadow(0 0 0px transparent); }
+  50%       { filter: brightness(1.2) drop-shadow(0 0 10px currentColor); }
+}
+
+/* hover & focus — lebih dramatis */
 a.word:hover,
 a.word:focus-visible {
-  text-decoration-color: currentColor;
+  transform: scale(1.06) translateY(-3px);
+  filter: brightness(1.3) drop-shadow(0 0 14px currentColor);
+  text-decoration-thickness: 0.1em;
+  letter-spacing: 0.01em;
 }
 
-a.word:active { opacity: 0.68; }
+/* tap press feedback */
+a.word:active {
+  transform: scale(0.96) translateY(1px);
+  filter: brightness(0.9);
+  transition-duration: 0.08s;
+}
 
 a.word:focus-visible {
   outline: 2.5px dashed currentColor;
-  outline-offset: 5px;
+  outline-offset: 6px;
   border-radius: 3px;
 }
 
@@ -620,4 +644,5 @@ a.word:focus-visible {
   .hero-logo, .hero-kicker { opacity: 1; animation: none !important; }
   .hopper-inner, .hopper-emoji { animation: none; }
   .panel, .panel--menu { transition: opacity 0.2s ease; }
+  a.word { animation: none !important; filter: none !important; }
 }
