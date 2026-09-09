@@ -7092,9 +7092,22 @@ function saveItemCustomization(event) {
 
 async function printThermalReceipt(transaction, kind = "paid") {
   try {
-    // preferResponse=true: gunakan writeValueWithResponse jika tersedia agar
-    // paket struk panjang mendapat ACK dari printer dan tidak hilang di tengah jalan.
-    await writePrinterChunks(await encodeEscPosReceipt(transaction, kind), state.printerCharacteristic, 18, true);
+    const bytes = await encodeEscPosReceipt(transaction, kind);
+    // Deteksi apakah printer mendukung ACK (write-with-response).
+    // Xprinter/RPP series hanya mendukung writeWithoutResponse — memaksa ACK
+    // pada printer ini akan menyebabkan cetak gagal total. Gunakan preferResponse
+    // hanya jika karakteristik memang mendukungnya.
+    const supportsAck = Boolean(state.printerCharacteristic?.properties?.write);
+    await writePrinterChunks(
+      bytes,
+      state.printerCharacteristic,
+      supportsAck ? 10 : 20,   // delay lebih kecil saat ACK, lebih besar saat tanpa ACK
+      supportsAck,             // preferResponse hanya jika printer mendukung
+      {
+        burstEvery: 12,        // pause setiap 12 chunk agar UART buffer printer murah tidak overflow
+        burstPauseMs: 80,
+      },
+    );
     toast("Struk dikirim ke printer termal.");
     return true;
   } catch (error) {
