@@ -6569,7 +6569,7 @@ async function encodeCupLabel(transaction, item, itemIndex, totalItems) {
   const counter = `[${itemIndex + 1}/${totalItems}]`;
   const orderNum = transaction.orderCode || "-";
   const customer = transaction.customer || "Teman Migi";
-  const notesText = item.notes || "ICE · NORMAL · REGULAR";
+  const notesText = item.notes || "";
   const tags = notesText.split(" · ").filter(Boolean).map(toTitleCase);
   const variantLine = tags.join(" * ");
 
@@ -6773,7 +6773,7 @@ async function encodeCupLabelBitmap(transaction, item, itemIndex, totalItems) {
   const titleCase = (value) => String(value || "").toLowerCase().split(" ").map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(" ");
   const txDate = transaction.createdAt ? new Date(transaction.createdAt) : new Date();
   const barcodeValue = `${String(txDate.getDate()).padStart(2, "0")}${String(txDate.getMonth() + 1).padStart(2, "0")}${txDate.getFullYear()}`;
-  const tags = String(item.notes || "ICE · NORMAL · REGULAR").split(" · ").filter(Boolean).map(titleCase);
+  const tags = String(item.notes || "").split(" · ").filter(Boolean).map(titleCase);
   const elements = [
     { text: "logo", enabled: settings.logoEnabled === true, isImage: true, imageSrc: "assets/logo-migi-print.png", x: settings.logoX ?? 12, y: settings.logoY ?? 12, width: settings.logoWidth ?? 32, height: settings.logoMaxHeight ?? 32 },
     { text: "custom-image", enabled: settings.customImageEnabled === true && Boolean(settings.customImageData), isImage: true, imageSrc: settings.customImageData, x: settings.customImageX ?? 260, y: settings.customImageY ?? 12, width: settings.customImageWidth ?? 48, height: settings.customImageMaxHeight ?? 48 },
