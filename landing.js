@@ -56,27 +56,7 @@ const MENU_CACHE   = "kopimigi-menu-v1";
 const MENU_URL     = "/menu.json";
 
 async function getMenuData() {
-  // 1. Coba ambil dari Cache Storage (bisa offline)
-  try {
-    const cache = await caches.open(MENU_CACHE);
-    const cached = await cache.match(MENU_URL);
-    if (cached) {
-      const data = await cached.json();
-      if (data?.length) {
-        // Refresh cache di background tanpa block UI
-        fetchAndCacheMenu(cache);
-        return data;
-      }
-    }
-  } catch (_) {}
-
-  // 2. Fetch langsung dari server, simpan ke cache
-  try {
-    const cache = await caches.open(MENU_CACHE);
-    return await fetchAndCacheMenu(cache);
-  } catch (_) {}
-
-  // 3. Fallback: localStorage (kasir device)
+  // 1. localStorage dulu — data real dari app kasir (paling up-to-date)
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
@@ -85,7 +65,26 @@ async function getMenuData() {
     }
   } catch (_) {}
 
-  // 4. Fallback akhir: data hardcoded
+  // 2. Cache Storage — data offline dari menu.json
+  try {
+    const cache = await caches.open(MENU_CACHE);
+    const cached = await cache.match(MENU_URL);
+    if (cached) {
+      const data = await cached.json();
+      if (data?.length) {
+        fetchAndCacheMenu(cache); // refresh di background
+        return data;
+      }
+    }
+  } catch (_) {}
+
+  // 3. Fetch menu.json dari server (simpan ke cache)
+  try {
+    const cache = await caches.open(MENU_CACHE);
+    return await fetchAndCacheMenu(cache);
+  } catch (_) {}
+
+  // 4. Fallback hardcoded
   return DEFAULT_MENU;
 }
 
