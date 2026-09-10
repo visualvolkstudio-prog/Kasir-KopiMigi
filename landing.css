@@ -153,10 +153,29 @@ a.word {
     filter    0.18s ease,
     letter-spacing 0.18s ease;
 
-  /* looping glow pulse — signals "tap me" even on mobile */
+  /* looping glow pulse */
   animation: wordLinkPulse 3s ease-in-out infinite;
   animation-delay: 1.4s;
   animation-fill-mode: both;
+}
+
+/* arrow nudge — "tap sini!" */
+a.word::after {
+  content: '→';
+  display: inline-block;
+  font-size: 0.42em;
+  font-weight: 900;
+  vertical-align: middle;
+  margin-left: 0.18em;
+  opacity: 0.75;
+  animation: arrowNudge 1s ease-in-out infinite;
+  animation-delay: 1.6s;
+  animation-fill-mode: both;
+}
+
+@keyframes arrowNudge {
+  0%, 100% { transform: translateX(0);   opacity: 0.75; }
+  50%       { transform: translateX(6px); opacity: 1;    }
 }
 
 @keyframes wordLinkPulse {
@@ -164,12 +183,19 @@ a.word {
   50%       { filter: brightness(1.2) drop-shadow(0 0 12px currentColor); }
 }
 
-/* hover & focus — dramatis */
+/* hover & focus — arrow sembunyi, kata yang maju */
 a.word:hover,
 a.word:focus-visible {
   transform: scale(1.06) translateY(-3px);
   filter: brightness(1.3) drop-shadow(0 0 16px currentColor);
   letter-spacing: 0.01em;
+}
+
+a.word:hover::after,
+a.word:focus-visible::after {
+  opacity: 0;
+  transform: translateX(10px);
+  transition: opacity 0.15s ease, transform 0.15s ease;
 }
 
 /* tap press feedback */
