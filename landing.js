@@ -324,15 +324,65 @@ document.addEventListener("DOMContentLoaded", () => {
     setTimeout(() => fabBtn.classList.remove("fab--bounce", "fab--ripple"), 500);
   }
 
-  fabBtn?.addEventListener("click", () => {
-    triggerFabBounce();
-    setTimeout(() => {
-      fabPanel.classList.add("open");
-      fabBackdrop.classList.add("open");
-      fabPanel.setAttribute("aria-hidden", "false");
-      fabBackdrop.setAttribute("aria-hidden", "false");
-      document.body.style.overflow = "hidden";
-    }, 160);
+  let isDragging = false;
+  let startX, startY, initialRight, initialBottom;
+  let hasMoved = false;
+
+  fabBtn?.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0 && e.pointerType === "mouse") return;
+    isDragging = true;
+    hasMoved = false;
+    startX = e.clientX;
+    startY = e.clientY;
+    
+    const rect = fabBtn.getBoundingClientRect();
+    initialRight = window.innerWidth - rect.right;
+    initialBottom = window.innerHeight - rect.bottom;
+    
+    fabBtn.classList.add("fab--dragging");
+    fabBtn.setPointerCapture(e.pointerId);
+  });
+
+  fabBtn?.addEventListener("pointermove", (e) => {
+    if (!isDragging) return;
+    const dx = e.clientX - startX;
+    const dy = e.clientY - startY;
+    
+    if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
+      hasMoved = true;
+    }
+    
+    if (hasMoved) {
+      let newRight = initialRight - dx;
+      let newBottom = initialBottom - dy;
+      
+      const maxX = window.innerWidth - fabBtn.offsetWidth;
+      const maxY = window.innerHeight - fabBtn.offsetHeight;
+      
+      newRight = Math.max(0, Math.min(newRight, maxX));
+      newBottom = Math.max(0, Math.min(newBottom, maxY));
+      
+      fabBtn.style.right = `${newRight}px`;
+      fabBtn.style.bottom = `${newBottom}px`;
+    }
+  });
+
+  fabBtn?.addEventListener("pointerup", (e) => {
+    if (!isDragging) return;
+    isDragging = false;
+    fabBtn.classList.remove("fab--dragging");
+    fabBtn.releasePointerCapture(e.pointerId);
+    
+    if (!hasMoved) {
+      triggerFabBounce();
+      setTimeout(() => {
+        fabPanel.classList.add("open");
+        fabBackdrop.classList.add("open");
+        fabPanel.setAttribute("aria-hidden", "false");
+        fabBackdrop.setAttribute("aria-hidden", "false");
+        document.body.style.overflow = "hidden";
+      }, 160);
+    }
   });
 
   fabBackdrop?.addEventListener("click", () => closePanel("fabBackdrop", "fabPanel"));
