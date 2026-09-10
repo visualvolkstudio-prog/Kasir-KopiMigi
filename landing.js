@@ -307,7 +307,35 @@ document.addEventListener("DOMContentLoaded", () => {
     if (e.key === "Escape") {
       closePanel("orderBackdrop", "orderPanel");
       closePanel("menuBackdrop", "menuPanel");
+      closePanel("fabBackdrop", "fabPanel");
     }
   });
+
+  // ══ FLOATING LOGO BUTTON (FAB) ════════════════════════════
+  const fabBtn      = document.getElementById("fabLogo");
+  const fabBackdrop = document.getElementById("fabBackdrop");
+  const fabPanel    = document.getElementById("fabPanel");
+  const fabClose    = document.getElementById("fabClose");
+
+  function triggerFabBounce() {
+    fabBtn.classList.remove("fab--bounce", "fab--ripple");
+    void fabBtn.offsetWidth; // reflow trigger
+    fabBtn.classList.add("fab--bounce", "fab--ripple");
+    setTimeout(() => fabBtn.classList.remove("fab--bounce", "fab--ripple"), 500);
+  }
+
+  fabBtn?.addEventListener("click", () => {
+    triggerFabBounce();
+    setTimeout(() => {
+      fabPanel.classList.add("open");
+      fabBackdrop.classList.add("open");
+      fabPanel.setAttribute("aria-hidden", "false");
+      fabBackdrop.setAttribute("aria-hidden", "false");
+      document.body.style.overflow = "hidden";
+    }, 160);
+  });
+
+  fabBackdrop?.addEventListener("click", () => closePanel("fabBackdrop", "fabPanel"));
+  fabClose?.addEventListener("click",    () => closePanel("fabBackdrop", "fabPanel"));
 
 });
