@@ -149,58 +149,43 @@ a.word {
   position: relative;
 
   transition:
-    transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1),
-    filter    0.18s ease,
+    transform      0.2s cubic-bezier(0.34, 1.56, 0.64, 1),
+    filter         0.18s ease,
     letter-spacing 0.18s ease;
 
-  /* looping glow pulse */
-  animation: wordLinkPulse 3s ease-in-out infinite;
-  animation-delay: 1.4s;
-  animation-fill-mode: both;
-}
-
-/* arrow nudge — "tap sini!" */
-a.word::after {
-  content: '→';
-  display: inline-block;
-  font-size: 0.42em;
-  font-weight: 900;
-  vertical-align: middle;
-  margin-left: 0.18em;
-  opacity: 0.75;
-  animation: arrowNudge 1s ease-in-out infinite;
-  animation-delay: 1.6s;
-  animation-fill-mode: both;
-}
-
-@keyframes arrowNudge {
-  0%, 100% { transform: translateX(0);   opacity: 0.75; }
-  50%       { transform: translateX(6px); opacity: 1;    }
+  /* looping glow pulse — aktif setelah fadeUp selesai */
+  animation: wordLinkPulse 6s ease-in-out infinite;
 }
 
 @keyframes wordLinkPulse {
-  0%, 100% { filter: brightness(1)   drop-shadow(0 0 0px transparent); }
-  50%       { filter: brightness(1.2) drop-shadow(0 0 12px currentColor); }
+  0%        { text-shadow: none; filter: brightness(1); }
+  17%       { text-shadow: 0 0 8px currentColor, 0 0 16px currentColor; filter: brightness(1.13); }
+  33%, 100% { text-shadow: none; filter: brightness(1); }
 }
 
-/* hover & focus — arrow sembunyi, kata yang maju */
+/* tap hint ripple — element sementara, expand + fade */
+@keyframes tapRipple {
+  0%   { transform: translate(-50%, -50%) scale(0.7); opacity: 0.9; }
+  40%  { opacity: 0.6; }
+  100% { transform: translate(-50%, -50%) scale(1.5); opacity: 0; }
+}
+
+/* hover & focus */
 a.word:hover,
 a.word:focus-visible {
-  transform: scale(1.06) translateY(-3px);
-  filter: brightness(1.3) drop-shadow(0 0 16px currentColor);
+  transform: scale(1.05) translateY(-2px);
+  text-shadow:
+    0 0 20px currentColor,
+    0 0 50px currentColor,
+    0 0 100px currentColor;
+  filter: brightness(1.5);
   letter-spacing: 0.01em;
+  animation: none;
 }
 
-a.word:hover::after,
-a.word:focus-visible::after {
-  opacity: 0;
-  transform: translateX(10px);
-  transition: opacity 0.15s ease, transform 0.15s ease;
-}
-
-/* tap press feedback */
+/* tap press */
 a.word:active {
-  transform: scale(0.96) translateY(1px);
+  transform: scale(0.97) translateY(1px);
   filter: brightness(0.9);
   transition-duration: 0.08s;
 }
@@ -211,9 +196,9 @@ a.word:focus-visible {
   border-radius: 3px;
 }
 
-.link--locate { color: var(--c-orange); }
-.link--order  { color: var(--c-yellow); }
-.link--menu   { color: var(--c-orange); }
+a.word.link--locate { color: var(--c-orange); animation-delay: 0s; }
+a.word.link--order  { color: var(--c-yellow); animation-delay: 2s; }
+a.word.link--menu   { color: var(--c-orange); animation-delay: 4s; }
 
 /* ── Kicker line bawah ──────────────────────────────────── */
 .hero-kicker {
@@ -470,7 +455,15 @@ a.word:focus-visible {
   outline-offset: 3px;
 }
 
-.order-link-icon { font-size: 1.2rem; flex-shrink: 0; }
+.order-link-icon {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.order-link-icon svg { display: block; }
 
 .order-link-text {
   flex: 1;
@@ -493,11 +486,7 @@ a.word:focus-visible {
   transform: translate(2px, -2px);
 }
 
-/* Accent stripe: thin 1px left border — in this neobrutalism-free world */
-.order-link--gofood     { border-left: 2px solid rgba(0,170,19,0.8); }
-.order-link--grabfood   { border-left: 2px solid rgba(0,177,79,0.8); }
-.order-link--shopeefood { border-left: 2px solid rgba(238,77,45,0.8); }
-.order-link--wa         { border-left: 2px solid rgba(37,211,102,0.8); }
+/* icon warna sudah cukup sebagai brand identifier */
 
 /* ══ MENU PANEL — FULLSCREEN ═════════════════════════════ */
 .panel--menu {

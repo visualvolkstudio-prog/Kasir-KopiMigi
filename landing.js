@@ -156,6 +156,10 @@ function animateWords() {
   const words = document.querySelectorAll(".word");
   words.forEach((w, i) => {
     w.style.animation = `fadeUp 0.5s ease ${0.2 + i * 0.07}s forwards`;
+    w.addEventListener("animationend", () => {
+      w.style.opacity  = "1";     // kunci visible
+      w.style.animation = "";     // hapus inline → CSS class wordLinkPulse take over
+    }, { once: true });
   });
 }
 
