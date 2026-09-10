@@ -664,7 +664,7 @@ a.word.link--menu   { color: var(--c-orange); animation-delay: 4s; }
   width: 72px;
   height: 72px;
   border-radius: 50%;
-  background: var(--accent);
+  background: var(--c-yellow);
   border: none;
   cursor: grab;
   display: flex;
@@ -698,7 +698,7 @@ a.word.link--menu   { color: var(--c-orange); animation-delay: 4s; }
   width: 44px;
   height: 44px;
   object-fit: contain;
-  filter: brightness(0);
+  filter: brightness(0) invert(14%) sepia(87%) saturate(2815%) hue-rotate(218deg) brightness(91%) contrast(106%); /* Dark Blue #002580 */
   position: relative;
   z-index: 1;
   pointer-events: none;
