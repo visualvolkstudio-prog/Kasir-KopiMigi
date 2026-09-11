@@ -69,7 +69,7 @@ const DEFAULT_MENU = [
 ];
 
 const STORAGE_KEY  = "kopishop-pos-menu";
-const MENU_CACHE   = "kopimigi-menu-v1";
+const MENU_CACHE   = "migi-menu-v1";
 const MENU_URL     = "/menu.json";
 
 async function getMenuData() {
@@ -272,7 +272,7 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     el.addEventListener("mouseenter", trigger);
-    el.addEventListener("touchstart", trigger, { passive: true });
+    // Removed touchstart as it intercepts click events on mobile
   });
 
   // ── ORDER ONLINE ─────────────────────────────────────────

@@ -224,9 +224,9 @@ a.word.link--locate { color: var(--c-yellow); text-shadow: 0 0 20px rgba(245,200
 a.word.link--locate:hover,
 a.word.link--locate:focus-visible { color: var(--c-yellow); text-shadow: 0 0 30px var(--c-yellow); }
 
-a.word.link--order  { color: var(--text); }
+a.word.link--order  { color: var(--c-yellow); text-shadow: 0 0 20px rgba(245,200,0,0.4); }
 a.word.link--order:hover,
-a.word.link--order:focus-visible { color: var(--c-order); text-shadow: 0 0 30px var(--c-order); }
+a.word.link--order:focus-visible { color: var(--c-yellow); text-shadow: 0 0 30px var(--c-yellow); }
 
 a.word.link--menu   { color: var(--c-yellow); text-shadow: 0 0 20px rgba(245,200,0,0.4); }
 a.word.link--menu:hover,
