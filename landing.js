@@ -70,7 +70,7 @@ const DEFAULT_MENU = [
 
 const STORAGE_KEY  = "kopishop-pos-menu";
 const MENU_CACHE   = "migi-menu-v1";
-const MENU_URL     = "/menu.json";
+const MENU_URL     = "/api/supabase?action=get-public-menu";
 
 async function getMenuData() {
   // 1. localStorage dulu — data real dari app kasir (paling up-to-date)
@@ -187,7 +187,7 @@ async function renderMenu(category) {
   const allItems = await getMenuData();
   const list = document.getElementById("menuList");
   const items = allItems.filter(item =>
-    item.category?.toLowerCase() === category.toLowerCase()
+    item.category?.toLowerCase() === category.toLowerCase() && item.active !== false
   );
 
   if (!items.length) {

@@ -954,10 +954,18 @@ async function forceLogoutDevice(body) {
   await removeFromDeviceList(deviceId).catch(() => null);
   return { status: 200, payload: { success: true, deviceId } };
 }
+async function getPublicMenu() {
+  const rows = await supabaseFetch("app_settings?select=*&key=eq.global&limit=1").catch(() => []);
+  const row = Array.isArray(rows) ? rows[0] : null;
+  const settings = row?.value || {};
+  const menu = settings.menu || [];
+  return { status: 200, payload: menu };
+}
 
 
 async function dispatch(body, req) {
   if (body.action === "login") return login(body);
+  if (body.action === "get-public-menu") return getPublicMenu();
 
   const auth = requireAuth(req);
   if (auth.payload) return auth;
@@ -1020,10 +1028,11 @@ async function dispatch(body, req) {
 
 module.exports = async function handler(req, res) {
   if (allowCors(req, res)) return;
-  if (req.method !== "POST") return sendJson(res, 405, { success: false, error: "Method not allowed" });
+  if (req.method !== "POST" && req.method !== "GET") return sendJson(res, 405, { success: false, error: "Method not allowed" });
 
   try {
-    const result = await dispatch(req.body || {}, req);
+    const body = req.method === "POST" ? req.body || {} : req.query || {};
+    const result = await dispatch(body, req);
     return sendJson(res, result.status, result.payload);
   } catch (error) {
     return sendJson(res, 500, { success: false, error: error.message });

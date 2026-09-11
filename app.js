@@ -464,6 +464,7 @@ const els = {
   menuImage: document.querySelector("#menuImage"),
   menuImagePreview: document.querySelector("#menuImagePreview"),
   menuPrintLabel: document.querySelector("#menuPrintLabel"),
+  menuActive: document.querySelector("#menuActive"),
   cancelMenuEdit: document.querySelector("#cancelMenuEdit"),
   menuTable: document.querySelector("#menuTable"),
   menuEditSearch: document.querySelector("#menuEditSearch"),
@@ -4632,7 +4633,8 @@ function renderMenuGrid() {
     if (!item) return false;
     const matchesCategory = state.category === "Semua" || item.category === state.category;
     const matchesSearch = !keyword || `${item.name || ""} ${item.category || ""}`.toLowerCase().includes(keyword);
-    return matchesCategory && matchesSearch;
+    const matchesActive = item.active !== false;
+    return matchesCategory && matchesSearch && matchesActive;
   });
 
   els.menuGrid.innerHTML = filtered.length
@@ -4693,7 +4695,7 @@ function renderMenuTable() {
               <span class="menu-thumb">${itemVisual(item)}</span>
               <div>
                 <strong>${item.name}</strong>
-                <span>${item.category} · ${money(item.price)} · ${recipeCount ? `${recipeCount} bahan` : "Belum ada resep"}</span>
+                <span>${item.active === false ? '<span style="color:var(--danger)">[Nonaktif]</span> ' : ''}${item.category} · ${money(item.price)} · ${recipeCount ? `${recipeCount} bahan` : "Belum ada resep"}</span>
               </div>
             </div>
             <div class="history-actions">
@@ -9282,6 +9284,9 @@ function resetMenuForm() {
   if (els.menuPrintLabel) {
     els.menuPrintLabel.checked = true;
   }
+  if (els.menuActive) {
+    els.menuActive.checked = true;
+  }
   els.menuImagePreview.innerHTML = "Belum ada gambar";
   renderMenuCategoryOptions("");
   renderRecipeRows("");
@@ -9354,6 +9359,7 @@ async function saveMenu(event) {
     price: parseRupiah(els.menuPrice.value),
     image: els.menuImage.value,
     printLabel: els.menuPrintLabel ? els.menuPrintLabel.checked : false,
+    active: els.menuActive ? els.menuActive.checked : true,
   };
 
   if (!data.name || !data.category || data.price < 0) {
@@ -10911,6 +10917,9 @@ els.menuTable.addEventListener("click", async (event) => {
       setMenuImagePreview(item.image || "");
       if (els.menuPrintLabel) {
         els.menuPrintLabel.checked = item.printLabel !== false;
+      }
+      if (els.menuActive) {
+        els.menuActive.checked = item.active !== false;
       }
       renderRecipeRows(item.id);
       els.menuForm.scrollIntoView({ behavior: "smooth", block: "start" });
