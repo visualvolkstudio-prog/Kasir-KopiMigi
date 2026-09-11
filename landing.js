@@ -82,23 +82,24 @@ async function getMenuData() {
     }
   } catch (_) {}
 
-  // 2. Cache Storage — data offline dari menu.json
+  // 2. Fetch from server first (Network First)
   try {
     const cache = await caches.open(MENU_CACHE);
+    if (navigator.onLine) {
+      try {
+        const data = await fetchAndCacheMenu(cache);
+        if (data?.length) return data;
+      } catch (err) {
+        console.warn("Network fetch failed, falling back to cache");
+      }
+    }
+    
+    // 3. Fallback to Cache
     const cached = await cache.match(MENU_URL);
     if (cached) {
       const data = await cached.json();
-      if (data?.length) {
-        fetchAndCacheMenu(cache); // refresh di background
-        return data;
-      }
+      if (data?.length) return data;
     }
-  } catch (_) {}
-
-  // 3. Fetch menu.json dari server (simpan ke cache)
-  try {
-    const cache = await caches.open(MENU_CACHE);
-    return await fetchAndCacheMenu(cache);
   } catch (_) {}
 
   // 4. Fallback hardcoded
@@ -198,7 +199,7 @@ async function renderMenu(category) {
   list.innerHTML = items.map(item => `
     <div class="menu-item">
       <div class="menu-item-info">
-        <div class="menu-item-name">${item.name}</div>
+        <div class="menu-item-name">${item.name} ${item.bestSeller ? '👍' : ''}</div>
       </div>
       <div class="menu-item-price">${formatPrice(item.price)}</div>
     </div>

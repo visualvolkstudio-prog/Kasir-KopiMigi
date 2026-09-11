@@ -4699,6 +4699,7 @@ function renderMenuTable() {
               </div>
             </div>
             <div class="history-actions">
+              <button class="secondary-button compact" data-toggle-bestseller-menu="${item.id}" type="button" title="Tandai sebagai Best Seller">${item.bestSeller ? '👍 Best Seller' : 'Biasa'}</button>
               <button class="secondary-button compact" data-toggle-active-menu="${item.id}" type="button">${item.active === false ? 'ON' : 'OFF'}</button>
               <button class="secondary-button compact" data-edit-menu="${item.id}" type="button">Edit</button>
               <button class="secondary-button compact danger-text" data-delete-menu="${item.id}" type="button">Hapus</button>
@@ -10906,7 +10907,19 @@ els.menuTable.addEventListener("click", async (event) => {
   const editButton = event.target.closest("button[data-edit-menu]");
   const deleteButton = event.target.closest("button[data-delete-menu]");
   const toggleButton = event.target.closest("button[data-toggle-active-menu]");
+  const toggleBestsellerButton = event.target.closest("button[data-toggle-bestseller-menu]");
   const menu = getMenu();
+
+  if (toggleBestsellerButton) {
+    const item = menu.find((entry) => entry.id === toggleBestsellerButton.dataset.toggleBestsellerMenu);
+    if (!item) return;
+    item.bestSeller = !item.bestSeller;
+    writeJson(storageKeys.menu, menu);
+    markSettingsDirty();
+    renderAll();
+    persistMenuSettings(); // Fire background sync
+    return;
+  }
 
   if (toggleButton) {
     const item = menu.find((entry) => entry.id === toggleButton.dataset.toggleActiveMenu);
