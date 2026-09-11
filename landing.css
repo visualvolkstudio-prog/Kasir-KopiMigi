@@ -813,9 +813,11 @@ a.word.link--menu:focus-visible { color: var(--c-yellow); text-shadow: 0 0 30px 
   justify-content: space-between;
   padding: 2.5rem clamp(2rem, 5vw, 5rem);
   z-index: 100;
+  pointer-events: none; /* Biar gak ngeblok teks di bawahnya */
 }
 
 .nav-item {
+  pointer-events: auto; /* Tombol tetap bisa diklik */
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -912,3 +914,25 @@ a.word.link--menu:focus-visible { color: var(--c-yellow); text-shadow: 0 0 30px 
   background: #20BA56;
   transform: translateY(-2px);
 }
+
+/* ══ MOBILE ADJUSTMENTS FOR TOP NAV ════════════════════════ */
+@media (max-width: 600px) {
+  .top-nav {
+    padding: 1.5rem 1rem;
+    gap: 0.5rem;
+  }
+  
+  .nav-item {
+    padding: 0.6rem 1rem;
+    font-size: 0.9rem;
+  }
+  
+  .nav-item:hover {
+    padding: 0.6rem 1rem; /* Disable padding expansion on mobile */
+  }
+
+  .nav-arrow {
+    display: none; /* Hide arrow on mobile to save space */
+  }
+}
+
