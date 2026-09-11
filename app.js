@@ -4699,6 +4699,7 @@ function renderMenuTable() {
               </div>
             </div>
             <div class="history-actions">
+              <button class="secondary-button compact" data-toggle-active-menu="${item.id}" type="button">${item.active === false ? 'ON' : 'OFF'}</button>
               <button class="secondary-button compact" data-edit-menu="${item.id}" type="button">Edit</button>
               <button class="secondary-button compact danger-text" data-delete-menu="${item.id}" type="button">Hapus</button>
             </div>
@@ -10904,7 +10905,19 @@ els.menuEditSearch?.addEventListener("input", (event) => {
 els.menuTable.addEventListener("click", async (event) => {
   const editButton = event.target.closest("button[data-edit-menu]");
   const deleteButton = event.target.closest("button[data-delete-menu]");
+  const toggleButton = event.target.closest("button[data-toggle-active-menu]");
   const menu = getMenu();
+
+  if (toggleButton) {
+    const item = menu.find((entry) => entry.id === toggleButton.dataset.toggleActiveMenu);
+    if (!item) return;
+    item.active = item.active === false ? true : false;
+    writeJson(storageKeys.menu, menu);
+    markSettingsDirty();
+    renderAll();
+    persistMenuSettings(); // Fire background sync
+    return;
+  }
 
     if (editButton) {
       const item = menu.find((entry) => entry.id === editButton.dataset.editMenu);
