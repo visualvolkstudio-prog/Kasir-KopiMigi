@@ -9,8 +9,8 @@
   <link rel="icon" href="/assets/favicon-migi.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;900&family=DM+Sans:ital,wght@0,400;0,600;1,400&family=DM+Mono:wght@500;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/landing.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/landing.css?v=2" />
 </head>
 <body>
 
@@ -20,8 +20,23 @@
     STORY: Tiba → tahu ini Kopi Migi → pilih aksi (pesan / menu / lokasi) → langsung.
     FIRST VIEWPORT: Logo kecil atas, satu blok teks hero penuh layar dengan kata-kata interaktif berwarna, kicker muted di bawah, tape kuning diagonal fixed.
     FORM: Polish established world — identitas dipertahankan, detail dinaikkan ke premium.
-    FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance
   -->
+
+  <!-- ══ TOP NAV (Squeezy Buttons) ══ -->
+  <header class="top-nav" aria-label="Main Navigation">
+    <a href="https://maps.app.goo.gl/g8q628wtqBL7D1wE6" target="_blank" rel="noopener" class="nav-item">
+      <svg class="nav-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+      <span class="nav-text">Find Me</span>
+    </a>
+    <a href="#" data-action="menu" class="nav-item">
+      <svg class="nav-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+      <span class="nav-text">Menu</span>
+    </a>
+    <a href="#" data-action="order" class="nav-item">
+      <svg class="nav-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+      <span class="nav-text">Contact</span>
+    </a>
+  </header>
 
   <!-- ══ HOPPER ══ -->
   <div class="hopper" id="hopper" aria-hidden="true">
@@ -35,8 +50,8 @@
 
 
     <!-- Big flowing text — colored words are interactive -->
-    <div class="hero-text" aria-label="Hi ! Teman, selamat datang di Kopimigi. Yuk ! Lebih dekat dengan kami !, mau order online ?, atau cek menu dulu?">
-      <span class="word plain">HI !&nbsp;</span><span class="word plain" style="color:var(--c-orange)">TEMAN,&nbsp;</span><span class="word plain">SELAMAT DATANG DI&nbsp;</span><span class="word brand" data-action="brand">KOPIMIGI.&nbsp;</span><span class="word plain">YUK !&nbsp;LEBIH DEKAT DENGAN&nbsp;</span><a class="word link link--locate" data-action="locate" href="https://maps.app.goo.gl/g8q628wtqBL7D1wE6" target="_blank" rel="noopener">KAMI !</a><span class="word plain">&nbsp;</span><a class="word link link--order" data-action="order" href="#" role="button">MAU ORDER&nbsp;ONLINE ?</a><span class="word plain">&nbsp;</span><span class="word plain">ATAU CEK&nbsp;</span><a class="word link link--menu" data-action="menu" href="#" role="button">MENU</a><span class="word plain">&nbsp;DULU?</span>
+    <div class="hero-text" aria-label="Hi teman, selamat datang di Kopimigi. Yuk lebih dekat dengan kami! Mau order online atau cek menu dulu?">
+      <span class="word plain">hi </span><span class="word plain" style="color:var(--c-yellow)">teman</span><span class="word plain">, selamat datang di </span><span class="word brand" data-action="brand" style="color:var(--c-yellow)">kopimigi.</span><span class="word plain"> yuk lebih dekat dengan </span><a class="word link link--locate" data-action="locate" href="https://maps.app.goo.gl/g8q628wtqBL7D1wE6" target="_blank" rel="noopener" style="color:var(--c-yellow)">kami!</a><span class="word plain"> mau </span><a class="word link link--order" data-action="order" href="#" role="button">order online</a><span class="word plain"> atau cek </span><a class="word link link--menu" data-action="menu" href="#" role="button" style="color:var(--c-yellow)">menu</a><span class="word plain"> dulu?</span>
     </div>
 
     <p class="hero-kicker" aria-hidden="true">Garut, Jawa Barat &nbsp;·&nbsp; Buka setiap hari</p>
@@ -126,11 +141,18 @@
   <div class="panel panel--fab" id="fabPanel" role="dialog" aria-modal="true" aria-label="Kopi Migi" aria-hidden="true">
     <div class="panel-handle"></div>
     <div class="panel-header">
-      <p class="panel-label">Kopi Migi ☕</p>
+
       <button class="panel-close" id="fabClose" aria-label="Tutup panel">✕</button>
     </div>
     <div class="fab-panel-body">
-      <!-- isi nanti -->
+      <div class="chat-greeting">
+        <h3>Butuh bantuan?</h3>
+        <p>Hubungi admin kami untuk reservasi tempat, pesanan jumlah besar, atau sekadar tanya menu hari ini.</p>
+      </div>
+      <a href="https://wa.me/6281234567890" target="_blank" rel="noopener" class="wa-button">
+        <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
+        Chat via WhatsApp
+      </a>
     </div>
   </div>
 

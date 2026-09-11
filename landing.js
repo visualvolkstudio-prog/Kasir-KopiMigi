@@ -259,7 +259,7 @@ document.addEventListener("DOMContentLoaded", () => {
   buildMenuTabs();
 
   // ── Hopper on link tap/hover ────────────────────────────
-  document.querySelectorAll("[data-action], .word.brand").forEach(el => {
+  document.querySelectorAll(".hero-text [data-action], .hero-text .word.brand").forEach(el => {
     const getPos = () => {
       const r = el.getBoundingClientRect();
       return { x: r.left + r.width / 2, y: r.top - 16 };
@@ -276,23 +276,27 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   // ── ORDER ONLINE ─────────────────────────────────────────
-  document.querySelector('[data-action="order"]').addEventListener("click", (e) => {
-    e.preventDefault();
-    openPanel("orderBackdrop", "orderPanel");
+  document.querySelectorAll('[data-action="order"]').forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      openPanel("orderBackdrop", "orderPanel");
+    });
   });
 
   document.getElementById("orderClose").addEventListener("click", () => closePanel("orderBackdrop", "orderPanel"));
   document.getElementById("orderBackdrop").addEventListener("click", () => closePanel("orderBackdrop", "orderPanel"));
 
   // ── MENU (fullscreen) ─────────────────────────────────
-  document.querySelector('[data-action="menu"]').addEventListener("click", (e) => {
-    e.preventDefault();
-    buildMenuTabs();
-    // Fullscreen: hanya panel yang terbuka, backdrop tidak perlu
-    const panel = document.getElementById("menuPanel");
-    panel.classList.add("open");
-    panel.setAttribute("aria-hidden", "false");
-    document.body.style.overflow = "hidden";
+  document.querySelectorAll('[data-action="menu"]').forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      buildMenuTabs();
+      // Fullscreen: hanya panel yang terbuka, backdrop tidak perlu
+      const panel = document.getElementById("menuPanel");
+      panel.classList.add("open");
+      panel.setAttribute("aria-hidden", "false");
+      document.body.style.overflow = "hidden";
+    });
   });
 
   document.getElementById("menuClose").addEventListener("click", () => {

@@ -6,6 +6,14 @@
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+@font-face {
+  font-family: "Geist", system-ui, sans-serif;
+  src: url('https://assets.codepen.io/64/Mona-Sans.woff2') format('woff2 supports variations'),
+       url('https://assets.codepen.io/64/Mona-Sans.woff2') format('woff2-variations');
+  font-weight: 200 900;
+  font-stretch: 75% 125%;
+}
+
 :root {
   --bg:           #00349b;
   --bg-deep:      #002580;
@@ -55,7 +63,7 @@ html, body {
   max-width: 100vw;
   background: var(--bg);
   color: var(--text);
-  font-family: "DM Sans", system-ui, sans-serif;
+  font-family: "Geist", system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow-x: hidden;
@@ -120,15 +128,15 @@ body::before {
 .hero-text {
   position: relative;
   z-index: 1;
-  font-family: "Barlow Condensed", system-ui, sans-serif;
-  font-weight: 900;
-  font-size: var(--size-hero);
-  text-transform: uppercase;
-  letter-spacing: -0.015em;
-  line-height: 1.02;
+  font-family: "Geist", system-ui, sans-serif;
+  font-weight: 600; /* Semibold to match reference */
+  font-size: clamp(3rem, 10vw, 8.5rem);
+  letter-spacing: -0.05em; /* Very tight tracking */
+  line-height: 0.95; /* Tight leading */
   color: var(--text);
   width: 100%;
-  max-width: 100%;
+  max-width: 1200px;
+  text-align: left; /* Explicitly left-aligned */
   overflow-wrap: normal;
   word-break: normal;
 }
@@ -196,15 +204,39 @@ a.word:focus-visible {
   border-radius: 3px;
 }
 
-a.word.link--locate { color: var(--c-orange); animation-delay: 0s; }
-a.word.link--order  { color: var(--c-yellow); animation-delay: 2s; }
-a.word.link--menu   { color: var(--c-orange); animation-delay: 4s; }
+.word.brand { color: var(--c-yellow); font-weight: 600; cursor: pointer; transition: color 0.4s var(--ease-out-expo), text-shadow 0.4s var(--ease-out-expo); }
+.word.brand:hover { color: var(--c-yellow); text-shadow: 0 0 25px var(--c-yellow); }
+
+a.word.link {
+  color: var(--text);
+  text-decoration: none;
+  position: relative;
+  transition: color 0.4s var(--ease-out-expo), text-shadow 0.4s var(--ease-out-expo);
+  /* Glowing text instead of underline */
+  text-shadow: 0 0 20px rgba(255,255,255,0.4);
+}
+
+a.word.link:hover {
+  /* Hover effect handled per link */
+}
+
+a.word.link--locate { color: var(--c-yellow); text-shadow: 0 0 20px rgba(245,200,0,0.4); }
+a.word.link--locate:hover,
+a.word.link--locate:focus-visible { color: var(--c-yellow); text-shadow: 0 0 30px var(--c-yellow); }
+
+a.word.link--order  { color: var(--text); }
+a.word.link--order:hover,
+a.word.link--order:focus-visible { color: var(--c-order); text-shadow: 0 0 30px var(--c-order); }
+
+a.word.link--menu   { color: var(--c-yellow); text-shadow: 0 0 20px rgba(245,200,0,0.4); }
+a.word.link--menu:hover,
+a.word.link--menu:focus-visible { color: var(--c-yellow); text-shadow: 0 0 30px var(--c-yellow); }
 
 /* ── Kicker line bawah ──────────────────────────────────── */
 .hero-kicker {
   position: relative;
   z-index: 1;
-  font-family: "DM Sans", system-ui, sans-serif;
+  font-family: "Geist", system-ui, sans-serif;
   font-size: clamp(0.8rem, 1.5vw, 1rem);
   font-weight: 400;
   letter-spacing: 0.08em;
@@ -264,7 +296,7 @@ a.word.link--menu   { color: var(--c-orange); animation-delay: 4s; }
 }
 
 .tape-item {
-  font-family: "Barlow Condensed", system-ui, sans-serif;
+  font-family: "Geist", system-ui, sans-serif;
   font-size: clamp(1rem, 2.6vw, 1.45rem);
   font-weight: 900;
   letter-spacing: 0.05em;
@@ -387,7 +419,7 @@ a.word.link--menu   { color: var(--c-orange); animation-delay: 4s; }
 }
 
 .panel-label {
-  font-family: "Barlow Condensed", system-ui, sans-serif;
+  font-family: "Geist", system-ui, sans-serif;
   font-weight: 900;
   font-size: var(--size-panel-label);
   letter-spacing: -0.01em;
@@ -467,7 +499,7 @@ a.word.link--menu   { color: var(--c-orange); animation-delay: 4s; }
 
 .order-link-text {
   flex: 1;
-  font-family: "Barlow Condensed", system-ui, sans-serif;
+  font-family: "Geist", system-ui, sans-serif;
   font-weight: 900;
   font-size: clamp(1.1rem, 2.2vw, 1.35rem);
   letter-spacing: 0.02em;
@@ -528,7 +560,7 @@ a.word.link--menu   { color: var(--c-orange); animation-delay: 4s; }
   color: var(--text-muted);
   padding: 0.42rem 1.05rem;
   border-radius: 999px;
-  font-family: "Barlow Condensed", system-ui, sans-serif;
+  font-family: "Geist", system-ui, sans-serif;
   font-weight: 700;
   font-size: clamp(0.9rem, 1.8vw, 1.05rem);
   letter-spacing: 0.06em;
@@ -577,7 +609,7 @@ a.word.link--menu   { color: var(--c-orange); animation-delay: 4s; }
 .menu-item-info { flex: 1; min-width: 0; }
 
 .menu-item-name {
-  font-family: "Barlow Condensed", system-ui, sans-serif;
+  font-family: "Geist", system-ui, sans-serif;
   font-weight: 700;
   font-size: clamp(1rem, 2vw, 1.2rem);
   text-transform: uppercase;
@@ -597,7 +629,7 @@ a.word.link--menu   { color: var(--c-orange); animation-delay: 4s; }
 }
 
 .menu-item-price {
-  font-family: "DM Mono", "DM Sans", monospace;
+  font-family: "Geist", system-ui, sans-serif;
   font-weight: 700;
   font-size: 0.88rem;
   color: var(--c-yellow);
@@ -608,7 +640,7 @@ a.word.link--menu   { color: var(--c-orange); animation-delay: 4s; }
 /* ── Empty state ────────────────────────────────────────── */
 .menu-empty {
   padding: 1.75rem 0;
-  font-family: "Barlow Condensed", sans-serif;
+  font-family: "Geist", system-ui, sans-serif;
   font-size: 1.1rem;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -747,7 +779,7 @@ a.word.link--menu   { color: var(--c-orange); animation-delay: 4s; }
   padding: 32px 20px;
   min-height: 100px;
   color: var(--text-muted);
-  font-family: "DM Sans", sans-serif;
+  font-family: "Geist", system-ui, sans-serif;
   font-size: 0.9rem;
   display: flex;
   align-items: center;
@@ -770,3 +802,113 @@ a.word.link--menu   { color: var(--c-orange); animation-delay: 4s; }
 }
 
 
+
+/* ══ TOP NAV (Squeezy Buttons) ═════════════════════════════ */
+.top-nav {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  padding: 2.5rem clamp(2rem, 5vw, 5rem);
+  z-index: 100;
+}
+
+.nav-item {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--c-yellow);
+  color: var(--bg-darker);
+  border-radius: 99px;
+  padding: 0.8rem 2.5rem;
+  text-decoration: none;
+  font-size: clamp(1.1rem, 1.4vw, 1.4rem);
+  text-transform: capitalize;
+  transition: all 0.5s var(--ease-out-expo);
+  cursor: pointer;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+}
+
+.nav-text {
+  font-family: "Geist", system-ui, sans-serif;
+  font-weight: 600;
+  font-stretch: 110%;
+  letter-spacing: 0.02em;
+  will-change: font-weight, font-stretch;
+  transition: font-weight 0.5s var(--ease-out-expo), 
+              font-stretch 0.5s var(--ease-out-expo);
+}
+
+.nav-arrow {
+  width: 0;
+  height: 1.2em;
+  opacity: 0;
+  margin-right: 0;
+  transform: translateX(-10px);
+  transition: all 0.5s var(--ease-out-expo);
+}
+
+.nav-item:hover {
+  background: #ffdb33; /* Slightly brighter yellow on hover */
+  padding: 0.8rem 2rem 0.8rem 1.75rem;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+}
+
+.nav-item:hover .nav-arrow {
+  width: 1.2em;
+  opacity: 1;
+  margin-right: 0.4rem;
+  transform: translateX(0);
+}
+
+.nav-item:hover .nav-text {
+  font-weight: 900;
+  font-stretch: 75%; /* Squeezy! */
+}
+
+.nav-item:active {
+  transform: scale(0.95);
+}
+
+/* ══ WHATSAPP FAB PANEL ════════════════════════════════════ */
+.fab-panel-body {
+  padding: 1rem 1.5rem 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.chat-greeting h3 {
+  font-size: 1.25rem;
+  color: var(--text);
+  margin-bottom: 0.5rem;
+}
+
+.chat-greeting p {
+  font-size: 0.95rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.wa-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  background: #25D366; /* WhatsApp Green */
+  color: #fff;
+  text-decoration: none;
+  padding: 1rem;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 1rem;
+  transition: transform 0.3s var(--ease-out-expo), background 0.3s;
+}
+
+.wa-button:hover {
+  background: #20BA56;
+  transform: translateY(-2px);
+}
