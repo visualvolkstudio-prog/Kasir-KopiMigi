@@ -1987,6 +1987,41 @@ function getHistory() {
   return readJson(storageKeys.history, []);
 }
 
+function updateAutoBestSellers() {
+  const history = getHistory();
+  const products = new Map();
+
+  history.forEach((entry) => {
+    if (entry.deleted) return;
+    if (entry.orderType === "staff_drink") return;
+    (entry.items || []).forEach((item) => {
+      const currentQty = products.get(item.id) || 0;
+      products.set(item.id, currentQty + item.qty);
+    });
+  });
+
+  const bestsellersIds = [...products.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map((entry) => entry[0]);
+
+  const menu = getMenu();
+  let changed = false;
+
+  menu.forEach((item) => {
+    const isBestSeller = bestsellersIds.includes(item.id);
+    if (item.bestSeller !== isBestSeller) {
+      item.bestSeller = isBestSeller;
+      changed = true;
+    }
+  });
+
+  if (changed) {
+    writeJson(storageKeys.menu, menu);
+    markSettingsDirty();
+  }
+}
+
 function patchLocalHistoryTransaction(id, patch) {
   const history = getHistory();
   const index = history.findIndex((entry) => entry.id === id);
@@ -4699,7 +4734,6 @@ function renderMenuTable() {
               </div>
             </div>
             <div class="history-actions">
-              <button class="secondary-button compact" data-toggle-bestseller-menu="${item.id}" type="button" title="Tandai sebagai Best Seller">${item.bestSeller ? '👍 Best Seller' : 'Biasa'}</button>
               <button class="secondary-button compact" data-toggle-active-menu="${item.id}" type="button">${item.active === false ? 'ON' : 'OFF'}</button>
               <button class="secondary-button compact" data-edit-menu="${item.id}" type="button">Edit</button>
               <button class="secondary-button compact danger-text" data-delete-menu="${item.id}" type="button">Hapus</button>
@@ -8063,6 +8097,7 @@ function cacheCloudTransactions(transactions = [], localPending = []) {
   const paid = merged.filter(isPaidTransaction);
   writeJson(storageKeys.history, paid.slice(0, 2000));
   saveOrderDrafts(unpaid.slice(0, 200));
+  updateAutoBestSellers();
 }
 
 async function cacheCloudTransactionsWithPending(transactions = []) {
@@ -9374,7 +9409,7 @@ async function saveMenu(event) {
 
   const index = menu.findIndex((item) => item.id === data.id);
   if (index >= 0) menu[index] = { ...menu[index], ...data };
-  else menu.push(data);
+  else menu.push({ ...data, createdAt: Date.now() });
 
   if (recipeRows.length) recipes[data.id] = recipeRows;
   else delete recipes[data.id];
@@ -10907,19 +10942,7 @@ els.menuTable.addEventListener("click", async (event) => {
   const editButton = event.target.closest("button[data-edit-menu]");
   const deleteButton = event.target.closest("button[data-delete-menu]");
   const toggleButton = event.target.closest("button[data-toggle-active-menu]");
-  const toggleBestsellerButton = event.target.closest("button[data-toggle-bestseller-menu]");
   const menu = getMenu();
-
-  if (toggleBestsellerButton) {
-    const item = menu.find((entry) => entry.id === toggleBestsellerButton.dataset.toggleBestsellerMenu);
-    if (!item) return;
-    item.bestSeller = !item.bestSeller;
-    writeJson(storageKeys.menu, menu);
-    markSettingsDirty();
-    renderAll();
-    persistMenuSettings(); // Fire background sync
-    return;
-  }
 
   if (toggleButton) {
     const item = menu.find((entry) => entry.id === toggleButton.dataset.toggleActiveMenu);
@@ -11218,6 +11241,7 @@ document.addEventListener("keydown", (event) => {
 
 restoreActiveView();
 applyAccessControls();
+updateAutoBestSellers();
 renderAll();
 updateConnectionStatus();
 if (isLoggedIn()) {

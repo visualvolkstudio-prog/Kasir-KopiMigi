@@ -196,14 +196,20 @@ async function renderMenu(category) {
     return;
   }
 
-  list.innerHTML = items.map(item => `
+  list.innerHTML = items.map(item => {
+    const isNew = item.createdAt && (Date.now() - item.createdAt < 7 * 24 * 60 * 60 * 1000);
+    return `
     <div class="menu-item">
       <div class="menu-item-info">
-        <div class="menu-item-name">${item.name} ${item.bestSeller ? '👍' : ''}</div>
+        <div class="menu-item-name">
+          ${item.name} 
+          ${item.bestSeller ? '👍' : ''}
+          ${isNew ? '<span class="new-badge">NEW</span>' : ''}
+        </div>
       </div>
       <div class="menu-item-price">${formatPrice(item.price)}</div>
     </div>
-  `).join("");
+  `}).join("");
 }
 
 async function buildMenuTabs() {

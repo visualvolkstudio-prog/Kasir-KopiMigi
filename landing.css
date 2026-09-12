@@ -940,3 +940,5 @@ a.word.link--menu:focus-visible { color: var(--c-yellow); text-shadow: 0 0 30px 
   }
 }
 
+
+.new-badge { font-size: 0.65em; background: #e74c3c; color: white; padding: 2px 6px; border-radius: 4px; vertical-align: middle; margin-left: 4px; font-weight: bold; letter-spacing: 0.5px; }
