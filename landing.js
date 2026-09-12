@@ -69,7 +69,7 @@ const DEFAULT_MENU = [
 ];
 
 const STORAGE_KEY  = "kopishop-pos-menu";
-const MENU_CACHE   = "migi-menu-v1";
+const MENU_CACHE   = "migi-menu-v2";
 const MENU_URL     = "/api/supabase?action=get-public-menu";
 
 async function getMenuData() {
