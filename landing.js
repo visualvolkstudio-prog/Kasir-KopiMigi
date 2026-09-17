@@ -262,8 +262,22 @@ document.addEventListener("DOMContentLoaded", () => {
   // Stagger entrance
   animateWords();
 
-  // Build dynamic menu tabs & render from localStorage
-  buildMenuTabs();
+  // ── Deep-link via URL param: ?open=menu ──────────────────
+  // QR code diarahkan ke: https://kopimigi.my.id/?open=menu
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.get("open") === "menu") {
+    // Tunggu buildMenuTabs() selesai dulu (async fetch) baru buka panel
+    buildMenuTabs().then(() => {
+      const panel = document.getElementById("menuPanel");
+      panel.classList.add("open");
+      panel.setAttribute("aria-hidden", "false");
+      document.body.style.overflow = "hidden";
+      history.replaceState(null, "", window.location.pathname);
+    });
+  } else {
+    // Normal: build tabs saja tanpa buka panel
+    buildMenuTabs();
+  }
 
   // ── Hopper on link tap/hover ────────────────────────────
   document.querySelectorAll(".hero-text [data-action], .hero-text .word.brand").forEach(el => {
@@ -400,3 +414,25 @@ document.addEventListener("DOMContentLoaded", () => {
   fabClose?.addEventListener("click",    () => closePanel("fabBackdrop", "fabPanel"));
 
 });
+
+// ── PAGE VIEW TRACKER ──
+// Silent background call — tidak ada UI di landing page.
+// Hanya owner yang bisa melihat datanya di tab Analitik kasir.
+(function trackPageView() {
+  const SESSION_KEY = "migi_lp_tracked";
+  if (sessionStorage.getItem(SESSION_KEY)) return; // sudah dihitung sesi ini
+  // Tunggu sampai halaman selesai load baru kirim request
+  window.addEventListener("load", function () {
+    fetch("/api/supabase", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "track-view" }),
+    })
+      .then(function (res) {
+        if (res.ok) sessionStorage.setItem(SESSION_KEY, "1");
+      })
+      .catch(function () {
+        // Gagal diam-diam (misal di localhost tanpa API server)
+      });
+  });
+})();
