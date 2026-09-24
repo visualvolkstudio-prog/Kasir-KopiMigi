@@ -448,6 +448,7 @@ const els = {
   avgDailyRevenue: document.querySelector("#avgDailyRevenue"),
   monthTransactions: document.querySelector("#monthTransactions"),
   monthItems: document.querySelector("#monthItems"),
+  landingViewCount: document.querySelector("#landingViewCount"),
   revenueChart: document.querySelector("#revenueChart"),
   bestsellerList: document.querySelector("#bestsellerList"),
   insightList: document.querySelector("#insightList"),
@@ -5399,8 +5400,9 @@ function lineItemMergeKey(item = {}) {
 
 function mergeLineItems(items = []) {
   const merged = new Map();
-  (Array.isArray(items) ? items : []).forEach((item) => {
-    if (!item) return;
+  (Array.isArray(items) ? items : []).forEach((rawItem) => {
+    if (!rawItem) return;
+    const item = JSON.parse(JSON.stringify(rawItem)); // Paranoid deep clone
     const key = lineItemMergeKey(item);
     const qty = Number(item.qty || 0);
     if (!key || qty <= 0) return;
@@ -5485,7 +5487,35 @@ function renderCart() {
   els.cartList.innerHTML = state.cart.length
     ? state.cart
         .map(
-          (item) => `
+          (item) => {
+            const showDropdown = isBeverageItem(item) && item.qty > 1;
+            const unitRows = showDropdown
+              ? Array.from({ length: item.qty }, (_, i) => {
+                  const label = item.notes
+                    ? `<span class="cup-unit-note">${escapeHtml(item.notes)}</span>`
+                    : `<span class="cup-unit-note cup-unit-note--empty">Belum dikustomisasi</span>`;
+                  return `<button class="cup-unit-row" type="button" data-action="customize-unit" data-id="${item.id}" data-unit="${i}">
+                    <span class="cup-unit-label"><i class="ph ph-coffee"></i> Cup ${i + 1}</span>
+                    ${label}
+                  </button>`;
+                }).join("")
+              : "";
+            const editBtn = isBeverageItem(item)
+              ? `<div class="cart-edit-wrap">
+                  <button class="cart-item-edit-btn${showDropdown ? " has-dropdown" : ""}" data-action="${showDropdown ? "customize-dropdown" : "customize"}" data-id="${item.id}" type="button" title="Kustomisasi">
+                    <i class="ph ph-note-pencil"></i>${showDropdown ? `<i class="ph ph-caret-down cup-dd-caret"></i>` : ""}
+                  </button>
+                  ${showDropdown ? `<div class="cup-unit-dropdown" id="cup-dd-${item.id}" hidden>
+                    <button class="cup-unit-row cup-unit-all" type="button" data-action="customize" data-id="${item.id}">
+                      <span class="cup-unit-label"><i class="ph ph-stack"></i> Edit semua (${item.qty}x)</span>
+                      <span class="cup-unit-note">Terapkan ke semua cup</span>
+                    </button>
+                    <div class="cup-unit-divider"></div>
+                    ${unitRows}
+                  </div>` : ""}
+                </div>`
+              : "";
+            return `
             <div class="cart-item">
               <div>
                 <strong>${item.name}</strong>
@@ -5497,10 +5527,11 @@ function renderCart() {
                 <button class="qty-button" data-action="decrease" data-id="${item.id}" type="button">-</button>
                 <strong>${item.qty}</strong>
                 <button class="qty-button" data-action="increase" data-id="${item.id}" type="button" ${state.orderType === "staff_drink" ? "disabled" : ""}>+</button>
-                ${isBeverageItem(item) ? `<button class="cart-item-edit-btn" data-action="customize" data-id="${item.id}" type="button" title="Kustomisasi"><i class="ph ph-note-pencil"></i></button>` : ""}
+                ${editBtn}
               </div>
             </div>
-          `,
+          `;
+          }
         )
         .join("")
     : `<div class="empty-state cart-empty-state">
@@ -5656,7 +5687,15 @@ function removePendingBoothSession() {
   sendBoothServerAction("delete", code);
 }
 
+let _lastAddedItemId = null;
+let _lastAddedItemTime = 0;
+
 function addToCart(id) {
+  const now = Date.now();
+  if (_lastAddedItemId === id && now - _lastAddedItemTime < 300) return; // Prevent double tap ghosting
+  _lastAddedItemId = id;
+  _lastAddedItemTime = now;
+
   const item = getMenu().find((entry) => entry.id === id);
   if (!item) return;
   if (!canAddStaffDrinkItem(id)) {
@@ -5665,7 +5704,7 @@ function addToCart(id) {
   }
   const existing = state.cart.find((entry) => entry.id === id);
   if (existing) existing.qty += 1;
-  else state.cart.push({ ...item, qty: 1 });
+  else state.cart.push(JSON.parse(JSON.stringify({ ...item, qty: 1 }))); // Failsafe deep clone
 
   ensurePhotoboothCode(item);
 
@@ -5795,7 +5834,15 @@ async function startOrder(event) {
   }
 }
 
+let _lastChangeQtyId = null;
+let _lastChangeQtyTime = 0;
+
 function changeQty(id, delta) {
+  const now = Date.now();
+  if (_lastChangeQtyId === id && now - _lastChangeQtyTime < 200) return;
+  _lastChangeQtyId = id;
+  _lastChangeQtyTime = now;
+
   const item = state.cart.find((entry) => entry.id === id);
   if (!item) return;
   if (state.orderType === "staff_drink" && delta > 0) {
@@ -5852,6 +5899,16 @@ function setOrderChannel(channel = "Kasir") {
 function currentTransaction(draft = false) {
   const total = totals();
   const transactionItems = mergeLineItems(state.cart);
+  
+  // PARANOID FAILSAFE: Force mathematically correct grandTotal based purely on what is saved
+  let checkedTotal = 0;
+  transactionItems.forEach(i => { checkedTotal += Number(i.price || 0) * Number(i.qty || 0) });
+  if (total.subtotal !== checkedTotal && state.orderType !== "staff_drink") {
+    total.subtotal = checkedTotal;
+    total.originalTotal = checkedTotal;
+    total.grandTotal = Math.max(0, checkedTotal - total.discountTotal);
+  }
+
   const staffDrink = !draft && state.orderType === "staff_drink";
   const onlineChannel = !staffDrink && isOnlineChannel(state.orderChannel);
   const payment = staffDrink ? "Staff Drink" : onlineChannel ? state.orderChannel : state.payment;
@@ -7007,6 +7064,33 @@ function printCupLabels(transaction) {
 
 let currentCustomizingItemId = "";
 
+/**
+ * Jika item qty > 1, pisahkan 1 porsi (cup ke-`unitIndex`) menjadi entry
+ * tersendiri di keranjang lalu buka modal kustomisasi untuknya.
+ * Jika item sudah qty = 1, langsung buka modal.
+ */
+function splitAndCustomizeUnit(itemId, unitIndex) {
+  const item = state.cart.find((entry) => entry.id === itemId);
+  if (!item) return;
+  if (item.qty === 1) {
+    // Sudah sendiri, langsung edit
+    openItemCustomModal(itemId);
+    return;
+  }
+  // Kurangi qty item asli
+  item.qty -= 1;
+  // Buat entry baru untuk cup yang dipilih
+  const newId = `${item.id.split("-split-")[0]}-split-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+  const newItem = { ...item, id: newId, qty: 1, notes: item.notes || "" };
+  // Sisipkan setelah item induk
+  const idx = state.cart.indexOf(item);
+  state.cart.splice(idx + 1, 0, newItem);
+  renderCart();
+  // Buka modal untuk item yang baru dipisah
+  openItemCustomModal(newId);
+}
+
+
 function openItemCustomModal(itemId) {
   const item = state.cart.find((entry) => entry.id === itemId);
   if (!item) return;
@@ -7964,6 +8048,9 @@ async function postSupabaseAction(action, payload = {}) {
     }
     if (action === "device-presence") {
       return { activeDevice: null };
+    }
+    if (action === "get-view-count") {
+      return { success: true, count: 42 }; // mock: 42 pengunjung
     }
     return { success: true };
   }
@@ -8994,6 +9081,21 @@ function renderAnalytics() {
   renderDiscountAnalytics(discountedTransactions);
   renderIngredientOutSummary(ingredientUsage);
   renderInsights({ history, bestsellers, revenue, itemCount, staffDrinks });
+  loadLandingViewCount();
+}
+
+async function loadLandingViewCount() {
+  if (!els.landingViewCount) return;
+  // Hanya fetch kalau elemen masih menampilkan placeholder (hindari request berulang)
+  if (els.landingViewCount.textContent !== "—") return;
+  try {
+    const result = await postSupabaseAction("get-view-count");
+    if (!result?.success) return;
+    const count = Number(result.count) || 0;
+    els.landingViewCount.textContent = count.toLocaleString("id-ID");
+  } catch {
+    // Diam saja kalau gagal — tidak krusial
+  }
 }
 
 function renderIngredientOutSummary(ingredientUsage = []) {
@@ -10170,10 +10272,42 @@ els.cartList.addEventListener("click", (event) => {
   const button = event.target.closest("button[data-action]");
   if (!button) return;
   const action = button.dataset.action;
-  if (action === "customize") {
+  if (action === "customize-dropdown") {
+    // Toggle the per-unit dropdown for this item
+    const itemId = button.dataset.id;
+    const dropdown = els.cartList.querySelector(`#cup-dd-${itemId}`);
+    if (!dropdown) return;
+    const isOpen = !dropdown.hidden;
+    // Close all other dropdowns first
+    els.cartList.querySelectorAll(".cup-unit-dropdown").forEach((dd) => { dd.hidden = true; });
+    els.cartList.querySelectorAll(".cart-item-edit-btn.has-dropdown").forEach((btn) => btn.classList.remove("dd-open"));
+    if (!isOpen) {
+      dropdown.hidden = false;
+      button.classList.add("dd-open");
+    }
+  } else if (action === "customize-unit") {
+    // Split off this specific unit and open customize modal for it
+    const itemId = button.dataset.id;
+    const unitIndex = Number(button.dataset.unit);
+    splitAndCustomizeUnit(itemId, unitIndex);
+    // Close dropdown
+    els.cartList.querySelectorAll(".cup-unit-dropdown").forEach((dd) => { dd.hidden = true; });
+    els.cartList.querySelectorAll(".cart-item-edit-btn.has-dropdown").forEach((btn) => btn.classList.remove("dd-open"));
+  } else if (action === "customize") {
+    // Close any open dropdown first
+    els.cartList.querySelectorAll(".cup-unit-dropdown").forEach((dd) => { dd.hidden = true; });
+    els.cartList.querySelectorAll(".cart-item-edit-btn.has-dropdown").forEach((btn) => btn.classList.remove("dd-open"));
     openItemCustomModal(button.dataset.id);
   } else {
     changeQty(button.dataset.id, action === "increase" ? 1 : -1);
+  }
+});
+
+// Close cup-unit dropdowns when clicking outside the cart
+document.addEventListener("click", (event) => {
+  if (!event.target.closest(".cart-edit-wrap")) {
+    els.cartList?.querySelectorAll(".cup-unit-dropdown").forEach((dd) => { dd.hidden = true; });
+    els.cartList?.querySelectorAll(".cart-item-edit-btn.has-dropdown").forEach((btn) => btn.classList.remove("dd-open"));
   }
 });
 

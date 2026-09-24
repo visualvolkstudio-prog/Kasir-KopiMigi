@@ -954,6 +954,7 @@ async function forceLogoutDevice(body) {
   await removeFromDeviceList(deviceId).catch(() => null);
   return { status: 200, payload: { success: true, deviceId } };
 }
+
 async function getPublicMenu() {
   const rows = await supabaseFetch("app_settings?select=*&key=eq.global&limit=1").catch(() => []);
   const row = Array.isArray(rows) ? rows[0] : null;
@@ -962,10 +963,39 @@ async function getPublicMenu() {
   return { status: 200, payload: menu };
 }
 
+// ── LANDING PAGE VIEW COUNTER ──
+
+async function trackView(req) {
+  // Anti-bot: skip headless/crawler user agents
+  const ua = (req.headers?.["user-agent"] || "").toLowerCase();
+  const isBot = /bot|crawl|spider|slurp|facebookexternalhit|whatsapp|telegram|preview|headless/.test(ua);
+  if (isBot) return { status: 200, payload: { success: true, skipped: true } };
+
+  // Baca count saat ini lalu increment (safe untuk traffic rendah kedai kopi)
+  const rows = await supabaseFetch("page_views?page=eq.landing&select=id,count&limit=1").catch(() => null);
+  const row = Array.isArray(rows) ? rows[0] : null;
+  if (!row) return { status: 200, payload: { success: false, error: "Tabel page_views belum dibuat." } };
+
+  const newCount = Number(row.count || 0) + 1;
+  await supabaseFetch(`page_views?id=eq.${row.id}`, {
+    method: "PATCH",
+    prefer: "return=minimal",
+    body: { count: newCount, updated_at: new Date().toISOString() },
+  }).catch(() => null);
+
+  return { status: 200, payload: { success: true, count: newCount } };
+}
+
+async function getLandingViewCount() {
+  const rows = await supabaseFetch("page_views?page=eq.landing&select=count&limit=1").catch(() => []);
+  const count = Array.isArray(rows) && rows[0] ? Number(rows[0].count) : 0;
+  return { status: 200, payload: { success: true, count } };
+}
 
 async function dispatch(body, req) {
   if (body.action === "login") return login(body);
   if (body.action === "get-public-menu") return getPublicMenu();
+  if (body.action === "track-view") return trackView(req); // public — no auth needed
 
   const auth = requireAuth(req);
   if (auth.payload) return auth;
@@ -1021,6 +1051,9 @@ async function dispatch(body, req) {
     case "force-logout-device":
       if (role !== "owner") return { status: 403, payload: { success: false, error: "Hanya Owner yang bisa force logout device." } };
       return forceLogoutDevice(body);
+    case "get-view-count":
+      if (role !== "owner") return { status: 403, payload: { success: false, error: "Hanya Owner yang bisa melihat data pengunjung." } };
+      return getLandingViewCount();
     default:
       return { status: 400, payload: { success: false, error: "Action Supabase tidak dikenal." } };
   }

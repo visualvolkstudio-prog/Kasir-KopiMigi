@@ -3114,6 +3114,130 @@ body.locked .login-screen { display: grid; }
   border-color: var(--muted);
 }
 
+/* Edit button with dropdown (qty > 1) */
+.cart-item-edit-btn.has-dropdown {
+  width: auto;
+  padding: 0 7px;
+  gap: 3px;
+}
+
+.cart-item-edit-btn.has-dropdown .cup-dd-caret {
+  font-size: 10px;
+  transition: transform 0.15s;
+}
+
+.cart-item-edit-btn.has-dropdown.dd-open {
+  background: var(--soft);
+  color: var(--ink);
+  border-color: var(--brand);
+}
+
+.cart-item-edit-btn.has-dropdown.dd-open .cup-dd-caret {
+  transform: rotate(180deg);
+}
+
+/* Wrapper for edit button + dropdown */
+.cart-edit-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* Per-unit dropdown panel */
+.cup-unit-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 220px;
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+  z-index: 999;
+  overflow: hidden;
+  animation: cup-dd-in 0.14s var(--ease-out-expo, cubic-bezier(0.16,1,0.3,1)) both;
+}
+
+@keyframes cup-dd-in {
+  from { opacity: 0; transform: translateY(-6px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0)    scale(1); }
+}
+
+/* Each row in dropdown */
+.cup-unit-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 9px 12px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.1s;
+}
+
+.cup-unit-row:hover {
+  background: var(--soft, #f4f5f8);
+}
+
+.cup-unit-row:active {
+  background: rgba(0,52,155,0.06);
+}
+
+.cup-unit-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink);
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.cup-unit-label i {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.cup-unit-note {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--brand);
+  background: rgba(0, 52, 155, 0.06);
+  padding: 2px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cup-unit-note--empty {
+  color: var(--muted);
+  background: var(--soft, #f4f5f8);
+  font-style: italic;
+}
+
+/* "Edit semua" row styling */
+.cup-unit-all .cup-unit-label {
+  color: var(--brand);
+}
+
+.cup-unit-all .cup-unit-note {
+  background: transparent;
+  color: var(--muted);
+  font-style: italic;
+}
+
+/* Thin divider between "edit all" and per-unit rows */
+.cup-unit-divider {
+  height: 1px;
+  background: var(--line);
+  margin: 0;
+}
+
 /* Badge for active variants under item name in cart */
 .item-notes-badge {
   display: inline-block;
@@ -3129,6 +3253,7 @@ body.locked .login-screen { display: grid; }
   margin-top: 4px;
   letter-spacing: 0.02em;
 }
+
 
 .login-card {
   width: min(380px, 100%);
@@ -3372,7 +3497,7 @@ body.locked .login-screen { display: grid; }
 .order-card {
   width: min(840px, calc(100vw - 24px));
   max-height: calc(100dvh - 24px);
-  overflow: auto;
+  overflow: hidden;
   background: var(--white);
   border: 1px solid var(--line);
   border-radius: 14px;
@@ -3380,6 +3505,7 @@ body.locked .login-screen { display: grid; }
   padding: 0;
   gap: 0;
   display: grid;
+  grid-template-rows: auto 1fr auto;
 }
 
 .order-card h2 { font-size: clamp(24px, 3vw, 42px); }
@@ -3487,6 +3613,7 @@ body.locked .login-screen { display: grid; }
   display: grid;
   grid-template-columns: minmax(0,1.1fr) minmax(270px,0.9fr);
   min-height: 420px;
+  overflow: auto;
 }
 
 .order-summary-pane, .order-payment-pane {
