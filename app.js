@@ -5488,35 +5488,35 @@ function renderCart() {
     ? state.cart
         .map(
           (item) => {
-            const showDropdown = isBeverageItem(item) && item.qty > 1;
-            const unitRows = showDropdown
+            const showPanel = isBeverageItem(item) && item.qty > 1;
+            const unitRows = showPanel
               ? Array.from({ length: item.qty }, (_, i) => {
-                  const label = item.notes
+                  const noteHtml = item.notes
                     ? `<span class="cup-unit-note">${escapeHtml(item.notes)}</span>`
                     : `<span class="cup-unit-note cup-unit-note--empty">Belum dikustomisasi</span>`;
-                  return `<button class="cup-unit-row" type="button" data-action="customize-unit" data-id="${item.id}" data-unit="${i}">
-                    <span class="cup-unit-label"><i class="ph ph-coffee"></i> Cup ${i + 1}</span>
-                    ${label}
-                  </button>`;
+                  return `<div class="cup-unit-row">
+                    <div class="cup-unit-info">
+                      <span class="cup-unit-name">${escapeHtml(item.name)}</span>
+                      ${noteHtml}
+                    </div>
+                    <button class="cup-edit-btn" type="button" data-action="customize-unit" data-id="${item.id}" data-unit="${i}" title="Edit catatan unit ini">
+                      <i class="ph ph-note-pencil"></i>
+                    </button>
+                  </div>`;
                 }).join("")
               : "";
             const editBtn = isBeverageItem(item)
-              ? `<div class="cart-edit-wrap">
-                  <button class="cart-item-edit-btn${showDropdown ? " has-dropdown" : ""}" data-action="${showDropdown ? "customize-dropdown" : "customize"}" data-id="${item.id}" type="button" title="Kustomisasi">
-                    <i class="ph ph-note-pencil"></i>${showDropdown ? `<i class="ph ph-caret-down cup-dd-caret"></i>` : ""}
-                  </button>
-                  ${showDropdown ? `<div class="cup-unit-dropdown" id="cup-dd-${item.id}" hidden>
-                    <button class="cup-unit-row cup-unit-all" type="button" data-action="customize" data-id="${item.id}">
-                      <span class="cup-unit-label"><i class="ph ph-stack"></i> Edit semua (${item.qty}x)</span>
-                      <span class="cup-unit-note">Terapkan ke semua cup</span>
-                    </button>
-                    <div class="cup-unit-divider"></div>
-                    ${unitRows}
-                  </div>` : ""}
+              ? `<button class="cart-item-edit-btn${showPanel ? " has-dropdown" : ""}" data-action="${showPanel ? "customize-dropdown" : "customize"}" data-id="${item.id}" type="button" title="Kustomisasi">
+                  <i class="ph ph-note-pencil"></i>${showPanel ? `<i class="ph ph-caret-down cup-dd-caret"></i>` : ""}
+                </button>`
+              : "";
+            const unitPanel = showPanel
+              ? `<div class="cup-unit-panel" id="cup-dd-${item.id}" hidden>
+                  ${unitRows}
                 </div>`
               : "";
             return `
-            <div class="cart-item">
+            <div class="cart-item${showPanel ? " has-unit-panel" : ""}">
               <div>
                 <strong>${item.name}</strong>
                 <span>${money(item.price)} x ${item.qty}${item.isCustomOrder ? " · Custom" : ""}</span>
@@ -5529,6 +5529,7 @@ function renderCart() {
                 <button class="qty-button" data-action="increase" data-id="${item.id}" type="button" ${state.orderType === "staff_drink" ? "disabled" : ""}>+</button>
                 ${editBtn}
               </div>
+              ${unitPanel}
             </div>
           `;
           }
@@ -10273,29 +10274,26 @@ els.cartList.addEventListener("click", (event) => {
   if (!button) return;
   const action = button.dataset.action;
   if (action === "customize-dropdown") {
-    // Toggle the per-unit dropdown for this item
+    // Toggle the inline per-unit panel
     const itemId = button.dataset.id;
-    const dropdown = els.cartList.querySelector(`#cup-dd-${itemId}`);
-    if (!dropdown) return;
-    const isOpen = !dropdown.hidden;
-    // Close all other dropdowns first
-    els.cartList.querySelectorAll(".cup-unit-dropdown").forEach((dd) => { dd.hidden = true; });
+    const panel = els.cartList.querySelector(`#cup-dd-${itemId}`);
+    if (!panel) return;
+    const isOpen = !panel.hidden;
+    // Close all other panels first
+    els.cartList.querySelectorAll(".cup-unit-panel").forEach((p) => { p.hidden = true; });
     els.cartList.querySelectorAll(".cart-item-edit-btn.has-dropdown").forEach((btn) => btn.classList.remove("dd-open"));
     if (!isOpen) {
-      dropdown.hidden = false;
+      panel.hidden = false;
       button.classList.add("dd-open");
     }
   } else if (action === "customize-unit") {
-    // Split off this specific unit and open customize modal for it
     const itemId = button.dataset.id;
     const unitIndex = Number(button.dataset.unit);
     splitAndCustomizeUnit(itemId, unitIndex);
-    // Close dropdown
-    els.cartList.querySelectorAll(".cup-unit-dropdown").forEach((dd) => { dd.hidden = true; });
+    els.cartList.querySelectorAll(".cup-unit-panel").forEach((p) => { p.hidden = true; });
     els.cartList.querySelectorAll(".cart-item-edit-btn.has-dropdown").forEach((btn) => btn.classList.remove("dd-open"));
   } else if (action === "customize") {
-    // Close any open dropdown first
-    els.cartList.querySelectorAll(".cup-unit-dropdown").forEach((dd) => { dd.hidden = true; });
+    els.cartList.querySelectorAll(".cup-unit-panel").forEach((p) => { p.hidden = true; });
     els.cartList.querySelectorAll(".cart-item-edit-btn.has-dropdown").forEach((btn) => btn.classList.remove("dd-open"));
     openItemCustomModal(button.dataset.id);
   } else {
@@ -10303,13 +10301,14 @@ els.cartList.addEventListener("click", (event) => {
   }
 });
 
-// Close cup-unit dropdowns when clicking outside the cart
+// Close panels when clicking outside the cart list
 document.addEventListener("click", (event) => {
-  if (!event.target.closest(".cart-edit-wrap")) {
-    els.cartList?.querySelectorAll(".cup-unit-dropdown").forEach((dd) => { dd.hidden = true; });
+  if (!event.target.closest("#cartList")) {
+    els.cartList?.querySelectorAll(".cup-unit-panel").forEach((p) => { p.hidden = true; });
     els.cartList?.querySelectorAll(".cart-item-edit-btn.has-dropdown").forEach((btn) => btn.classList.remove("dd-open"));
   }
 });
+
 
 els.paymentMethods.addEventListener("click", (event) => {
   const button = event.target.closest("button[data-payment]");
