@@ -5488,7 +5488,7 @@ function renderCart() {
     ? state.cart
         .map(
           (item) => {
-            const showPanel = isBeverageItem(item) && item.qty > 1;
+            const showPanel = item.qty > 1;
             const unitRows = showPanel
               ? Array.from({ length: item.qty }, (_, i) => {
                   const noteHtml = item.notes
@@ -5505,7 +5505,7 @@ function renderCart() {
                   </div>`;
                 }).join("")
               : "";
-            const editBtn = isBeverageItem(item)
+            const editBtn = isBeverageItem(item) || showPanel
               ? `<button class="cart-item-edit-btn${showPanel ? " has-dropdown" : ""}" data-action="${showPanel ? "customize-dropdown" : "customize"}" data-id="${item.id}" type="button" title="Kustomisasi">
                   <i class="ph ph-note-pencil"></i>${showPanel ? `<i class="ph ph-caret-down cup-dd-caret"></i>` : ""}
                 </button>`
