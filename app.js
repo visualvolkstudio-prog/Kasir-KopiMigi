@@ -7064,31 +7064,19 @@ function printCupLabels(transaction) {
 }
 
 let currentCustomizingItemId = "";
+let currentCustomizingUnitIndex = -1; // -1 = semua unit, >= 0 = unit spesifik
 
 /**
- * Jika item qty > 1, pisahkan 1 porsi (cup ke-`unitIndex`) menjadi entry
- * tersendiri di keranjang lalu buka modal kustomisasi untuknya.
- * Jika item sudah qty = 1, langsung buka modal.
+ * Buka modal kustomisasi untuk 1 unit spesifik dari item qty > 1.
+ * Split dilakukan SETELAH save agar tidak di-merge ulang oleh mergeLineItems.
  */
 function splitAndCustomizeUnit(itemId, unitIndex) {
   const item = state.cart.find((entry) => entry.id === itemId);
   if (!item) return;
-  if (item.qty === 1) {
-    // Sudah sendiri, langsung edit
-    openItemCustomModal(itemId);
-    return;
-  }
-  // Kurangi qty item asli
-  item.qty -= 1;
-  // Buat entry baru untuk cup yang dipilih
-  const newId = `${item.id.split("-split-")[0]}-split-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
-  const newItem = { ...item, id: newId, qty: 1, notes: item.notes || "" };
-  // Sisipkan setelah item induk
-  const idx = state.cart.indexOf(item);
-  state.cart.splice(idx + 1, 0, newItem);
-  renderCart();
-  // Buka modal untuk item yang baru dipisah
-  openItemCustomModal(newId);
+  // Simpan context: item mana & unit ke berapa yang sedang diedit
+  currentCustomizingItemId = itemId;
+  currentCustomizingUnitIndex = unitIndex;
+  openItemCustomModal(itemId);
 }
 
 
@@ -7096,9 +7084,15 @@ function openItemCustomModal(itemId) {
   const item = state.cart.find((entry) => entry.id === itemId);
   if (!item) return;
   currentCustomizingItemId = itemId;
-  if (els.customItemName) els.customItemName.textContent = item.name;
+  
+  const editingUnit = currentCustomizingUnitIndex; // -1 = semua, >=0 = unit spesifik
+  const unitLabel = editingUnit >= 0
+    ? `${item.name} — Catatan #${editingUnit + 1}`
+    : item.name;
+  if (els.customItemName) els.customItemName.textContent = unitLabel;
 
-  if (item.qty > 1) {
+  // Sembunyikan "Terapkan ke" jika sedang edit unit spesifik (sudah jelas 1 unit)
+  if (item.qty > 1 && editingUnit < 0) {
     if (els.customApplyGroup) els.customApplyGroup.hidden = false;
     if (els.customApplyAllBtn) els.customApplyAllBtn.textContent = `Semua (${item.qty}x)`;
     els.customApplyTarget?.querySelectorAll("button").forEach((btn) => {
@@ -7165,6 +7159,7 @@ function closeItemCustomModal() {
     els.itemCustomModal.setAttribute("aria-hidden", "true");
   }
   currentCustomizingItemId = "";
+  currentCustomizingUnitIndex = -1;
 }
 
 function saveItemCustomization(event) {
@@ -7182,8 +7177,6 @@ function saveItemCustomization(event) {
   const sizeBtn = els.customSize?.querySelector("button.active");
   const customText = els.customTextNote?.value.trim();
 
-  const applyTarget = els.customApplyTarget?.querySelector("button.active")?.dataset.value || "ALL";
-
   // Combine into formatted string
   const tags = [];
   if (tempBtn && tempBtn.dataset.value) tags.push(tempBtn.dataset.value);
@@ -7196,22 +7189,37 @@ function saveItemCustomization(event) {
 
   const newNotes = tags.join(" · ");
 
-  if (item.qty > 1 && applyTarget === "ONE") {
+  // Mode edit unit spesifik (dari tombol ✏️ per baris)
+  if (currentCustomizingUnitIndex >= 0 && item.qty > 1) {
+    // Split 1 unit keluar, beri notes baru — lakukan DI SINI (saat save), bukan sebelumnya
     item.qty -= 1;
     state.cart.push({
       ...item,
-      id: `${item.id.split('-split-')[0]}-split-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+      id: `${item.id.split("-split-")[0]}-split-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
       qty: 1,
       notes: newNotes,
     });
   } else {
-    item.notes = newNotes;
+    // Mode lama: apply ke semua atau applyTarget ONE
+    const applyTarget = els.customApplyTarget?.querySelector("button.active")?.dataset.value || "ALL";
+    if (item.qty > 1 && applyTarget === "ONE") {
+      item.qty -= 1;
+      state.cart.push({
+        ...item,
+        id: `${item.id.split("-split-")[0]}-split-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+        qty: 1,
+        notes: newNotes,
+      });
+    } else {
+      item.notes = newNotes;
+    }
   }
-  
+
   // Re-render cart (which merges items with same notes if applicable)
   renderCart();
   closeItemCustomModal();
 }
+
 
 async function printThermalReceipt(transaction, kind = "paid") {
   try {
@@ -10295,6 +10303,7 @@ els.cartList.addEventListener("click", (event) => {
   } else if (action === "customize") {
     els.cartList.querySelectorAll(".cup-unit-panel").forEach((p) => { p.hidden = true; });
     els.cartList.querySelectorAll(".cart-item-edit-btn.has-dropdown").forEach((btn) => btn.classList.remove("dd-open"));
+    currentCustomizingUnitIndex = -1; // Edit semua unit
     openItemCustomModal(button.dataset.id);
   } else {
     changeQty(button.dataset.id, action === "increase" ? 1 : -1);
