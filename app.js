@@ -10701,6 +10701,9 @@ els.employeeAddForm?.addEventListener("submit", async (event) => {
   if (auth?.loggedIn) writeJson(storageKeys.auth, { ...auth, employee: name });
   if (els.employeeNewName) els.employeeNewName.value = "";
   await loadCloudData().catch(() => null);
+  // Sync settings setelah loadCloudData agar settings.employees di Supabase
+  // selalu mencerminkan roster terbaru (loadCloudData men-clear dirty flag)
+  await syncSettingsToCloud({ force: true }).catch(() => null);
   renderEmployeeControls();
   toast(`${name} ditambahkan ke daftar crew.`);
 });
