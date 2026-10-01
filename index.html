@@ -477,6 +477,12 @@
             </span>
             <span class="nav-label">Analitik</span>
           </button>
+          <button class="nav-tab" data-view="marketing" type="button" title="Marketing — riset keyword dan konten promosi" id="navTabMarketing">
+            <span class="tab-icon" aria-hidden="true">
+              <i class="ph ph-rocket-launch"></i>
+            </span>
+            <span class="nav-label">Marketing</span>
+          </button>
           <button class="nav-tab owner-only" data-view="staff" type="button" title="Crew — kelola karyawan dan jadwal">
             <span class="tab-icon" aria-hidden="true">
               <i class="ph ph-users-three"></i>
@@ -1326,6 +1332,96 @@
             </section>
           </div>
         </section>
+
+        <!-- ===== VIEW: MARKETING ===== -->
+        <section class="view-panel" id="view-marketing" style="padding-bottom: 100px;">
+          <div class="management-grid">
+
+            <!-- INSIGHT DARI DATA PENJUALAN -->
+            <section class="settings-panel mkt-full" id="mktInsightPanel">
+              <div class="section-heading">
+                <div>
+                  <h3>Insight Penjualan</h3>
+                  <p class="settings-note" style="margin:4px 0 0;">Berdasarkan data transaksi nyata — bukan asumsi.</p>
+                </div>
+                <button class="secondary-button compact" id="mktRefreshInsight" type="button">
+                  <i class="ph ph-arrows-clockwise" aria-hidden="true"></i> Refresh
+                </button>
+              </div>
+              <div id="mktInsightGrid" class="mkt-insight-grid">
+                <div class="mkt-insight-empty">Memuat insight…</div>
+              </div>
+            </section>
+
+            <!-- KALENDER KONTEN -->
+            <section class="settings-panel mkt-full">
+              <div class="section-heading">
+                <div>
+                  <h3>Rencana Konten Minggu Ini</h3>
+                  <p class="settings-note" style="margin:4px 0 0;">Atur jadwal posting — notifikasi browser akan mengingatkan kamu.</p>
+                </div>
+                <button class="secondary-button compact" id="mktNotifPermBtn" type="button" hidden>
+                  <i class="ph ph-bell" aria-hidden="true"></i> Izinkan Notifikasi
+                </button>
+              </div>
+              <div id="mktCalendar" class="mkt-calendar"></div>
+            </section>
+
+            <!-- TREN PENCARIAN -->
+            <section class="settings-panel mkt-full">
+              <div class="section-heading">
+                <div>
+                  <h3>Tren Pencarian</h3>
+                  <p class="settings-note" style="margin:4px 0 0;">Seberapa banyak orang mencari ini di Google Indonesia.</p>
+                </div>
+                <div class="mkt-search-row">
+                  <input type="text" id="marketingKeyword" class="mkt-input" placeholder="kata kunci…" value="kopi susu" aria-label="Kata kunci pencarian trends" />
+                  <button class="primary-button compact" id="marketingTrendsSearch" type="button">
+                    <i class="ph ph-magnifying-glass" aria-hidden="true"></i> Cari
+                  </button>
+                  <button class="secondary-button compact" id="marketingOpenFullTrends" type="button" title="Buka Google Trends">
+                    <i class="ph ph-arrow-square-out" aria-hidden="true"></i>
+                  </button>
+                </div>
+              </div>
+              <div class="mkt-preset-row">
+                <button class="mkt-pill marketing-preset-btn" type="button" data-keyword="kopi susu">Kopi Susu</button>
+                <button class="mkt-pill marketing-preset-btn" type="button" data-keyword="es kopi">Es Kopi</button>
+                <button class="mkt-pill marketing-preset-btn" type="button" data-keyword="minuman kekinian">Minuman Kekinian</button>
+                <button class="mkt-pill marketing-preset-btn" type="button" data-keyword="kafe hits">Kafe Hits</button>
+                <button class="mkt-pill marketing-preset-btn" type="button" data-keyword="promo minuman">Promo Minuman</button>
+              </div>
+              <iframe id="marketingTrendsFrame"
+                src="https://trends.google.com/trends/embed/explore/TIMESERIES?req=%7B%22comparisonItem%22%3A%5B%7B%22keyword%22%3A%22kopi+susu%22%2C%22geo%22%3A%22ID%22%2C%22time%22%3A%22today+3-m%22%7D%5D%2C%22category%22%3A0%2C%22property%22%3A%22%22%7D&tz=-420&lang=id"
+                frameborder="0" scrolling="0" class="mkt-frame" style="height:320px;" title="Google Trends"></iframe>
+            </section>
+
+            <!-- KOMPETITOR -->
+            <section class="settings-panel mkt-full">
+              <div class="section-heading">
+                <div>
+                  <h3>Tren Kompetitor</h3>
+                  <p class="settings-note" style="margin:4px 0 0;">Volume pencarian Google untuk kafe/brand kopi di Indonesia.</p>
+                </div>
+              </div>
+              <div class="mkt-preset-row">
+                <button class="mkt-pill" id="marketingCompetitorSearch" type="button" data-competitor="kafe kopi jakarta">Jakarta</button>
+                <button class="mkt-pill" id="marketingCompetitorBandung" type="button" data-competitor="kafe kopi bandung">Bandung</button>
+                <button class="mkt-pill" id="marketingCompetitorBali" type="button" data-competitor="kafe kopi bali">Bali</button>
+                <button class="mkt-pill" id="marketingCompetitorIndo" type="button" data-competitor="brand kopi indonesia">Brand Kopi ID</button>
+              </div>
+              <iframe id="marketingCompetitorFrame"
+                src="https://trends.google.com/trends/embed/explore/TIMESERIES?req=%7B%22comparisonItem%22%3A%5B%7B%22keyword%22%3A%22kafe+kopi+jakarta%22%2C%22geo%22%3A%22ID%22%2C%22time%22%3A%22today+3-m%22%7D%5D%2C%22category%22%3A0%2C%22property%22%3A%22%22%7D&tz=-420&lang=id"
+                frameborder="0" scrolling="0" class="mkt-frame" style="height:280px;" title="Tren kafe kompetitor"></iframe>
+              <div class="mkt-link-row">
+                <a class="secondary-button compact" href="https://www.google.com/maps/search/kafe+kopi/" target="_blank" rel="noopener"><i class="ph ph-map-pin" aria-hidden="true"></i> Maps</a>
+                <a class="secondary-button compact" href="https://trends.google.com/trends/?geo=ID" target="_blank" rel="noopener"><i class="ph ph-arrow-square-out" aria-hidden="true"></i> Google Trends</a>
+              </div>
+            </section>
+
+          </div>
+        </section>
+        <!-- ===== END VIEW: MARKETING ===== -->
       </main>
     </div>
 

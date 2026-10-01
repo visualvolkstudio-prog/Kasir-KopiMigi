@@ -45,6 +45,7 @@ const storageKeys = {
   logoutSignal: "kasir-migi-logout-signal",
   lastRemoteLogout: "kasir-migi-last-remote-logout",
   attendanceResets: "kasir-migi-attendance-resets",
+  marketingHashtags: "kasir-migi-marketing-hashtags",
 };
 
 const sessionTtlMs = 10 * 60 * 60 * 1000;
@@ -1867,14 +1868,19 @@ function applyAccessControls() {
   document.querySelector('[data-view="cashflow"]')?.classList.toggle("owner-only", !owner);
   document.querySelector("#view-cashflow")?.classList.toggle("owner-only", !owner);
   document.querySelector('[data-view="staff"]')?.classList.toggle("owner-only", !owner);
+  // Marketing: tampilkan/sembunyikan tab via style langsung
+  const marketingTab = document.querySelector('[data-view="marketing"]');
+  if (marketingTab) marketingTab.style.display = owner ? "" : "none";
+  document.querySelector("#view-marketing")?.classList.toggle("owner-only", !owner);
   document.querySelector("#view-stock .inventory-grid > .settings-panel")?.classList.toggle("owner-only", !owner);
   els.employeeAddForm?.classList.toggle("owner-only", !owner);
   els.employeeList?.classList.toggle("owner-only", !owner);
 
-  // Blok akses ke view-cashflow dan view-staff jika bukan owner
+  // Blok akses ke view-cashflow, view-staff, dan view-marketing jika bukan owner
   if (!owner) {
     if (document.querySelector("#view-cashflow")?.classList.contains("active")) setActiveView("pos");
     if (document.querySelector("#view-staff")?.classList.contains("active")) setActiveView("pos");
+    if (document.querySelector("#view-marketing")?.classList.contains("active")) setActiveView("pos");
   }
 }
 
@@ -10139,7 +10145,7 @@ async function forceLogoutDeviceAction(deviceId) {
 }
 
 function setActiveView(viewName, { persist = true } = {}) {
-  if ((viewName === "cashflow" || viewName === "staff") && !isOwner()) {
+  if ((viewName === "cashflow" || viewName === "staff" || viewName === "marketing") && !isOwner()) {
     viewName = "pos";
   }
   const target = document.querySelector(`#view-${viewName}`);
@@ -11409,3 +11415,376 @@ if (navigator.onLine) pullSettingsFromSupabase({ render: true }).catch(() => nul
 if (navigator.onLine) pullInventoryFromSupabase({ render: true }).catch(() => null);
 if (navigator.onLine) refreshActiveCashierPresence().catch(() => null);
 if (navigator.onLine) checkRemoteLogout().catch(() => null);
+
+// ================================================================
+//  MARKETING TOOLS
+// ================================================================
+
+(function initMarketingTools() {
+
+  // ── Google Trends ─────────────────────────────────────────────
+
+  const trendsFrame     = document.getElementById("marketingTrendsFrame");
+  const keywordInput    = document.getElementById("marketingKeyword");
+  const trendsSearchBtn = document.getElementById("marketingTrendsSearch");
+  const presetBtns      = document.querySelectorAll(".marketing-preset-btn");
+  const openFullTrends  = document.getElementById("marketingOpenFullTrends");
+  const competitorBtns  = document.querySelectorAll(
+    "#marketingCompetitorSearch, #marketingCompetitorBandung, #marketingCompetitorBali, #marketingCompetitorIndo"
+  );
+  const competitorFrame = document.getElementById("marketingCompetitorFrame");
+
+  function buildTrendsUrl(keyword) {
+    const req = JSON.stringify({ comparisonItem: [{ keyword, geo: "ID", time: "today 3-m" }], category: 0, property: "" });
+    return "https://trends.google.com/trends/embed/explore/TIMESERIES?req=" + encodeURIComponent(req) + "&tz=-420&lang=id";
+  }
+
+  if (trendsSearchBtn && keywordInput) {
+    trendsSearchBtn.addEventListener("click", () => {
+      const kw = keywordInput.value.trim();
+      if (kw && trendsFrame) trendsFrame.src = buildTrendsUrl(kw);
+    });
+    keywordInput.addEventListener("keydown", (e) => { if (e.key === "Enter") trendsSearchBtn.click(); });
+  }
+  presetBtns.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (keywordInput) keywordInput.value = btn.dataset.keyword;
+      if (trendsFrame) trendsFrame.src = buildTrendsUrl(btn.dataset.keyword);
+    });
+  });
+  if (openFullTrends) {
+    openFullTrends.addEventListener("click", () => {
+      const kw = keywordInput ? encodeURIComponent(keywordInput.value.trim() || "kopi susu") : "kopi+susu";
+      window.open("https://trends.google.com/trends/explore?q=" + kw + "&geo=ID", "_blank", "noopener");
+    });
+  }
+  competitorBtns.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (competitorFrame) competitorFrame.src = buildTrendsUrl(btn.dataset.competitor);
+    });
+  });
+
+  // ── Insight Penjualan ─────────────────────────────────────────
+
+  const DAYS = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
+
+  function buildInsight() {
+    const history = (typeof getHistory === "function" ? getHistory() : [])
+      .filter((t) => !t.deleted && t.orderType !== "staff_drink" && t.paid > 0);
+
+    const now = new Date();
+    const todayKey = dateKey(now);
+    const weekAgo = new Date(now); weekAgo.setDate(now.getDate() - 7);
+    const twoWeeksAgo = new Date(now); twoWeeksAgo.setDate(now.getDate() - 14);
+
+    // This week vs last week
+    const thisWeek = history.filter((t) => new Date(t.createdAt) >= weekAgo);
+    const lastWeek = history.filter((t) => {
+      const d = new Date(t.createdAt);
+      return d >= twoWeeksAgo && d < weekAgo;
+    });
+
+    const thisRev = thisWeek.reduce((s, t) => s + (t.paid || 0), 0);
+    const lastRev = lastWeek.reduce((s, t) => s + (t.paid || 0), 0);
+    const revDiff = lastRev > 0 ? Math.round(((thisRev - lastRev) / lastRev) * 100) : null;
+
+    // Item counts this week
+    const itemMap = new Map();
+    thisWeek.forEach((t) => {
+      (t.items || []).forEach((item) => {
+        itemMap.set(item.name, (itemMap.get(item.name) || 0) + (item.qty || 1));
+      });
+    });
+    const sorted = [...itemMap.entries()].sort((a, b) => b[1] - a[1]);
+    const topItem = sorted[0];
+    const slowItem = sorted[sorted.length - 1];
+
+    // Peak hour this week
+    const hourMap = new Map();
+    thisWeek.forEach((t) => {
+      const h = new Date(t.createdAt).getHours();
+      hourMap.set(h, (hourMap.get(h) || 0) + 1);
+    });
+    const peakHour = [...hourMap.entries()].sort((a, b) => b[1] - a[1])[0];
+
+    // Today count
+    const todayCount = history.filter((t) => dateKey(t.createdAt) === todayKey).length;
+
+    const cards = [];
+
+    // Revenue card
+    if (thisRev > 0) {
+      const sign = revDiff !== null ? (revDiff >= 0 ? "+" : "") + revDiff + "% vs minggu lalu" : "7 hari terakhir";
+      cards.push({ label: "Omzet 7 Hari", value: "Rp" + thisRev.toLocaleString("id"), sub: sign, type: revDiff !== null && revDiff >= 0 ? "highlight" : "warn" });
+    }
+
+    // Today
+    cards.push({ label: "Transaksi Hari Ini", value: todayCount + " order", sub: "", type: "default" });
+
+    // Top item
+    if (topItem) {
+      cards.push({ label: "Terlaris Minggu Ini", value: topItem[0], sub: topItem[1] + " cup terjual — bahan konten yang kuat", type: "highlight" });
+    }
+
+    // Slow item
+    if (slowItem && sorted.length > 1 && slowItem[1] <= 2) {
+      cards.push({ label: "Kurang Laku", value: slowItem[0], sub: slowItem[1] + " cup — coba jadikan promo", type: "warn" });
+    }
+
+    // Peak hour
+    if (peakHour) {
+      const h = peakHour[0];
+      const label = h < 10 ? "0" + h : "" + h;
+      cards.push({ label: "Jam Paling Ramai", value: label + ".00–" + (h + 1) + ".00", sub: "Posting konten 1–2 jam sebelum ini", type: "default" });
+    }
+
+    if (cards.length === 0) {
+      return '<div class="mkt-insight-empty">Belum ada data transaksi. Mulai kasir dulu ya!</div>';
+    }
+
+    return cards.map((c) => `
+      <div class="mkt-insight-card ${c.type === "highlight" ? "highlight" : c.type === "warn" ? "warn" : ""}">
+        <span class="mkt-insight-label">${escHtml(c.label)}</span>
+        <span class="mkt-insight-value">${escHtml(c.value)}</span>
+        ${c.sub ? `<span class="mkt-insight-sub">${escHtml(c.sub)}</span>` : ""}
+      </div>`).join("");
+  }
+
+  function renderInsight() {
+    const grid = document.getElementById("mktInsightGrid");
+    if (grid) grid.innerHTML = buildInsight();
+  }
+
+  const refreshBtn = document.getElementById("mktRefreshInsight");
+  if (refreshBtn) refreshBtn.addEventListener("click", renderInsight);
+
+  // ── Kalender Konten ───────────────────────────────────────────
+
+  const CONTENT_TYPES = ["Story", "Promo", "Produk", "Reels"];
+  const PLATFORMS = [
+    { key: "ig", label: "IG" },
+    { key: "tt", label: "TT" },
+    { key: "th", label: "Th" },
+    { key: "wa", label: "WA" },
+  ];
+
+  function loadCalendarData() {
+    return readJson(storageKeys.marketingHashtags + "-cal", {});
+  }
+  function saveCalendarData(data) {
+    writeJson(storageKeys.marketingHashtags + "-cal", data);
+  }
+
+  function getWeekDates() {
+    const today = new Date();
+    const day = today.getDay(); // 0=Sun
+    const monday = new Date(today);
+    monday.setDate(today.getDate() - ((day + 6) % 7));
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(monday);
+      d.setDate(monday.getDate() + i);
+      return d;
+    });
+  }
+
+  function renderCalendar() {
+    const cal = document.getElementById("mktCalendar");
+    if (!cal) return;
+    const data = loadCalendarData();
+    const todayKey = dateKey(new Date());
+    const weekDates = getWeekDates();
+
+    cal.innerHTML = weekDates.map((d) => {
+      const dk = dateKey(d);
+      const isToday = dk === todayKey;
+      const dayLabel = DAYS[d.getDay()] + " " + d.getDate();
+      const entries = data[dk] || [];
+
+      const slotsHtml = entries.map((entry, idx) => {
+        const plIcons = (entry.platforms || []).map((p) =>
+          `<span class="mkt-platform-dot ${p}" title="${p.toUpperCase()}">${p === "th" ? "Th" : p.toUpperCase()}</span>`
+        ).join("");
+        return `
+          <div class="mkt-cal-slot has-entry" data-date="${dk}" data-idx="${idx}">
+            <div class="mkt-cal-slot-text">
+              <span class="mkt-cal-slot-type">${escHtml(entry.type || "—")}</span>
+              <span class="mkt-cal-slot-time">${escHtml(entry.time || "")}</span>
+            </div>
+            <div class="mkt-cal-platform-icons">${plIcons}</div>
+            <button class="icon-button mkt-del-slot" data-date="${dk}" data-idx="${idx}" type="button" title="Hapus">
+              <i class="ph ph-x" aria-hidden="true"></i>
+            </button>
+          </div>`;
+      }).join("");
+
+      return `
+        <div class="mkt-cal-row${isToday ? " today-row" : ""}">
+          <span class="mkt-cal-day${isToday ? " today" : ""}">${dayLabel}</span>
+          <div class="mkt-cal-slots">
+            ${slotsHtml}
+            <button class="mkt-add-slot-btn" data-date="${dk}" type="button">
+              <i class="ph ph-plus" aria-hidden="true"></i> Tambah jadwal
+            </button>
+          </div>
+        </div>`;
+    }).join("");
+
+    // Bind add buttons
+    cal.querySelectorAll(".mkt-add-slot-btn").forEach((btn) => {
+      btn.addEventListener("click", () => openSlotForm(btn.dataset.date, btn));
+    });
+
+    // Bind delete buttons
+    cal.querySelectorAll(".mkt-del-slot").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const dk = btn.dataset.date;
+        const idx = parseInt(btn.dataset.idx);
+        const data = loadCalendarData();
+        if (data[dk]) { data[dk].splice(idx, 1); if (!data[dk].length) delete data[dk]; }
+        saveCalendarData(data);
+        renderCalendar();
+      });
+    });
+  }
+
+  function openSlotForm(dk, addBtn) {
+    // Remove any existing inline form
+    document.querySelectorAll(".mkt-inline-form").forEach((f) => f.remove());
+
+    const typeOpts = CONTENT_TYPES.map((t) =>
+      `<option value="${t}">${t}</option>`
+    ).join("");
+    const platChecks = PLATFORMS.map((p) =>
+      `<label class="mkt-platform-check" data-platform="${p.key}">
+        <input type="checkbox" value="${p.key}" />
+        <span class="mkt-platform-dot ${p.key}">${p.label}</span> ${p.key.toUpperCase()}
+      </label>`
+    ).join("");
+
+    const form = document.createElement("div");
+    form.className = "mkt-inline-form";
+    form.innerHTML = `
+      <div class="mkt-inline-form-row">
+        <div class="mkt-field" style="flex:1;">
+          <label class="mkt-label">Jenis konten</label>
+          <select class="mkt-input mkt-slot-type" style="height:38px;">${typeOpts}</select>
+        </div>
+        <div class="mkt-field">
+          <label class="mkt-label">Jam</label>
+          <input type="time" class="mkt-input mkt-slot-time" value="08:00" style="width:100px;" />
+        </div>
+      </div>
+      <div>
+        <label class="mkt-label" style="display:block;margin-bottom:6px;">Platform</label>
+        <div class="mkt-platform-checks">${platChecks}</div>
+      </div>
+      <div class="mkt-inline-form-row">
+        <button class="primary-button compact mkt-slot-save" type="button" data-date="${dk}">Simpan</button>
+        <button class="secondary-button compact mkt-slot-cancel" type="button">Batal</button>
+      </div>`;
+
+    // Toggle platform check style
+    form.querySelectorAll(".mkt-platform-check").forEach((label) => {
+      label.addEventListener("click", () => {
+        const cb = label.querySelector("input");
+        cb.checked = !cb.checked;
+        label.classList.toggle("checked", cb.checked);
+      });
+    });
+
+    addBtn.parentNode.insertBefore(form, addBtn);
+
+    form.querySelector(".mkt-slot-cancel").addEventListener("click", () => form.remove());
+    form.querySelector(".mkt-slot-save").addEventListener("click", () => {
+      const type = form.querySelector(".mkt-slot-type").value;
+      const time = form.querySelector(".mkt-slot-time").value;
+      const platforms = [...form.querySelectorAll(".mkt-platform-check input:checked")].map((cb) => cb.value);
+
+      const data = loadCalendarData();
+      if (!data[dk]) data[dk] = [];
+      data[dk].push({ type, time, platforms });
+      saveCalendarData(data);
+
+      // Schedule notification
+      scheduleNotification({ type, time, dk, platforms });
+
+      form.remove();
+      renderCalendar();
+      showToast("Jadwal ditambahkan!");
+    });
+  }
+
+  // ── Notifikasi Browser ────────────────────────────────────────
+
+  const notifBtn = document.getElementById("mktNotifPermBtn");
+
+  function checkNotifPermission() {
+    if (!("Notification" in window)) return;
+    if (Notification.permission === "default" && notifBtn) {
+      notifBtn.hidden = false;
+    }
+  }
+
+  if (notifBtn) {
+    notifBtn.addEventListener("click", async () => {
+      const perm = await Notification.requestPermission();
+      if (perm === "granted") {
+        notifBtn.hidden = true;
+        showToast("Notifikasi diaktifkan!");
+      }
+    });
+  }
+
+  function scheduleNotification({ type, time, dk, platforms }) {
+    if (!("Notification" in window) || Notification.permission !== "granted") return;
+    const [h, m] = time.split(":").map(Number);
+    const [year, month, day] = dk.split("-").map(Number);
+    const fireAt = new Date(year, month - 1, day, h, m, 0);
+    const msUntil = fireAt.getTime() - Date.now();
+    if (msUntil <= 0) return;
+    const platLabel = platforms.length ? platforms.map((p) => p.toUpperCase()).join(", ") : "";
+    setTimeout(() => {
+      new Notification("Kopi Migi — Saatnya Posting!", {
+        body: `${type}${platLabel ? " di " + platLabel : ""} — jadwal ${time}`,
+        icon: "/assets/logo-miginew.png",
+        tag: `mkt-${dk}-${time}`,
+      });
+    }, msUntil);
+  }
+
+  // Re-schedule all saved notifications on page load
+  function rescheduleAll() {
+    if (!("Notification" in window) || Notification.permission !== "granted") return;
+    const data = loadCalendarData();
+    Object.entries(data).forEach(([dk, entries]) => {
+      (entries || []).forEach((entry) => scheduleNotification({ ...entry, dk }));
+    });
+  }
+
+  // ── Helper ────────────────────────────────────────────────────
+
+  function escHtml(str) {
+    return String(str).replace(/[&<>"']/g, (c) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])
+    );
+  }
+
+  // ── Init ──────────────────────────────────────────────────────
+
+  renderInsight();
+  renderCalendar();
+  checkNotifPermission();
+  rescheduleAll();
+
+  // Hook view switch
+  const _orig = window.setActiveView;
+  if (typeof _orig === "function") {
+    window.setActiveView = function (viewName, opts) {
+      const result = _orig(viewName, opts);
+      if (viewName === "marketing") { renderInsight(); renderCalendar(); }
+      return result;
+    };
+  }
+
+})();
