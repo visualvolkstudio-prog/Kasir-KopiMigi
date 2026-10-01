@@ -1353,14 +1353,30 @@
               </div>
             </section>
 
-            <!-- KALENDER KONTEN -->
+            <!-- STRATEGI PENJUALAN AI -->
+            <section class="settings-panel mkt-full" id="mktStrategyPanel">
+              <div class="section-heading">
+                <div>
+                  <h3>Strategi Penjualan</h3>
+                  <p class="settings-note" style="margin:4px 0 0;">Rekomendasi otomatis dari data transaksi — bundling, promo, upsell, happy hour.</p>
+                </div>
+                <button class="secondary-button compact" id="mktRefreshStrategy" type="button">
+                  <i class="ph ph-arrows-clockwise" aria-hidden="true"></i> Refresh
+                </button>
+              </div>
+              <div id="mktStrategyGrid" class="mkt-strategy-grid">
+                <div class="mkt-insight-empty">Memuat strategi…</div>
+              </div>
+            </section>
+
+
             <section class="settings-panel mkt-full">
               <div class="section-heading">
                 <div>
                   <h3>Rencana Konten Minggu Ini</h3>
-                  <p class="settings-note" style="margin:4px 0 0;">Atur jadwal posting — notifikasi browser akan mengingatkan kamu.</p>
+                  <p class="settings-note" style="margin:4px 0 0;">Jadwalkan posting konten kamu — browser akan mengirim pengingat saat waktunya tiba.</p>
                 </div>
-                <button class="secondary-button compact" id="mktNotifPermBtn" type="button" hidden>
+                <button class="secondary-button compact" id="mktNotifPermBtn" type="button" hidden title="Izinkan browser mengirim pengingat saat jadwal posting tiba">
                   <i class="ph ph-bell" aria-hidden="true"></i> Izinkan Notifikasi
                 </button>
               </div>
@@ -1372,7 +1388,7 @@
               <div class="section-heading">
                 <div>
                   <h3>Tren Pencarian</h3>
-                  <p class="settings-note" style="margin:4px 0 0;">Seberapa banyak orang mencari ini di Google Indonesia.</p>
+                  <p class="settings-note" style="margin:4px 0 0;">Seberapa banyak orang mencari ini di Google — berdasarkan kota kamu.</p>
                 </div>
                 <div class="mkt-search-row">
                   <input type="text" id="marketingKeyword" class="mkt-input" placeholder="kata kunci…" value="kopi susu" aria-label="Kata kunci pencarian trends" />
@@ -1384,6 +1400,8 @@
                   </button>
                 </div>
               </div>
+              <!-- Pilih kota domisili (diisi otomatis oleh JS) -->
+              <div id="marketingGeoSelector" style="margin-bottom:12px;"></div>
               <div class="mkt-preset-row">
                 <button class="mkt-pill marketing-preset-btn" type="button" data-keyword="kopi susu">Kopi Susu</button>
                 <button class="mkt-pill marketing-preset-btn" type="button" data-keyword="es kopi">Es Kopi</button>

@@ -11434,10 +11434,52 @@ if (navigator.onLine) checkRemoteLogout().catch(() => null);
   );
   const competitorFrame = document.getElementById("marketingCompetitorFrame");
 
-  function buildTrendsUrl(keyword) {
-    const req = JSON.stringify({ comparisonItem: [{ keyword, geo: "ID", time: "today 3-m" }], category: 0, property: "" });
+  // Mapping kota ke kode Google Trends sub-region Indonesia
+  const KOTA_GEO = {
+    "Seluruh Indonesia": "ID",
+    "Jakarta":   "ID-JK",
+    "Bandung":   "ID-JB",
+    "Surabaya":  "ID-JI",
+    "Medan":     "ID-SU",
+    "Semarang":  "ID-JT",
+    "Makassar":  "ID-SN",
+    "Bali":      "ID-BA",
+    "Yogyakarta":"ID-YO",
+    "Palembang": "ID-SS",
+    "Balikpapan":"ID-KI",
+  };
+  const GEO_STORAGE_KEY = "kasir-migi-mkt-geo";
+
+  function getSavedGeo() {
+    return localStorage.getItem(GEO_STORAGE_KEY) || "ID";
+  }
+
+  function buildTrendsUrl(keyword, geo) {
+    const g = geo || getSavedGeo();
+    const req = JSON.stringify({ comparisonItem: [{ keyword, geo: g, time: "today 3-m" }], category: 0, property: "" });
     return "https://trends.google.com/trends/embed/explore/TIMESERIES?req=" + encodeURIComponent(req) + "&tz=-420&lang=id";
   }
+
+  // Render dropdown pilih kota di section Tren Pencarian
+  (function renderGeoSelector() {
+    const container = document.getElementById("marketingGeoSelector");
+    if (!container) return;
+    const savedGeo = getSavedGeo();
+    const opts = Object.entries(KOTA_GEO).map(([label, code]) =>
+      `<option value="${code}"${code === savedGeo ? " selected" : ""}>${label}</option>`
+    ).join("");
+    container.innerHTML = `
+      <label class="mkt-label" style="margin-bottom:4px;display:block;">📍 Lokasi Pencarian</label>
+      <select class="mkt-input" id="marketingGeoSelect" style="height:38px;min-width:180px;">${opts}</select>`;
+    const sel = container.querySelector("#marketingGeoSelect");
+    if (sel) {
+      sel.addEventListener("change", () => {
+        localStorage.setItem(GEO_STORAGE_KEY, sel.value);
+        const kw = keywordInput ? keywordInput.value.trim() || "kopi susu" : "kopi susu";
+        if (trendsFrame) trendsFrame.src = buildTrendsUrl(kw, sel.value);
+      });
+    }
+  })();
 
   if (trendsSearchBtn && keywordInput) {
     trendsSearchBtn.addEventListener("click", () => {
@@ -11455,7 +11497,7 @@ if (navigator.onLine) checkRemoteLogout().catch(() => null);
   if (openFullTrends) {
     openFullTrends.addEventListener("click", () => {
       const kw = keywordInput ? encodeURIComponent(keywordInput.value.trim() || "kopi susu") : "kopi+susu";
-      window.open("https://trends.google.com/trends/explore?q=" + kw + "&geo=ID", "_blank", "noopener");
+      window.open("https://trends.google.com/trends/explore?q=" + kw + "&geo=" + getSavedGeo(), "_blank", "noopener");
     });
   }
   competitorBtns.forEach((btn) => {
@@ -11464,9 +11506,183 @@ if (navigator.onLine) checkRemoteLogout().catch(() => null);
     });
   });
 
+  // ── Strategi Penjualan AI ─────────────────────────────────────
+
+  function buildStrategy() {
+    const history = (typeof getHistory === "function" ? getHistory() : [])
+      .filter((t) => !t.deleted && t.orderType !== "staff_drink" && t.paid > 0);
+
+    if (history.length < 3) {
+      return `<div class="mkt-insight-empty">Belum cukup data transaksi untuk generate strategi. Terus catat pesanan ya!</div>`;
+    }
+
+    const now = new Date();
+    const weekAgo  = new Date(now); weekAgo.setDate(now.getDate() - 7);
+    const monthAgo = new Date(now); monthAgo.setDate(now.getDate() - 30);
+
+    const thisWeek  = history.filter((t) => new Date(t.createdAt) >= weekAgo);
+    const thisMonth = history.filter((t) => new Date(t.createdAt) >= monthAgo);
+
+    // ── Hitung frekuensi item & revenue per item ──────────────────
+    const itemQty = new Map(), itemRev = new Map(), itemPrice = new Map();
+    thisMonth.forEach((t) => {
+      (t.items || []).forEach((item) => {
+        const qty = item.qty || 1;
+        const rev = (item.price || 0) * qty;
+        itemQty.set(item.name, (itemQty.get(item.name) || 0) + qty);
+        itemRev.set(item.name, (itemRev.get(item.name) || 0) + rev);
+        if (!itemPrice.has(item.name) && item.price > 0) itemPrice.set(item.name, item.price);
+      });
+    });
+
+    const sortedByQty = [...itemQty.entries()].sort((a, b) => b[1] - a[1]);
+    const sortedByRev = [...itemRev.entries()].sort((a, b) => b[1] - a[1]);
+    const top3     = sortedByQty.slice(0, 3);
+    const slow3    = sortedByQty.slice(-3).filter(([, q]) => q <= 3);
+    const topRev1  = sortedByRev[0];
+
+    // ── Hitung pola bundling (item yang sering dibeli bersamaan) ──
+    const pairCount = new Map();
+    thisMonth.forEach((t) => {
+      const names = (t.items || []).map((i) => i.name).filter(Boolean);
+      for (let i = 0; i < names.length; i++) {
+        for (let j = i + 1; j < names.length; j++) {
+          const pair = [names[i], names[j]].sort().join(" + ");
+          pairCount.set(pair, (pairCount.get(pair) || 0) + 1);
+        }
+      }
+    });
+    const topPair = [...pairCount.entries()].sort((a, b) => b[1] - a[1])[0];
+
+    // ── Jam sepi (opportunity window) ────────────────────────────
+    const hourMap = new Map();
+    thisWeek.forEach((t) => {
+      const h = new Date(t.createdAt).getHours();
+      hourMap.set(h, (hourMap.get(h) || 0) + 1);
+    });
+    const allHours = [...hourMap.entries()].sort((a, b) => a[1] - b[1]);
+    const quietHour = allHours[0]; // jam paling sepi
+
+    // ── Rata-rata nilai transaksi ─────────────────────────────────
+    const avgOrder = thisMonth.length > 0
+      ? Math.round(thisMonth.reduce((s, t) => s + (t.paid || 0), 0) / thisMonth.length)
+      : 0;
+
+    // ── Hitung transaksi single-item vs multi-item ────────────────
+    const singleItem = thisMonth.filter((t) => (t.items || []).reduce((s, i) => s + (i.qty || 1), 0) === 1).length;
+    const upsellRate = thisMonth.length > 0 ? Math.round((singleItem / thisMonth.length) * 100) : 0;
+
+    // ── Generate kartu strategi ───────────────────────────────────
+    const cards = [];
+
+    // 1. Bundling dari pasangan item yang sering beli bareng
+    if (topPair && topPair[1] >= 2) {
+      const [pairName, count] = topPair;
+      const parts = pairName.split(" + ");
+      const p1 = itemPrice.get(parts[0]) || 0;
+      const p2 = itemPrice.get(parts[1]) || 0;
+      const bundlePrice = p1 + p2 > 0 ? Math.round((p1 + p2) * 0.9 / 500) * 500 : null;
+      cards.push({
+        icon: "🎁",
+        label: "Bundling Rekomendasi",
+        title: pairName,
+        desc: `Sudah dibeli bersamaan ${count}× bulan ini. Buat paket bundling dengan diskon ~10%${bundlePrice ? " — harga bundle Rp" + bundlePrice.toLocaleString("id") : ""}.`,
+        action: "Buat Promo",
+        type: "highlight",
+      });
+    }
+
+    // 2. Promo item kurang laku (boost dengan diskon / bundle dengan bestseller)
+    if (slow3.length > 0 && top3.length > 0) {
+      const slowName = slow3[0][0];
+      const topName  = top3[0][0];
+      cards.push({
+        icon: "📣",
+        label: "Promo Item Sepi",
+        title: `Gabungkan "${slowName}" dengan "${topName}"`,
+        desc: `${slowName} hanya terjual ${slow3[0][1]}× bulan ini. Buat paket promo "beli ${topName} gratis diskon ${slowName}" untuk menghabiskan stok.`,
+        action: "Ide Konten",
+        type: "warn",
+      });
+    }
+
+    // 3. Upsell — jika banyak transaksi single item
+    if (upsellRate > 50 && avgOrder > 0) {
+      cards.push({
+        icon: "⬆️",
+        label: "Peluang Upsell",
+        title: `${upsellRate}% pelanggan beli 1 item saja`,
+        desc: `Rata-rata order Rp${avgOrder.toLocaleString("id")}. Latih kasir untuk tawarin tambahan: "Mau tambah roti/snack?" atau buat paket combo hemat.`,
+        action: "Script Kasir",
+        type: "default",
+      });
+    }
+
+    // 4. Jam sepi → flash sale / happy hour
+    if (quietHour) {
+      const h = quietHour[0];
+      const hLabel = (h < 10 ? "0" + h : h) + ".00–" + (h + 1) + ".00";
+      cards.push({
+        icon: "⚡",
+        label: "Happy Hour",
+        title: `Flash Sale jam ${hLabel}`,
+        desc: `Jam ini paling sepi (${quietHour[1]} order minggu ini). Coba promo "Diskon 15% jam ${hLabel}" untuk tarik pelanggan di waktu sepi.`,
+        action: "Jadwalkan",
+        type: "default",
+      });
+    }
+
+    // 5. Menu bintang untuk konten & promosi
+    if (topRev1) {
+      cards.push({
+        icon: "⭐",
+        label: "Menu Andalan",
+        title: topRev1[0],
+        desc: `Kontribusi revenue terbesar bulan ini (Rp${topRev1[1].toLocaleString("id")}). Jadikan bintang konten IG/TikTok — foto menarik = traffic organik.`,
+        action: "Buat Konten",
+        type: "highlight",
+      });
+    }
+
+    // 6. Target omzet minggu depan
+    if (thisWeek.length > 0) {
+      const weekRev  = thisWeek.reduce((s, t) => s + (t.paid || 0), 0);
+      const target10 = Math.round(weekRev * 1.1 / 1000) * 1000;
+      cards.push({
+        icon: "🎯",
+        label: "Target Minggu Depan",
+        title: "Rp" + target10.toLocaleString("id"),
+        desc: `Naik 10% dari minggu ini (Rp${weekRev.toLocaleString("id")}). Strategi: tambah 1 promo, posting 3× di IG, aktifkan 1 bundling baru.`,
+        action: null,
+        type: "default",
+      });
+    }
+
+    if (cards.length === 0) {
+      return `<div class="mkt-insight-empty">Belum cukup variasi data untuk strategi. Catat lebih banyak transaksi!</div>`;
+    }
+
+    return cards.map((c) => `
+      <div class="mkt-strategy-card ${c.type === "highlight" ? "highlight" : c.type === "warn" ? "warn" : ""}">
+        <div class="mkt-strategy-header">
+          <span class="mkt-strategy-icon">${c.icon}</span>
+          <span class="mkt-strategy-label">${escHtml(c.label)}</span>
+        </div>
+        <span class="mkt-strategy-title">${escHtml(c.title)}</span>
+        <span class="mkt-strategy-desc">${escHtml(c.desc)}</span>
+        ${c.action ? `<button class="mkt-strategy-action" type="button" onclick="document.getElementById('mktCalendar')?.scrollIntoView({behavior:'smooth'})">${escHtml(c.action)} →</button>` : ""}
+      </div>`).join("");
+  }
+
+  function renderStrategy() {
+    const grid = document.getElementById("mktStrategyGrid");
+    if (grid) grid.innerHTML = buildStrategy();
+  }
+
   // ── Insight Penjualan ─────────────────────────────────────────
 
   const DAYS = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
+
 
   function buildInsight() {
     const history = (typeof getHistory === "function" ? getHistory() : [])
@@ -11557,6 +11773,9 @@ if (navigator.onLine) checkRemoteLogout().catch(() => null);
 
   const refreshBtn = document.getElementById("mktRefreshInsight");
   if (refreshBtn) refreshBtn.addEventListener("click", renderInsight);
+  const refreshStratBtn = document.getElementById("mktRefreshStrategy");
+  if (refreshStratBtn) refreshStratBtn.addEventListener("click", renderStrategy);
+
 
   // ── Kalender Konten ───────────────────────────────────────────
 
@@ -11774,15 +11993,18 @@ if (navigator.onLine) checkRemoteLogout().catch(() => null);
 
   renderInsight();
   renderCalendar();
+  renderStrategy();
   checkNotifPermission();
   rescheduleAll();
+  // Re-render setelah data cloud sync selesai (delay kecil untuk menunggu localStorage terisi)
+  setTimeout(() => { renderInsight(); renderCalendar(); renderStrategy(); }, 1200);
 
   // Hook view switch
   const _orig = window.setActiveView;
   if (typeof _orig === "function") {
     window.setActiveView = function (viewName, opts) {
       const result = _orig(viewName, opts);
-      if (viewName === "marketing") { renderInsight(); renderCalendar(); }
+      if (viewName === "marketing") { renderInsight(); renderCalendar(); renderStrategy(); }
       return result;
     };
   }
