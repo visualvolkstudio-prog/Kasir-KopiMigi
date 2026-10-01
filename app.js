@@ -11429,10 +11429,6 @@ if (navigator.onLine) checkRemoteLogout().catch(() => null);
   const trendsSearchBtn = document.getElementById("marketingTrendsSearch");
   const presetBtns      = document.querySelectorAll(".marketing-preset-btn");
   const openFullTrends  = document.getElementById("marketingOpenFullTrends");
-  const competitorBtns  = document.querySelectorAll(
-    "#marketingCompetitorSearch, #marketingCompetitorBandung, #marketingCompetitorBali, #marketingCompetitorIndo"
-  );
-  const competitorFrame = document.getElementById("marketingCompetitorFrame");
 
   // Mapping kota ke kode Google Trends sub-region Indonesia
   const KOTA_GEO = {
@@ -11510,11 +11506,166 @@ if (navigator.onLine) checkRemoteLogout().catch(() => null);
       window.open("https://trends.google.com/trends/explore?q=" + kw + "&geo=" + getSavedGeo(), "_blank", "noopener");
     });
   }
-  competitorBtns.forEach((btn) => {
-    btn.addEventListener("click", () => {
-      if (competitorFrame) competitorFrame.src = buildTrendsUrl(btn.dataset.competitor);
-    });
-  });
+
+  // ── Radar Lokal ───────────────────────────────────────────────
+
+  (function initRadarLokal() {
+    const RADAR_KEY = "kasir-migi-radar-competitors";
+
+    // Reverse-map geo code → city name & URL slug for delivery apps
+    const GEO_CITY = {
+      "ID":    { label: "Indonesia",   maps: "kafe+kopi",           gofood: "",          grabfood: "" },
+      "ID-JK": { label: "Jakarta",     maps: "kafe+kopi+Jakarta",   gofood: "jakarta",   grabfood: "jakarta" },
+      "ID-JB": { label: "Jawa Barat",  maps: "kafe+kopi+Bandung",   gofood: "bandung",   grabfood: "bandung" },
+      "ID-JI": { label: "Jawa Timur",  maps: "kafe+kopi+Surabaya",  gofood: "surabaya",  grabfood: "surabaya" },
+      "ID-JT": { label: "Semarang",    maps: "kafe+kopi+Semarang",  gofood: "semarang",  grabfood: "semarang" },
+      "ID-YO": { label: "Yogyakarta",  maps: "kafe+kopi+Yogyakarta",gofood: "yogyakarta",grabfood: "yogyakarta" },
+      "ID-SU": { label: "Medan",       maps: "kafe+kopi+Medan",     gofood: "medan",     grabfood: "medan" },
+      "ID-SN": { label: "Makassar",    maps: "kafe+kopi+Makassar",  gofood: "makassar",  grabfood: "makassar" },
+      "ID-BA": { label: "Bali",        maps: "kafe+kopi+Bali",      gofood: "bali",      grabfood: "bali" },
+      "ID-SS": { label: "Palembang",   maps: "kafe+kopi+Palembang", gofood: "palembang", grabfood: "palembang" },
+      "ID-KI": { label: "Balikpapan",  maps: "kafe+kopi+Balikpapan",gofood: "",          grabfood: "" },
+      "ID-RI": { label: "Pekanbaru",   maps: "kafe+kopi+Pekanbaru", gofood: "",          grabfood: "" },
+      "ID-KS": { label: "Banjarmasin", maps: "kafe+kopi+Banjarmasin",gofood: "",         grabfood: "" },
+      "ID-SA": { label: "Manado",      maps: "kafe+kopi+Manado",    gofood: "",          grabfood: "" },
+    };
+
+    function getCity() {
+      return GEO_CITY[getSavedGeo()] || GEO_CITY["ID"];
+    }
+
+    // Update label + links based on saved geo
+    function updateLinks() {
+      const city = getCity();
+      const cityLabel = document.getElementById("mktRadarCityLabel");
+      if (cityLabel) cityLabel.textContent = city.label;
+
+      const mapsLink = document.getElementById("mktMapsLink");
+      if (mapsLink) {
+        mapsLink.href = "https://www.google.com/maps/search/" + city.maps + "/";
+      }
+
+      const gofoodLink = document.getElementById("mktGofoodLink");
+      if (gofoodLink) {
+        gofoodLink.href = city.gofood
+          ? "https://gofood.co.id/" + city.gofood + "/restaurant?search=kopi"
+          : "https://gofood.co.id/";
+      }
+
+      const grabfoodLink = document.getElementById("mktGrabfoodLink");
+      if (grabfoodLink) {
+        grabfoodLink.href = city.grabfood
+          ? "https://food.grab.com/id/en/s?keyword=kopi&city=" + city.grabfood
+          : "https://food.grab.com/id/en/";
+      }
+
+      const shopeefoodLink = document.getElementById("mktShopeefoodLink");
+      if (shopeefoodLink) {
+        shopeefoodLink.href = "https://shopee.co.id/universal-link/menu_search?keyword=kopi";
+      }
+    }
+
+    // ── Competitor notes table ────────────────────────────────────
+
+    function loadCompetitors() {
+      return readJson(RADAR_KEY, []);
+    }
+
+    function saveCompetitors(list) {
+      writeJson(RADAR_KEY, list);
+    }
+
+    function renderCompetitors() {
+      const list = loadCompetitors();
+      const container = document.getElementById("mktCompetitorList");
+      if (!container) return;
+
+      if (list.length === 0) {
+        container.innerHTML = `
+          <div class="mkt-competitor-empty">
+            <i class="ph ph-binoculars" aria-hidden="true"></i>
+            <span>Belum ada catatan — tambah kompetitor lokal kamu</span>
+          </div>`;
+        return;
+      }
+
+      container.innerHTML = list.map((c, i) => `
+        <div class="mkt-competitor-row">
+          <div class="mkt-competitor-info">
+            <span class="mkt-competitor-name">${escHtml(c.name)}</span>
+            ${c.menu ? `<span class="mkt-competitor-menu">${escHtml(c.menu)}</span>` : ""}
+          </div>
+          <div class="mkt-competitor-meta">
+            ${c.price ? `<span class="mkt-competitor-price"><i class="ph ph-tag" aria-hidden="true"></i> Rp${Number(c.price).toLocaleString("id")}</span>` : ""}
+            ${c.note ? `<span class="mkt-competitor-note">${escHtml(c.note)}</span>` : ""}
+          </div>
+          <button class="ghost-icon-btn" data-delete-competitor="${i}" title="Hapus" type="button" aria-label="Hapus kompetitor">
+            <i class="ph ph-trash-simple" aria-hidden="true"></i>
+          </button>
+        </div>`).join("");
+
+      container.querySelectorAll("[data-delete-competitor]").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const idx = parseInt(btn.dataset.deleteCompetitor);
+          const list = loadCompetitors();
+          list.splice(idx, 1);
+          saveCompetitors(list);
+          renderCompetitors();
+        });
+      });
+    }
+
+    function showAddForm() {
+      const container = document.getElementById("mktCompetitorList");
+      if (!container || container.querySelector(".mkt-competitor-form")) return;
+
+      const form = document.createElement("div");
+      form.className = "mkt-competitor-form";
+      form.innerHTML = `
+        <div class="mkt-competitor-form-grid">
+          <input class="mkt-input" id="cmpName"  placeholder="Nama kafe / warung *" type="text" />
+          <input class="mkt-input" id="cmpMenu"  placeholder="Menu andalan (opsional)" type="text" />
+          <input class="mkt-input" id="cmpPrice" placeholder="Harga (Rp)" type="number" min="0" step="500" />
+          <input class="mkt-input" id="cmpNote"  placeholder="Catatan singkat (opsional)" type="text" />
+        </div>
+        <div class="mkt-competitor-form-actions">
+          <button class="primary-button compact" id="cmpSaveBtn" type="button">Simpan</button>
+          <button class="secondary-button compact" id="cmpCancelBtn" type="button">Batal</button>
+        </div>`;
+      container.prepend(form);
+
+      form.querySelector("#cmpCancelBtn").addEventListener("click", () => {
+        form.remove();
+      });
+
+      form.querySelector("#cmpSaveBtn").addEventListener("click", () => {
+        const name  = form.querySelector("#cmpName").value.trim();
+        const menu  = form.querySelector("#cmpMenu").value.trim();
+        const price = form.querySelector("#cmpPrice").value.trim();
+        const note  = form.querySelector("#cmpNote").value.trim();
+        if (!name) { form.querySelector("#cmpName").focus(); return; }
+        const list = loadCompetitors();
+        list.push({ name, menu, price: price ? Number(price) : null, note });
+        saveCompetitors(list);
+        form.remove();
+        renderCompetitors();
+      });
+
+      form.querySelector("#cmpName").focus();
+    }
+
+    const addBtn = document.getElementById("mktAddCompetitorBtn");
+    if (addBtn) addBtn.addEventListener("click", showAddForm);
+
+    updateLinks();
+    renderCompetitors();
+
+    // Re-sync links when geo selector changes
+    const geoSel = document.getElementById("marketingGeoSelect");
+    if (geoSel) {
+      geoSel.addEventListener("change", () => setTimeout(updateLinks, 50));
+    }
+  })();
 
   // ── Strategi Penjualan AI ─────────────────────────────────────
 

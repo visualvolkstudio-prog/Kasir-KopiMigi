@@ -1414,26 +1414,44 @@
                 frameborder="0" scrolling="0" class="mkt-frame" style="height:320px;" title="Google Trends"></iframe>
             </section>
 
-            <!-- KOMPETITOR -->
-            <section class="settings-panel mkt-full">
+            <!-- RADAR LOKAL -->
+            <section class="settings-panel mkt-full" id="mktRadarPanel">
               <div class="section-heading">
                 <div>
-                  <h3><i class="ph ph-intersect mkt-section-icon" aria-hidden="true"></i>Tren Kompetitor</h3>
-                  <p class="settings-note" style="margin:4px 0 0;">Volume pencarian Google untuk kafe/brand kopi di Indonesia.</p>
+                  <h3><i class="ph ph-radar mkt-section-icon" aria-hidden="true"></i>Radar Lokal</h3>
+                  <p class="settings-note" style="margin:4px 0 0;">Kompetitor di <span id="mktRadarCityLabel">kotamu</span> — harga sebanding, jarak terdekat.</p>
                 </div>
               </div>
-              <div class="mkt-preset-row">
-                <button class="mkt-pill" id="marketingCompetitorSearch" type="button" data-competitor="kafe kopi jakarta">Jakarta</button>
-                <button class="mkt-pill" id="marketingCompetitorBandung" type="button" data-competitor="kafe kopi bandung">Bandung</button>
-                <button class="mkt-pill" id="marketingCompetitorBali" type="button" data-competitor="kafe kopi bali">Bali</button>
-                <button class="mkt-pill" id="marketingCompetitorIndo" type="button" data-competitor="brand kopi indonesia">Brand Kopi ID</button>
+
+              <!-- Aksi cepat -->
+              <div class="mkt-radar-actions">
+                <a id="mktMapsLink" class="mkt-radar-btn" href="#" target="_blank" rel="noopener">
+                  <span class="mkt-radar-btn-icon"><i class="ph ph-map-pin-area"></i></span>
+                  <span class="mkt-radar-btn-label">Peta Kafe<br><small>Google Maps</small></span>
+                </a>
+                <a id="mktGofoodLink" class="mkt-radar-btn" href="#" target="_blank" rel="noopener">
+                  <span class="mkt-radar-btn-icon mkt-radar-gofood"><i class="ph ph-storefront"></i></span>
+                  <span class="mkt-radar-btn-label">Harga Kopi<br><small>GoFood</small></span>
+                </a>
+                <a id="mktGrabfoodLink" class="mkt-radar-btn" href="#" target="_blank" rel="noopener">
+                  <span class="mkt-radar-btn-icon mkt-radar-grabfood"><i class="ph ph-motorcycle"></i></span>
+                  <span class="mkt-radar-btn-label">Harga Kopi<br><small>GrabFood</small></span>
+                </a>
+                <a id="mktShopeefoodLink" class="mkt-radar-btn" href="#" target="_blank" rel="noopener">
+                  <span class="mkt-radar-btn-icon mkt-radar-shopee"><i class="ph ph-shopping-bag-open"></i></span>
+                  <span class="mkt-radar-btn-label">Harga Kopi<br><small>ShopeeFood</small></span>
+                </a>
               </div>
-              <iframe id="marketingCompetitorFrame"
-                src="https://trends.google.com/trends/embed/explore/TIMESERIES?req=%7B%22comparisonItem%22%3A%5B%7B%22keyword%22%3A%22kafe+kopi+jakarta%22%2C%22geo%22%3A%22ID%22%2C%22time%22%3A%22today+3-m%22%7D%5D%2C%22category%22%3A0%2C%22property%22%3A%22%22%7D&tz=-420&lang=id"
-                frameborder="0" scrolling="0" class="mkt-frame" style="height:280px;" title="Tren kafe kompetitor"></iframe>
-              <div class="mkt-link-row">
-                <a class="secondary-button compact" href="https://www.google.com/maps/search/kafe+kopi/" target="_blank" rel="noopener"><i class="ph ph-map-pin" aria-hidden="true"></i> Maps</a>
-                <a class="secondary-button compact" href="https://trends.google.com/trends/?geo=ID" target="_blank" rel="noopener"><i class="ph ph-arrow-square-out" aria-hidden="true"></i> Google Trends</a>
+
+              <!-- Catatan kompetitor lokal -->
+              <div class="mkt-radar-notes-header">
+                <span class="mkt-radar-notes-title"><i class="ph ph-notepad" aria-hidden="true"></i> Catatan Kompetitor Lokal</span>
+                <button class="secondary-button compact" id="mktAddCompetitorBtn" type="button">
+                  <i class="ph ph-plus" aria-hidden="true"></i> Tambah
+                </button>
+              </div>
+              <div id="mktCompetitorList" class="mkt-competitor-list">
+                <!-- diisi JS -->
               </div>
             </section>
 

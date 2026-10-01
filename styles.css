@@ -6047,3 +6047,199 @@ body.locked .login-screen { display: grid; }
   color: var(--accent-text);
   background: var(--accent-soft);
 }
+
+/* ── Radar Lokal ────────────────────────────────────── */
+.mkt-radar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+.mkt-radar-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1 1 140px;
+  min-width: 130px;
+  border: 1.5px solid var(--line);
+  border-radius: 10px;
+  padding: 12px 14px;
+  background: var(--white);
+  text-decoration: none;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+  transition: border-color 0.13s, box-shadow 0.13s, background 0.13s;
+}
+.mkt-radar-btn:hover {
+  border-color: var(--accent);
+  box-shadow: var(--shadow-sm);
+  background: var(--bg-surface);
+}
+.mkt-radar-btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 18px;
+  flex-shrink: 0;
+}
+.mkt-radar-btn-icon.mkt-radar-gofood {
+  background: #fff0f0;
+  color: #e3211b;
+}
+.mkt-radar-btn-icon.mkt-radar-grabfood {
+  background: #edfff1;
+  color: #00b14f;
+}
+.mkt-radar-btn-icon.mkt-radar-shopee {
+  background: #fff4ec;
+  color: #ee4d2d;
+}
+.mkt-radar-btn-label {
+  line-height: 1.3;
+}
+.mkt-radar-btn-label small {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+/* Competitor notes header */
+.mkt-radar-notes-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.mkt-radar-notes-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-2);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Competitor list */
+.mkt-competitor-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.mkt-competitor-empty {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 13px;
+  padding: 14px 0;
+}
+.mkt-competitor-empty .ph {
+  font-size: 22px;
+  opacity: 0.5;
+}
+.mkt-competitor-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 10px;
+  border: 1.5px solid var(--line);
+  border-radius: 9px;
+  padding: 10px 12px;
+  background: var(--white);
+  transition: border-color 0.12s;
+}
+.mkt-competitor-row:hover {
+  border-color: var(--accent-soft);
+}
+.mkt-competitor-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.mkt-competitor-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mkt-competitor-menu {
+  font-size: 12px;
+  color: var(--muted);
+}
+.mkt-competitor-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+.mkt-competitor-price {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  white-space: nowrap;
+}
+.mkt-competitor-note {
+  font-size: 11px;
+  color: var(--muted);
+  text-align: right;
+}
+
+/* Add form */
+.mkt-competitor-form {
+  border: 1.5px solid var(--accent);
+  border-radius: 10px;
+  padding: 14px;
+  background: var(--accent-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+.mkt-competitor-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.mkt-competitor-form-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* Ghost icon delete button */
+.ghost-icon-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 17px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  transition: color 0.12s, background 0.12s;
+}
+.ghost-icon-btn:hover {
+  color: #d93025;
+  background: #fff0f0;
+}
+
+@media (max-width: 600px) {
+  .mkt-competitor-form-grid {
+    grid-template-columns: 1fr;
+  }
+  .mkt-radar-btn {
+    flex: 1 1 100%;
+  }
+}
