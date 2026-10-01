@@ -8045,15 +8045,24 @@ async function postSupabaseAction(action, payload = {}) {
       return { role: "cashier", token: "mock-cashier-token" };
     }
     if (action === "bootstrap-data") {
+      // Dev mock: baca dari localStorage agar sinkron dengan data lokal (termasuk tambah/hapus crew)
+      const localEmployees = readJson(storageKeys.employees, []);
+      const mockDefaults = ["Fanni", "Robi", "Migi Admin"];
+      const names = localEmployees.length ? localEmployees : mockDefaults;
       return {
-        employees: [
-          { id: "e1", name: "Fanni", status: "active" },
-          { id: "e2", name: "Robi", status: "active" },
-          { id: "e3", name: "Migi Admin", status: "active" }
-        ],
+        employees: names.map((name, i) => ({ id: `e${i + 1}`, name, status: "active" })),
         settingsFound: true,
         settings: {}
       };
+    }
+    if (action === "add-employee") {
+      // Dev mock: simpan ke localStorage agar nama baru muncul di roster
+      const name = String(payload.name || "").trim();
+      if (name) {
+        const current = readJson(storageKeys.employees, []);
+        if (!current.includes(name)) writeJson(storageKeys.employees, [...current, name]);
+      }
+      return { success: true };
     }
     if (action === "device-presence") {
       return { activeDevice: null };
