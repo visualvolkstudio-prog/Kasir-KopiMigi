@@ -11593,7 +11593,7 @@ if (navigator.onLine) checkRemoteLogout().catch(() => null);
       const p2 = itemPrice.get(parts[1]) || 0;
       const bundlePrice = p1 + p2 > 0 ? Math.round((p1 + p2) * 0.9 / 500) * 500 : null;
       cards.push({
-        icon: "🎁",
+        icon: `<i class="ph ph-gift" aria-hidden="true"></i>`,
         label: "Bundling Rekomendasi",
         title: pairName,
         desc: `Sudah dibeli bersamaan ${count}× bulan ini. Buat paket bundling dengan diskon ~10%${bundlePrice ? " — harga bundle Rp" + bundlePrice.toLocaleString("id") : ""}.`,
@@ -11607,7 +11607,7 @@ if (navigator.onLine) checkRemoteLogout().catch(() => null);
       const slowName = slow3[0][0];
       const topName  = top3[0][0];
       cards.push({
-        icon: "📣",
+        icon: `<i class="ph ph-megaphone" aria-hidden="true"></i>`,
         label: "Promo Item Sepi",
         title: `Gabungkan "${slowName}" dengan "${topName}"`,
         desc: `${slowName} hanya terjual ${slow3[0][1]}× bulan ini. Buat paket promo "beli ${topName} gratis diskon ${slowName}" untuk menghabiskan stok.`,
@@ -11619,7 +11619,7 @@ if (navigator.onLine) checkRemoteLogout().catch(() => null);
     // 3. Upsell — jika banyak transaksi single item
     if (upsellRate > 50 && avgOrder > 0) {
       cards.push({
-        icon: "⬆️",
+        icon: `<i class="ph ph-trend-up" aria-hidden="true"></i>`,
         label: "Peluang Upsell",
         title: `${upsellRate}% pelanggan beli 1 item saja`,
         desc: `Rata-rata order Rp${avgOrder.toLocaleString("id")}. Latih kasir untuk tawarin tambahan: "Mau tambah roti/snack?" atau buat paket combo hemat.`,
@@ -11633,7 +11633,7 @@ if (navigator.onLine) checkRemoteLogout().catch(() => null);
       const h = quietHour[0];
       const hLabel = (h < 10 ? "0" + h : h) + ".00–" + (h + 1) + ".00";
       cards.push({
-        icon: "⚡",
+        icon: `<i class="ph ph-lightning" aria-hidden="true"></i>`,
         label: "Happy Hour",
         title: `Flash Sale jam ${hLabel}`,
         desc: `Jam ini paling sepi (${quietHour[1]} order minggu ini). Coba promo "Diskon 15% jam ${hLabel}" untuk tarik pelanggan di waktu sepi.`,
@@ -11645,7 +11645,7 @@ if (navigator.onLine) checkRemoteLogout().catch(() => null);
     // 5. Menu bintang untuk konten & promosi
     if (topRev1) {
       cards.push({
-        icon: "⭐",
+        icon: `<i class="ph ph-star" aria-hidden="true"></i>`,
         label: "Menu Andalan",
         title: topRev1[0],
         desc: `Kontribusi revenue terbesar bulan ini (Rp${topRev1[1].toLocaleString("id")}). Jadikan bintang konten IG/TikTok — foto menarik = traffic organik.`,
@@ -11659,7 +11659,7 @@ if (navigator.onLine) checkRemoteLogout().catch(() => null);
       const weekRev  = thisWeek.reduce((s, t) => s + (t.paid || 0), 0);
       const target10 = Math.round(weekRev * 1.1 / 1000) * 1000;
       cards.push({
-        icon: "🎯",
+        icon: `<i class="ph ph-target" aria-hidden="true"></i>`,
         label: "Target Minggu Depan",
         title: "Rp" + target10.toLocaleString("id"),
         desc: `Naik 10% dari minggu ini (Rp${weekRev.toLocaleString("id")}). Strategi: tambah 1 promo, posting 3× di IG, aktifkan 1 bundling baru.`,

@@ -5744,8 +5744,24 @@ body.locked .login-screen { display: grid; }
   gap: 8px;
 }
 .mkt-strategy-icon {
-  font-size: 20px;
-  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 17px;
+  flex-shrink: 0;
+}
+.mkt-strategy-card.highlight .mkt-strategy-icon {
+  background: rgba(255,255,255,0.18);
+  color: #fff;
+}
+.mkt-strategy-card.warn .mkt-strategy-icon {
+  background: rgba(232,184,75,0.18);
+  color: #a07a10;
 }
 .mkt-strategy-label {
   font-size: 10px;
@@ -5971,10 +5987,43 @@ body.locked .login-screen { display: grid; }
 
 /* Section headings in Marketing: stronger h3 weight */
 #view-marketing .section-heading h3 {
-  font-size: 16px;
-  font-weight: 700;
-  letter-spacing: -0.015em;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -0.025em;
   color: var(--ink);
+}
+
+/* Icon badge beside each Marketing section title */
+.mkt-section-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+/* Override icon inside the Insight panel dark header */
+#mktInsightPanel > .section-heading h3 {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--sidebar-text);
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  margin: 0;
+}
+#mktInsightPanel > .section-heading .mkt-section-icon {
+  background: rgba(255,255,255,0.12);
+  color: var(--sidebar-text);
 }
 
 /* Add-slot button: more presence */
