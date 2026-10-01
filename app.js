@@ -11531,7 +11531,22 @@ if (navigator.onLine) checkRemoteLogout().catch(() => null);
     };
 
     function getCity() {
-      return GEO_CITY[getSavedGeo()] || GEO_CITY["ID"];
+      const geo  = getSavedGeo();
+      const base = GEO_CITY[geo] || GEO_CITY["ID"];
+      // Read actual city name from the geo dropdown (handles Garut, Bogor, Bekasi, etc.
+      // that share the same ID-JB code but need their own Maps query)
+      const sel = document.getElementById("marketingGeoSelect");
+      if (sel && sel.selectedIndex >= 0) {
+        const label = sel.options[sel.selectedIndex].text;
+        if (label && label !== "Seluruh Indonesia") {
+          return {
+            ...base,
+            label,
+            maps: "kafe+kopi+" + label.replace(/\s+/g, "+"),
+          };
+        }
+      }
+      return base;
     }
 
     // Update label + links based on saved geo
