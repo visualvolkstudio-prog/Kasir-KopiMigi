@@ -8257,7 +8257,6 @@ async function loadCloudData() {
   if (Array.isArray(data.history)) await cacheCloudTransactionsWithPending(data.history);
   if (Array.isArray(data.cashflowExpenses)) writeJson(storageKeys.cashflowExpenses, data.cashflowExpenses.slice(0, 2000));
   if (data.inventory && typeof data.inventory === "object") applyCloudInventory(data.inventory);
-  if (Array.isArray(data.employees)) applyCloudEmployeeRoster(data.employees);
   if (data.settingsFound && data.settings) {
     applyCloudSettings(data.settings);
     clearSettingsDirty();
@@ -8265,6 +8264,9 @@ async function loadCloudData() {
   } else if (isOwner() && !data.settingsFound) {
     await syncSettingsToCloud({ force: true }).catch(() => null);
   }
+  // Apply employees dari tabel SETELAH settings agar roster tabel selalu menang
+  // atas daftar lama yang mungkin tersimpan di settings.employees
+  if (Array.isArray(data.employees)) applyCloudEmployeeRoster(data.employees);
   return true;
 }
 
