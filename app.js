@@ -1868,9 +1868,7 @@ function applyAccessControls() {
   document.querySelector('[data-view="cashflow"]')?.classList.toggle("owner-only", !owner);
   document.querySelector("#view-cashflow")?.classList.toggle("owner-only", !owner);
   document.querySelector('[data-view="staff"]')?.classList.toggle("owner-only", !owner);
-  // Marketing: tampilkan/sembunyikan tab via style langsung
-  const marketingTab = document.querySelector('[data-view="marketing"]');
-  if (marketingTab) marketingTab.style.display = owner ? "" : "none";
+  document.querySelector('[data-view="marketing"]')?.classList.toggle("owner-only", !owner);
   document.querySelector("#view-marketing")?.classList.toggle("owner-only", !owner);
   document.querySelector("#view-stock .inventory-grid > .settings-panel")?.classList.toggle("owner-only", !owner);
   els.employeeAddForm?.classList.toggle("owner-only", !owner);
