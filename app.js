@@ -11914,20 +11914,20 @@ if (navigator.onLine) checkRemoteLogout().catch(() => null);
     const isMidweek = slowestDay.d >= 2 && slowestDay.d <= 4;
     let whatAction;
     if (isWeekend) {
-      whatAction = `${slowestDay.name} seharusnya ramai — ini anomali. Cek apakah ada event rutin di sekitar area yang menyaingi traffic. Bisa kolaborasi atau pasang Google Ads lokasi khusus hari ini.`;
+      whatAction = `Cek apakah ada event rutin di sekitar yang menarik orang keluar — kalau iya, coba pasang promo atau konten khusus hari ${slowestDay.name}.`;
     } else if (isMonday) {
-      whatAction = `Kirim WA Broadcast tiap Minggu malam ke pelanggan lama — bukan promo, cukup konten ringan ("Menu baru minggu ini"). Buat mereka ingat sebelum Senin mulai.`;
+      whatAction = `WA Broadcast ringan tiap Minggu malam bisa bantu — cukup reminder menu, bukan promo.`;
     } else if (isMidweek) {
-      whatAction = `Pola struktural — bukan kebetulan. Fokus ke retention: loyalty reward atau cashback poin berlipat khusus hari ${slowestDay.name}. Lebih murah dari akuisisi baru.`;
+      whatAction = `Coba double poin loyalty khusus hari ${slowestDay.name} biar pelanggan lama lebih sering balik.`;
     } else {
-      whatAction = `Coba 1 eksperimen kecil: naikkan porsi konten IG/TikTok yang ditarget ke hari ${slowestDay.name} (scheduling post). Ukur selama 2 minggu sebelum buat promo besar.`;
+      whatAction = `Jadwalkan 1–2 konten IG/TikTok khusus hari ${slowestDay.name} selama sebulan, lihat apakah traffic naik.`;
     }
 
     cards.push({
       icon: `<i class="ph ph-chart-line-down" aria-hidden="true"></i>`,
       label: "Hari Lesu",
       title: `${slowestDay.name} paling sepi — ${dropPct2m}% di bawah ${busiestDay.name}`,
-      desc: `Data 2 bulan terakhir:\n${rankingLines}\n\n💡 ${whatAction}`,
+      desc: `Rata-rata ${slowestDay.name} Rp${slowestDay.avg.toLocaleString("id")}/hari vs ${busiestDay.name} Rp${busiestDay.avg.toLocaleString("id")} — selisih konsisten 2 bulan terakhir. ${whatAction}`,
       action: "Buat Promo",
       type: "default",
     });
