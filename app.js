@@ -11841,26 +11841,92 @@ if (navigator.onLine) checkRemoteLogout().catch(() => null);
       });
     }
 
-    // 4. Jam sepi → flash sale / happy hour (tampilkan top-3 slot)
-    const quietSlots = allHours.slice(0, 3); // ambil 3 jam paling sepi
-    const hhDescs = [
-      (h, cnt) => `Jam ${(h < 10 ? "0"+h : h)+".00"} cuma ${cnt} order minggu ini — pas banget buat flash sale kilat. Kasih diskon 15%, bisa langsung ramai.`,
-      (h, cnt) => `${(h < 10 ? "0"+h : h)+".00"}–${(h+1 < 10 ? "0"+(h+1) : h+1)+".00"} biasanya lowong (${cnt} order). Coba announce promo 30 menit sebelumnya di WA/IG Story supaya pelanggan siap-siap.`,
-      (h, cnt) => `Di jam ${(h < 10 ? "0"+h : h)+".00"} order masih ${cnt}/minggu. Bundling 2 minuman + diskon bisa jadi alasan pelanggan mampir di waktu ini.`,
-    ];
-    quietSlots.forEach(([h, cnt], idx) => {
+    // 4. Jam sepi → flash sale / happy hour
+    // Exclude jam buka (OPEN_HOUR) dan jam menjelang tutup (CLOSE_HOUR-1) — itu memang sepi natural
+    // Hanya tampilkan 1 slot paling sepi, dan hanya jika memang jauh di bawah rata-rata
+    const avgHourlyOrders = thisWeek.length / (CLOSE_HOUR - OPEN_HOUR) || 1;
+    const quietSlots = allHours
+      .filter(([h]) => h > OPEN_HOUR && h < CLOSE_HOUR - 1) // exclude jam buka & menjelang tutup
+      .filter(([, cnt]) => cnt < avgHourlyOrders * 0.6);    // hanya jika < 60% rata-rata
+    if (quietSlots.length > 0) {
+      const [h, cnt] = quietSlots[0]; // ambil 1 yang paling sepi saja
       const hStr  = (h < 10 ? "0" + h : "" + h);
       const hEnd  = (h + 1 < 10 ? "0" + (h + 1) : "" + (h + 1));
       const hLabel = `${hStr}.00–${hEnd}.00`;
+      const hhDesc = cnt === 0
+        ? `Jam ${hStr}.00 minggu ini kosong sama sekali. Coba announce flash sale 30 menit sebelumnya di WA/IG Story — pelanggan yang sudah niat ke sini butuh "trigger".`
+        : `Jam ${hStr}.00 cuma ${cnt} order minggu ini — jauh di bawah rata-rata (${Math.round(avgHourlyOrders)} order/jam). Kasih diskon 15% khusus jam ini bisa langsung ramai.`;
       cards.push({
         icon: `<i class="ph ph-lightning" aria-hidden="true"></i>`,
         label: "Happy Hour",
         title: `Flash Sale jam ${hLabel}`,
-        desc: hhDescs[idx](h, cnt),
+        desc: hhDesc,
         action: "Jadwalkan",
         type: "default",
       });
+    }
+
+    // 4b. Hari lesu — analisis hari mana yang paling sepi selama 4 minggu terakhir
+    const DAY_NAMES = ["Minggu","Senin","Selasa","Rabu","Kamis","Jumat","Sabtu"];
+    const dayRevMap = new Map();
+    const fourWeeksAgo = new Date(now); fourWeeksAgo.setDate(now.getDate() - 28);
+    const history4w = history.filter((t) => new Date(t.createdAt) >= fourWeeksAgo);
+    // Hitung rata-rata revenue per hari-dalam-seminggu berdasarkan berapa kali hari itu muncul
+    const dayOccurrences = new Map();
+    history4w.forEach((t) => {
+      const d = new Date(t.createdAt).getDay();
+      dayRevMap.set(d, (dayRevMap.get(d) || 0) + (t.paid || 0));
     });
+    for (let d = 0; d < 7; d++) {
+      let occ = 0;
+      for (let w = 0; w < 4; w++) {
+        const wStart = new Date(now); wStart.setDate(now.getDate() - (w + 1) * 7);
+        const wEnd   = new Date(now); wEnd.setDate(now.getDate() - w * 7);
+        if (history.some((t) => { const dt = new Date(t.createdAt); return dt >= wStart && dt < wEnd && dt.getDay() === d; })) occ++;
+      }
+      dayOccurrences.set(d, occ);
+    }
+    const dayAvgRev = [...Array(7).keys()]
+      .map((d) => [d, dayOccurrences.get(d) > 0 ? (dayRevMap.get(d) || 0) / dayOccurrences.get(d) : 0, dayOccurrences.get(d)])
+      .filter(([, , occ]) => occ >= 2); // minimal muncul 2× agar signifikan
+
+    if (dayAvgRev.length >= 3) {
+      const sortedDays = [...dayAvgRev].sort((a, b) => a[1] - b[1]);
+      const [slowDay, slowAvgRev] = sortedDays[0];
+      const [topDay, topAvgRev]   = sortedDays[sortedDays.length - 1];
+      const dropPct = topAvgRev > 0 ? Math.round((1 - slowAvgRev / topAvgRev) * 100) : 0;
+
+      // Insight kontekstual: kenapa mungkin sepi + 1 aksi yang paling masuk akal
+      // Bukan satu promo per hari — tapi baca pola: weekday vs weekend anomali
+      const isWeekend = slowDay === 0 || slowDay === 6;
+      const isMonday  = slowDay === 1;
+      const isMidweek = slowDay >= 2 && slowDay <= 4;
+      let whyDesc, whatAction;
+      if (isWeekend) {
+        whyDesc = `Lazimnya ${DAY_NAMES[slowDay]} harusnya ramai — ini anomali. Kemungkinan ada kompetitor baru, acara luar, atau pola pelanggan yang berubah.`;
+        whatAction = `Cek apakah ada event lokal di area sekitar setiap ${DAY_NAMES[slowDay]}. Kalau ya, justru bisa kolaborasi atau pasang iklan yang muncul saat orang cari tempat di area itu (Google Ads lokasi).`;
+      } else if (isMonday) {
+        whyDesc = `Senin memang hari transisi — tapi kalau dropnya sampai ${dropPct}%, ada yang perlu dibenahi bukan sekadar promo.`;
+        whatAction = `Coba kirim 1 WA Broadcast tiap Minggu malam ke pelanggan lama — bukan promo, tapi konten ringan ("Menu baru minggu ini"). Buat mereka ingat kamu sebelum Senin mulai.`;
+      } else if (isMidweek) {
+        whyDesc = `${DAY_NAMES[slowDay]} konsisten sepi selama 4 minggu — ini pola struktural, bukan kebetulan.`;
+        whatAction = `Jadikan ${DAY_NAMES[slowDay]} hari "soft target": fokus ke pelanggan yang sudah ada (loyalty reward, cashback poin) bukan akuisisi baru. Lebih murah dan konversinya lebih tinggi.`;
+      } else {
+        whyDesc = `${DAY_NAMES[slowDay]} jauh di bawah hari lain selama 4 minggu terakhir — perlu satu intervensi spesifik, bukan promo rutin.`;
+        whatAction = `Coba 1 eksperimen: buka 30 menit lebih awal atau tutup 30 menit lebih malam khusus hari ini selama 2 minggu, lalu bandingkan revenue-nya.`;
+      }
+
+      if (dropPct >= 25) {
+        cards.push({
+          icon: `<i class="ph ph-chart-line-down" aria-hidden="true"></i>`,
+          label: "Hari Lesu",
+          title: `${DAY_NAMES[slowDay]} konsisten ${dropPct}% di bawah ${DAY_NAMES[topDay]}`,
+          desc: `${whyDesc} → ${whatAction}`,
+          action: "Buat Promo",
+          type: "default",
+        });
+      }
+    }
 
 
     // 5. Menu bintang untuk konten & promosi
