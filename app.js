@@ -9789,8 +9789,21 @@ function registerServiceWorker() {
     navigator.serviceWorker
       .register("/sw.js")
       .then((registration) => {
-        // Lakukan update di background dan abaikan jika gagal/offline
+        // Cek update di background
         registration.update().catch(() => null);
+
+        // Saat SW baru ditemukan (updatefound), tunggu sampai installed
+        // lalu langsung kirim SKIP_WAITING agar activate segera
+        registration.addEventListener("updatefound", () => {
+          const newWorker = registration.installing;
+          if (!newWorker) return;
+          newWorker.addEventListener("statechange", () => {
+            if (newWorker.state === "installed" && navigator.serviceWorker.controller) {
+              // Ada SW baru yang waiting — suruh langsung ambil alih
+              newWorker.postMessage({ type: "SKIP_WAITING" });
+            }
+          });
+        });
       })
       .catch((err) => {
         console.warn("Service Worker registration failed:", err);
@@ -9804,6 +9817,7 @@ function registerServiceWorker() {
     window.addEventListener("load", register);
   }
 
+  // Saat SW baru aktif (controllerchange), reload halaman otomatis
   let refreshing = false;
   navigator.serviceWorker.addEventListener("controllerchange", () => {
     if (!refreshing) {
@@ -11846,13 +11860,586 @@ if (navigator.onLine) checkRemoteLogout().catch(() => null);
         </div>
         <span class="mkt-strategy-title">${escHtml(c.title)}</span>
         <span class="mkt-strategy-desc">${escHtml(c.desc)}</span>
-        ${c.action ? `<button class="mkt-strategy-action" type="button" onclick="document.getElementById('mktCalendar')?.scrollIntoView({behavior:'smooth'})">${escHtml(c.action)} →</button>` : ""}
+        ${c.action ? `<button class="mkt-strategy-action" type="button" data-strat-action="${escHtml(c.action)}" data-strat-title="${escHtml(c.title)}" data-strat-desc="${escHtml(c.desc)}" data-strat-label="${escHtml(c.label)}">${escHtml(c.action)} →</button>` : ""}
       </div>`).join("");
+  }
+
+  // ── Modal Sistem Strategi ─────────────────────────────────────
+
+  function openStrategyModal(action, title, desc, label) {
+    // Hapus modal lama jika ada
+    document.querySelectorAll(".strat-modal-backdrop").forEach((el) => el.remove());
+
+    let modalContent = "";
+
+    if (action === "Buat Promo") {
+      // Parse harga bundling dari desc
+      const priceMatch = desc.match(/Rp([\d.]+)/);
+      const suggestedPrice = priceMatch ? priceMatch[1].replace(/\./g, "") : "";
+      const parts = title.split(" + ");
+      const item1 = parts[0] || "";
+      const item2 = parts[1] || "";
+
+      modalContent = `
+        <div class="strat-modal-header">
+          <span class="strat-modal-icon"><i class="ph ph-gift" aria-hidden="true"></i></span>
+          <div>
+            <h2 class="strat-modal-title">Buat Promo Bundling</h2>
+            <p class="strat-modal-subtitle">${escHtml(title)}</p>
+          </div>
+        </div>
+        <div class="strat-modal-body">
+          <div class="strat-form-row">
+            <div class="strat-field">
+              <label class="strat-label">Nama Paket Promo</label>
+              <input id="stratPromoName" class="strat-input" type="text" value="Paket ${escHtml(item1.split(" ")[0])} + ${escHtml(item2.split(" ")[0])}" />
+            </div>
+          </div>
+          <div class="strat-form-row">
+            <div class="strat-field">
+              <label class="strat-label">Harga Normal (total)</label>
+              <input id="stratPromoOriginal" class="strat-input" type="number" placeholder="Misal 27000" />
+            </div>
+            <div class="strat-field">
+              <label class="strat-label">Harga Promo Bundling</label>
+              <input id="stratPromoPrice" class="strat-input" type="number" value="${escHtml(suggestedPrice)}" placeholder="Misal 24500" />
+            </div>
+          </div>
+          <div class="strat-form-row">
+            <div class="strat-field">
+              <label class="strat-label">Berlaku hingga</label>
+              <input id="stratPromoDuration" class="strat-input" type="date" value="${escHtml(new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10))}" />
+            </div>
+            <div class="strat-field">
+              <label class="strat-label">Catatan tambahan</label>
+              <input id="stratPromoNote" class="strat-input" type="text" placeholder="Misal: khusus dine-in" />
+            </div>
+          </div>
+          <div class="strat-preview-box" id="stratBundlePreview">
+            <div class="strat-preview-label"><i class="ph ph-instagram-logo" aria-hidden="true"></i> Preview Caption IG/WA</div>
+            <div class="strat-preview-text" id="stratBundleCaption">Isi harga untuk generate caption otomatis ✨</div>
+            <button class="strat-copy-btn" type="button" id="stratCopyCaption"><i class="ph ph-copy" aria-hidden="true"></i> Salin</button>
+          </div>
+        </div>
+        <div class="strat-modal-footer">
+          <button class="secondary-button" type="button" id="stratModalCancel">Batal</button>
+          <button class="primary-button" type="button" id="stratModalSave"><i class="ph ph-check" aria-hidden="true"></i> Simpan Promo</button>
+        </div>`;
+    } else if (action === "Ide Konten") {
+      const lines = desc.split(". ");
+      const slowItem = title.replace(/^Gabungkan "|" dengan.*$/g, "").replace(/^Gabungkan "/, "").split('"')[0];
+      const topItem = title.split('"')[2]?.replace('" dengan "', "").replace('"', "") || "";
+
+      const captions = [
+        `🔥 PROMO SPESIAL HARI INI!\n\n${title.replace(/"/g, "")}\n\nBeli ${topItem || "menu favorit kamu"} dan dapatkan diskon spesial untuk ${slowItem || "menu pilihan"}!\n\nYuk mampir ke Kopi Migi! ☕\n\n#KopiMigi #PromoKopi #CoffeeLover`,
+        `✨ Jangan sampai kehabisan!\n\nSekarang ada paket hemat yang sayang banget dilewatin. Dua favorit dalam satu harga spesial!\n\n📍 Kopi Migi\n⏰ Hari ini aja!\n\n#KopiMigi #KopiMurah #CoffeeTime`,
+        `☕ Spill rahasia menu Kopi Migi yang jarang diorder padahal enak banget...\n\n[video/reels produk]\n\nLink order di bio! 🔗\n\n#KopiMigi #HiddenGem #CoffeeTok`,
+      ];
+
+      modalContent = `
+        <div class="strat-modal-header">
+          <span class="strat-modal-icon warn"><i class="ph ph-megaphone" aria-hidden="true"></i></span>
+          <div>
+            <h2 class="strat-modal-title">Ide Konten & Caption</h2>
+            <p class="strat-modal-subtitle">${escHtml(title)}</p>
+          </div>
+        </div>
+        <div class="strat-modal-body">
+          <p class="strat-context-note"><i class="ph ph-info" aria-hidden="true"></i> ${escHtml(desc)}</p>
+          <div class="strat-caption-tabs" id="stratCaptionTabs">
+            <button class="strat-tab active" data-tab="0" type="button">Caption 1</button>
+            <button class="strat-tab" data-tab="1" type="button">Caption 2</button>
+            <button class="strat-tab" data-tab="2" type="button">Reels/TikTok</button>
+          </div>
+          <div class="strat-caption-panel">
+            ${captions.map((cap, i) => `<div class="strat-caption-content ${i === 0 ? "active" : ""}" data-cap="${i}"><pre class="strat-caption-pre">${escHtml(cap)}</pre></div>`).join("")}
+            <button class="strat-copy-btn mt-4" type="button" id="stratCopyActiveCaption"><i class="ph ph-copy" aria-hidden="true"></i> Salin Caption</button>
+          </div>
+          <div class="strat-platform-section">
+            <div class="strat-label" style="margin-bottom:10px;">Langsung jadwalkan ke kalender:</div>
+            <div class="strat-platform-row">
+              <label class="mkt-platform-check" data-platform="ig"><input type="checkbox" value="ig" checked /> <span class="mkt-platform-dot ig">IG</span> Instagram</label>
+              <label class="mkt-platform-check" data-platform="tt"><input type="checkbox" value="tt" /> <span class="mkt-platform-dot tt">TT</span> TikTok</label>
+              <label class="mkt-platform-check" data-platform="wa"><input type="checkbox" value="wa" /> <span class="mkt-platform-dot wa">WA</span> WhatsApp</label>
+            </div>
+            <div class="strat-form-row" style="margin-top:10px;">
+              <div class="strat-field">
+                <label class="strat-label">Jam posting</label>
+                <input id="stratContentTime" class="strat-input" type="time" value="09:00" style="width:110px;" />
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="strat-modal-footer">
+          <button class="secondary-button" type="button" id="stratModalCancel">Tutup</button>
+          <button class="primary-button" type="button" id="stratModalSave"><i class="ph ph-calendar-plus" aria-hidden="true"></i> Tambah ke Kalender</button>
+        </div>`;
+    } else if (action === "Jadwalkan") {
+      // Parse jam dari title misal "Flash Sale jam 09.00–10.00"
+      const hourMatch = title.match(/jam (\d+)/);
+      const h = hourMatch ? parseInt(hourMatch[1]) : 9;
+      const hStr = (h < 10 ? "0" + h : "" + h) + ":00";
+      const hLabel = (h < 10 ? "0" + h : h) + ".00–" + (h + 1) + ".00";
+
+      modalContent = `
+        <div class="strat-modal-header">
+          <span class="strat-modal-icon"><i class="ph ph-lightning" aria-hidden="true"></i></span>
+          <div>
+            <h2 class="strat-modal-title">Jadwalkan Happy Hour</h2>
+            <p class="strat-modal-subtitle">Flash Sale ${escHtml(hLabel)}</p>
+          </div>
+        </div>
+        <div class="strat-modal-body">
+          <p class="strat-context-note"><i class="ph ph-info" aria-hidden="true"></i> ${escHtml(desc)}</p>
+          <div class="strat-happy-hour-preview">
+            <div class="strat-hh-badge"><i class="ph ph-lightning" aria-hidden="true"></i> Flash Sale aktif ${escHtml(hLabel)}</div>
+            <div class="strat-form-row" style="margin-top:16px;">
+              <div class="strat-field">
+                <label class="strat-label">Diskon yang ditawarkan</label>
+                <select id="stratHHDiscount" class="strat-input" style="height:38px;">
+                  <option value="10">10%</option>
+                  <option value="15" selected>15%</option>
+                  <option value="20">20%</option>
+                  <option value="25">25%</option>
+                </select>
+              </div>
+              <div class="strat-field">
+                <label class="strat-label">Jam mulai promosi konten</label>
+                <input id="stratHHNotifTime" class="strat-input" type="time" value="${escHtml(hStr)}" style="width:110px;" />
+              </div>
+            </div>
+            <div class="strat-form-row">
+              <div class="strat-field" style="flex:1;">
+                <label class="strat-label">Platform posting</label>
+                <div class="strat-platform-row">
+                  <label class="mkt-platform-check" data-platform="ig"><input type="checkbox" value="ig" checked /> <span class="mkt-platform-dot ig">IG</span> Instagram</label>
+                  <label class="mkt-platform-check" data-platform="wa"><input type="checkbox" value="wa" checked /> <span class="mkt-platform-dot wa">WA</span> WhatsApp</label>
+                  <label class="mkt-platform-check" data-platform="tt"><input type="checkbox" value="tt" /> <span class="mkt-platform-dot tt">TT</span> TikTok</label>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="strat-preview-box" style="margin-top:16px;">
+            <div class="strat-preview-label"><i class="ph ph-megaphone" aria-hidden="true"></i> Caption otomatis</div>
+            <div class="strat-preview-text" id="stratHHCaption">⚡ FLASH SALE sekarang!\n\nDiskon 15% untuk SEMUA MENU jam ${escHtml(hLabel)} aja!\n\nBuruan ke Kopi Migi sebelum habis! ☕🔥\n\n#KopiMigi #FlashSale #HappyHour</div>
+            <button class="strat-copy-btn" type="button" id="stratHHCopyCaption"><i class="ph ph-copy" aria-hidden="true"></i> Salin</button>
+          </div>
+        </div>
+        <div class="strat-modal-footer">
+          <button class="secondary-button" type="button" id="stratModalCancel">Batal</button>
+          <button class="primary-button" type="button" id="stratModalSave"><i class="ph ph-calendar-plus" aria-hidden="true"></i> Jadwalkan ke Kalender</button>
+        </div>`;
+    } else if (action === "Script Kasir") {
+      // Parse persentase upsell dari title
+      const pctMatch = title.match(/(\d+)%/);
+      const pct = pctMatch ? pctMatch[1] : "50";
+      const avgMatch = desc.match(/Rp([\d.,]+)/);
+      const avg = avgMatch ? avgMatch[1] : "0";
+
+      const scripts = [
+        { label: "Tawaran Tambahan", text: `"Boleh tambahin snack atau roti untuk teman minum kopinya kak? Ada [nama snack] yang pas banget!"` },
+        { label: "Paket Combo", text: `"Kak, kalau mau hemat bisa ambil paket combo — dapet [item 1] + [item 2] lebih murah Rp[harga]. Mau dicoba?"` },
+        { label: "Size Up", text: `"Mau ukuran yang lebih besar kak? Tambah Rp[selisih] aja dapet size large, lebih worth it!"` },
+        { label: "Loyalty", text: `"Kak udah pernah coba [menu baru]? Lagi hits banget dan banyak yang repeat order — mau coba?"` },
+      ];
+
+      modalContent = `
+        <div class="strat-modal-header">
+          <span class="strat-modal-icon"><i class="ph ph-trend-up" aria-hidden="true"></i></span>
+          <div>
+            <h2 class="strat-modal-title">Script Upsell Kasir</h2>
+            <p class="strat-modal-subtitle">${escHtml(pct)}% pelanggan beli 1 item — potensi upsell besar</p>
+          </div>
+        </div>
+        <div class="strat-modal-body">
+          <div class="strat-upsell-stats">
+            <div class="strat-stat-pill warn"><i class="ph ph-user" aria-hidden="true"></i> ${escHtml(pct)}% single-item order</div>
+            <div class="strat-stat-pill"><i class="ph ph-currency-circle-dollar" aria-hidden="true"></i> Avg order Rp${escHtml(avg)}</div>
+          </div>
+          <p class="strat-context-note" style="margin-top:12px;"><i class="ph ph-lightbulb" aria-hidden="true"></i> Pilih script untuk disalin dan diajarkan ke kasir:</p>
+          <div class="strat-script-list">
+            ${scripts.map((s, i) => `
+              <div class="strat-script-item" data-script="${i}">
+                <div class="strat-script-label">${escHtml(s.label)}</div>
+                <div class="strat-script-text">${escHtml(s.text)}</div>
+                <button class="strat-copy-btn compact" type="button" data-copy-script="${i}"><i class="ph ph-copy" aria-hidden="true"></i> Salin</button>
+              </div>`).join("")}
+          </div>
+          <div class="strat-preview-box" style="margin-top:16px;">
+            <div class="strat-preview-label"><i class="ph ph-note" aria-hidden="true"></i> Tips untuk manajer</div>
+            <div class="strat-preview-text">Latih kasir untuk tawarin upsell setiap transaksi. Target: naikkan rata-rata order dari Rp${escHtml(avg)} ke Rp${escHtml(String(Math.round((parseInt(avg.replace(/\./g, "")) || 0) * 1.2)).replace(/\B(?=(\d{3})+(?!\d))/g, ".") || avg)}. Review hasilnya setiap 7 hari.</div>
+          </div>
+        </div>
+        <div class="strat-modal-footer">
+          <button class="secondary-button" type="button" id="stratModalCancel">Tutup</button>
+          <button class="primary-button" type="button" id="stratModalSave"><i class="ph ph-check-circle" aria-hidden="true"></i> Tandai Sudah Dilatih</button>
+        </div>`;
+    } else if (action === "Buat Konten") {
+      const itemName = title;
+      const revMatch = desc.match(/Rp([\d.,]+)/);
+      const rev = revMatch ? revMatch[1] : "0";
+
+      const captions = [
+        `⭐ Menu ANDALAN Kopi Migi!\n\n✨ ${itemName}\n\nSudah jadi favorit banyak pelanggan setia kami. Rasanya? Wajib dicoba sendiri 😍\n\n📍 Kopi Migi\n📲 Order via link di bio\n\n#KopiMigi #${itemName.replace(/\s+/g, "")} #CoffeeLover #KopiEnak`,
+        `☕ Behind the scenes: gimana ${itemName} dibuat?\n\n[Rekam proses pembuatan]\n\nSetiap cup dibuat dengan penuh cinta ❤️\n\n#KopiMigi #BehindTheScenes #CraftCoffee`,
+        `🤌 Review jujur ${itemName} dari Kopi Migi...\n\n[Customer testimonial / video unboxing]\n\n"[Tulis kutipan review pelanggan asli]"\n\nMau review produk kami? Tag @kopimigi! 📸\n\n#KopiMigi #Review #CoffeeReview`,
+      ];
+
+      modalContent = `
+        <div class="strat-modal-header">
+          <span class="strat-modal-icon"><i class="ph ph-star" aria-hidden="true"></i></span>
+          <div>
+            <h2 class="strat-modal-title">Konten Menu Andalan</h2>
+            <p class="strat-modal-subtitle">${escHtml(itemName)} — Revenue terbesar bulan ini</p>
+          </div>
+        </div>
+        <div class="strat-modal-body">
+          <div class="strat-upsell-stats">
+            <div class="strat-stat-pill highlight"><i class="ph ph-crown" aria-hidden="true"></i> #1 Revenue Bulan Ini</div>
+            <div class="strat-stat-pill"><i class="ph ph-currency-circle-dollar" aria-hidden="true"></i> Rp${escHtml(rev)} total</div>
+          </div>
+          <div class="strat-caption-tabs" id="stratCaptionTabs" style="margin-top:16px;">
+            <button class="strat-tab active" data-tab="0" type="button">Feed / Carousel</button>
+            <button class="strat-tab" data-tab="1" type="button">Behind the Scene</button>
+            <button class="strat-tab" data-tab="2" type="button">Review UGC</button>
+          </div>
+          <div class="strat-caption-panel">
+            ${captions.map((cap, i) => `<div class="strat-caption-content ${i === 0 ? "active" : ""}" data-cap="${i}"><pre class="strat-caption-pre">${escHtml(cap)}</pre></div>`).join("")}
+            <button class="strat-copy-btn mt-4" type="button" id="stratCopyActiveCaption"><i class="ph ph-copy" aria-hidden="true"></i> Salin Caption</button>
+          </div>
+          <div class="strat-platform-section" style="margin-top:16px;">
+            <div class="strat-label" style="margin-bottom:8px;">Jadwalkan ke kalender konten:</div>
+            <div class="strat-platform-row">
+              <label class="mkt-platform-check" data-platform="ig"><input type="checkbox" value="ig" checked /> <span class="mkt-platform-dot ig">IG</span> Instagram</label>
+              <label class="mkt-platform-check" data-platform="tt"><input type="checkbox" value="tt" checked /> <span class="mkt-platform-dot tt">TT</span> TikTok</label>
+              <label class="mkt-platform-check" data-platform="wa"><input type="checkbox" value="wa" /> <span class="mkt-platform-dot wa">WA</span> WhatsApp</label>
+            </div>
+            <div class="strat-form-row" style="margin-top:10px;">
+              <div class="strat-field">
+                <label class="strat-label">Jam posting</label>
+                <input id="stratContentTime" class="strat-input" type="time" value="10:00" style="width:110px;" />
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="strat-modal-footer">
+          <button class="secondary-button" type="button" id="stratModalCancel">Tutup</button>
+          <button class="primary-button" type="button" id="stratModalSave"><i class="ph ph-calendar-plus" aria-hidden="true"></i> Tambah ke Kalender</button>
+        </div>`;
+    } else {
+      return; // action tidak dikenal
+    }
+
+    // Buat backdrop + modal
+    const backdrop = document.createElement("div");
+    backdrop.className = "strat-modal-backdrop";
+    backdrop.innerHTML = `
+      <div class="strat-modal" role="dialog" aria-modal="true" aria-label="${escHtml(action)}">
+        <button class="strat-modal-close" type="button" aria-label="Tutup"><i class="ph ph-x" aria-hidden="true"></i></button>
+        ${modalContent}
+      </div>`;
+    document.body.appendChild(backdrop);
+
+    // Animasi masuk
+    requestAnimationFrame(() => backdrop.classList.add("open"));
+
+    // Tutup modal
+    function closeModal() {
+      backdrop.classList.remove("open");
+      backdrop.addEventListener("transitionend", () => backdrop.remove(), { once: true });
+    }
+
+    backdrop.querySelector(".strat-modal-close").addEventListener("click", closeModal);
+    backdrop.addEventListener("click", (e) => { if (e.target === backdrop) closeModal(); });
+    document.getElementById("stratModalCancel")?.addEventListener("click", closeModal);
+
+    // ── Logika per action ──────────────────────────────────────
+
+    if (action === "Buat Promo") {
+      // Live preview caption saat harga berubah
+      function updateBundleCaption() {
+        const name = document.getElementById("stratPromoName")?.value || title;
+        const original = document.getElementById("stratPromoOriginal")?.value;
+        const price = document.getElementById("stratPromoPrice")?.value;
+        const note = document.getElementById("stratPromoNote")?.value;
+        const cap = document.getElementById("stratBundleCaption");
+        if (!cap) return;
+        if (price) {
+          const disc = original && parseInt(original) > 0 ? Math.round((1 - parseInt(price) / parseInt(original)) * 100) : null;
+          cap.textContent = `🎁 PROMO BUNDLING!\n\n✨ ${name}\n\nNormal: ${original ? "Rp" + parseInt(original).toLocaleString("id") : "—"}\nHarga Paket: Rp${parseInt(price).toLocaleString("id")}${disc ? " (HEMAT " + disc + "%!)" : ""}\n${note ? "\n📝 " + note : ""}\n\nYuk cobain sebelum habis! ☕\n📍 Kopi Migi\n\n#KopiMigi #PromoMigi #Bundling`;
+        } else {
+          cap.textContent = "Isi harga untuk generate caption otomatis ✨";
+        }
+      }
+      ["stratPromoName", "stratPromoOriginal", "stratPromoPrice", "stratPromoNote"].forEach((id) => {
+        document.getElementById(id)?.addEventListener("input", updateBundleCaption);
+      });
+      document.getElementById("stratCopyCaption")?.addEventListener("click", () => {
+        const text = document.getElementById("stratBundleCaption")?.textContent || "";
+        navigator.clipboard.writeText(text).then(() => showToast("Caption disalin!"));
+      });
+      document.getElementById("stratModalSave")?.addEventListener("click", () => {
+        const name = document.getElementById("stratPromoName")?.value?.trim();
+        const price = document.getElementById("stratPromoPrice")?.value;
+        const until = document.getElementById("stratPromoDuration")?.value;
+        if (!name) { document.getElementById("stratPromoName")?.focus(); return; }
+        showToast(`✅ Promo "${name}" disimpan${until ? " s/d " + until : ""}!`);
+        closeModal();
+      });
+    }
+
+    if (action === "Ide Konten" || action === "Buat Konten") {
+      // Tab switching caption
+      const tabs = backdrop.querySelectorAll(".strat-tab");
+      const contents = backdrop.querySelectorAll(".strat-caption-content");
+      tabs.forEach((tab) => {
+        tab.addEventListener("click", () => {
+          tabs.forEach((t) => t.classList.remove("active"));
+          contents.forEach((c) => c.classList.remove("active"));
+          tab.classList.add("active");
+          backdrop.querySelector(`.strat-caption-content[data-cap="${tab.dataset.tab}"]`)?.classList.add("active");
+        });
+      });
+      // Platform check toggle
+      backdrop.querySelectorAll(".mkt-platform-check").forEach((lbl) => {
+        lbl.addEventListener("click", () => {
+          const cb = lbl.querySelector("input");
+          if (cb) { cb.checked = !cb.checked; lbl.classList.toggle("checked", cb.checked); }
+        });
+      });
+      document.getElementById("stratCopyActiveCaption")?.addEventListener("click", () => {
+        const active = backdrop.querySelector(".strat-caption-content.active pre");
+        if (active) navigator.clipboard.writeText(active.textContent).then(() => showToast("Caption disalin!"));
+      });
+      document.getElementById("stratModalSave")?.addEventListener("click", () => {
+        const time = document.getElementById("stratContentTime")?.value || "09:00";
+        const platforms = [...backdrop.querySelectorAll(".mkt-platform-check input:checked")].map((cb) => cb.value);
+        const calData = readJson ? readJson(storageKeys.marketingHashtags + "-cal", {}) : {};
+        const today = dateKey(new Date());
+        calData[today] = calData[today] || [];
+        calData[today].push({ type: action === "Buat Konten" ? "Produk" : "Promo", time, platforms });
+        if (typeof writeJson === "function") writeJson(storageKeys.marketingHashtags + "-cal", calData);
+        if (typeof renderCalendar === "function") renderCalendar();
+        showToast("✅ Dijadwalkan ke kalender konten!");
+        closeModal();
+      });
+    }
+
+    if (action === "Jadwalkan") {
+      // Update caption saat diskon berubah
+      function updateHHCaption() {
+        const disc = document.getElementById("stratHHDiscount")?.value || "15";
+        const hourMatch = title.match(/jam (\d+)/);
+        const h = hourMatch ? parseInt(hourMatch[1]) : 9;
+        const hLabel = (h < 10 ? "0" + h : h) + ".00–" + (h + 1) + ".00";
+        const cap = document.getElementById("stratHHCaption");
+        if (cap) cap.textContent = `⚡ FLASH SALE sekarang!\n\nDiskon ${disc}% untuk SEMUA MENU jam ${hLabel} aja!\n\nBuruan ke Kopi Migi sebelum habis! ☕🔥\n\n#KopiMigi #FlashSale #HappyHour`;
+      }
+      document.getElementById("stratHHDiscount")?.addEventListener("change", updateHHCaption);
+      document.getElementById("stratHHCopyCaption")?.addEventListener("click", () => {
+        const text = document.getElementById("stratHHCaption")?.textContent || "";
+        navigator.clipboard.writeText(text).then(() => showToast("Caption disalin!"));
+      });
+      // Platform toggle
+      backdrop.querySelectorAll(".mkt-platform-check").forEach((lbl) => {
+        lbl.addEventListener("click", () => {
+          const cb = lbl.querySelector("input");
+          if (cb) { cb.checked = !cb.checked; lbl.classList.toggle("checked", cb.checked); }
+        });
+      });
+      document.getElementById("stratModalSave")?.addEventListener("click", () => {
+        const time = document.getElementById("stratHHNotifTime")?.value || "09:00";
+        const platforms = [...backdrop.querySelectorAll(".mkt-platform-check input:checked")].map((cb) => cb.value);
+        const calData = readJson ? readJson(storageKeys.marketingHashtags + "-cal", {}) : {};
+        const today = dateKey(new Date());
+        calData[today] = calData[today] || [];
+        calData[today].push({ type: "Promo", time, platforms });
+        if (typeof writeJson === "function") writeJson(storageKeys.marketingHashtags + "-cal", calData);
+        if (typeof renderCalendar === "function") renderCalendar();
+        showToast("⚡ Happy Hour dijadwalkan!");
+        closeModal();
+      });
+    }
+
+    if (action === "Script Kasir") {
+      const scriptTexts = [
+        `"Boleh tambahin snack atau roti untuk teman minum kopinya kak? Ada [nama snack] yang pas banget!"`,
+        `"Kak, kalau mau hemat bisa ambil paket combo — dapet [item 1] + [item 2] lebih murah Rp[harga]. Mau dicoba?"`,
+        `"Mau ukuran yang lebih besar kak? Tambah Rp[selisih] aja dapet size large, lebih worth it!"`,
+        `"Kak udah pernah coba [menu baru]? Lagi hits banget dan banyak yang repeat order — mau coba?"`,
+      ];
+      backdrop.querySelectorAll("[data-copy-script]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const idx = parseInt(btn.dataset.copyScript);
+          navigator.clipboard.writeText(scriptTexts[idx]).then(() => showToast("Script disalin!"));
+        });
+      });
+      document.getElementById("stratModalSave")?.addEventListener("click", () => {
+        showToast("✅ Kasir sudah dilatih — dicatat!");
+        closeModal();
+      });
+    }
+
+    // Fokus ke modal untuk aksesibilitas
+    backdrop.querySelector(".strat-modal")?.focus();
+  }
+
+  // ── CSS Modal Strategi (injeksi sekali) ───────────────────────
+  if (!document.getElementById("stratModalCSS")) {
+    const style = document.createElement("style");
+    style.id = "stratModalCSS";
+    style.textContent = `
+      .strat-modal-backdrop {
+        position: fixed; inset: 0; z-index: 1100;
+        background: rgba(0,0,0,0); backdrop-filter: blur(0px);
+        display: flex; align-items: center; justify-content: center;
+        padding: 16px; transition: background 0.25s, backdrop-filter 0.25s;
+      }
+      .strat-modal-backdrop.open {
+        background: rgba(0,0,0,0.45); backdrop-filter: blur(4px);
+      }
+      .strat-modal {
+        background: var(--surface, #fff); border-radius: 18px;
+        box-shadow: 0 24px 60px rgba(0,0,0,0.18);
+        width: 100%; max-width: 540px; max-height: 90vh; overflow-y: auto;
+        position: relative; outline: none;
+        transform: translateY(24px) scale(0.97); opacity: 0;
+        transition: transform 0.28s cubic-bezier(.22,1,.36,1), opacity 0.22s;
+      }
+      .strat-modal-backdrop.open .strat-modal {
+        transform: translateY(0) scale(1); opacity: 1;
+      }
+      .strat-modal-close {
+        position: absolute; top: 14px; right: 14px; z-index: 2;
+        width: 32px; height: 32px; border-radius: 50%;
+        border: none; background: var(--surface-raised, #f3f4f6);
+        cursor: pointer; display: flex; align-items: center; justify-content: center;
+        color: var(--text-secondary, #6b7280); font-size: 16px;
+        transition: background 0.15s;
+      }
+      .strat-modal-close:hover { background: var(--border-light, #e5e7eb); }
+      .strat-modal-header {
+        display: flex; align-items: flex-start; gap: 14px;
+        padding: 24px 24px 16px;
+        border-bottom: 1px solid var(--border-light, #f0f0f0);
+      }
+      .strat-modal-icon {
+        width: 44px; height: 44px; border-radius: 12px; flex-shrink: 0;
+        background: rgba(0,52,155,0.1); display: flex; align-items: center;
+        justify-content: center; font-size: 22px; color: #00349b;
+      }
+      .strat-modal-icon.warn {
+        background: rgba(234,179,8,0.12); color: #b45309;
+      }
+      .strat-modal-title { font-size: 17px; font-weight: 700; margin: 0 0 3px; line-height: 1.3; }
+      .strat-modal-subtitle { font-size: 13px; color: var(--text-secondary, #6b7280); margin: 0; }
+      .strat-modal-body { padding: 20px 24px; display: flex; flex-direction: column; gap: 14px; }
+      .strat-modal-footer {
+        padding: 16px 24px; border-top: 1px solid var(--border-light, #f0f0f0);
+        display: flex; justify-content: flex-end; gap: 10px;
+      }
+      .strat-form-row { display: flex; gap: 12px; flex-wrap: wrap; }
+      .strat-field { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 140px; }
+      .strat-label { font-size: 12px; font-weight: 600; color: var(--text-secondary, #6b7280); text-transform: uppercase; letter-spacing: 0.04em; }
+      .strat-input {
+        border: 1.5px solid var(--border-light, #e5e7eb); border-radius: 8px;
+        padding: 8px 12px; font-size: 14px; font-family: inherit;
+        background: var(--surface, #fff); color: var(--text, #111);
+        transition: border-color 0.15s;
+      }
+      .strat-input:focus { outline: none; border-color: #00349b; }
+      .strat-preview-box {
+        background: var(--surface-raised, #f8f9fa); border-radius: 12px;
+        padding: 14px 16px; border: 1px solid var(--border-light, #eee);
+      }
+      .strat-preview-label {
+        font-size: 11px; font-weight: 700; text-transform: uppercase;
+        letter-spacing: 0.05em; color: var(--text-secondary, #6b7280); margin-bottom: 8px;
+        display: flex; align-items: center; gap: 5px;
+      }
+      .strat-preview-text {
+        font-size: 13px; line-height: 1.6; white-space: pre-line;
+        color: var(--text, #111); margin-bottom: 10px;
+      }
+      .strat-copy-btn {
+        display: inline-flex; align-items: center; gap: 6px;
+        background: rgba(0,52,155,0.08); color: #00349b;
+        border: none; border-radius: 7px; padding: 6px 12px;
+        font-size: 12px; font-weight: 600; cursor: pointer;
+        transition: background 0.15s;
+      }
+      .strat-copy-btn:hover { background: rgba(0,52,155,0.15); }
+      .strat-copy-btn.compact { padding: 4px 10px; font-size: 11px; }
+      .strat-copy-btn.mt-4 { margin-top: 10px; }
+      .strat-context-note {
+        font-size: 13px; color: var(--text-secondary, #6b7280); line-height: 1.5;
+        background: var(--surface-raised, #f8f9fa); border-radius: 8px;
+        padding: 10px 12px; display: flex; gap: 7px; align-items: flex-start;
+      }
+      .strat-context-note i { flex-shrink: 0; margin-top: 1px; }
+      .strat-caption-tabs {
+        display: flex; gap: 4px; border-bottom: 2px solid var(--border-light, #eee);
+        padding-bottom: 0;
+      }
+      .strat-tab {
+        padding: 7px 14px; border: none; background: none; cursor: pointer;
+        font-size: 13px; font-weight: 600; color: var(--text-secondary, #6b7280);
+        border-bottom: 2px solid transparent; margin-bottom: -2px;
+        transition: color 0.15s, border-color 0.15s;
+      }
+      .strat-tab.active { color: #00349b; border-bottom-color: #00349b; }
+      .strat-caption-panel { padding-top: 12px; }
+      .strat-caption-content { display: none; }
+      .strat-caption-content.active { display: block; }
+      .strat-caption-pre {
+        font-family: inherit; font-size: 13px; line-height: 1.7; white-space: pre-line;
+        background: var(--surface-raised, #f8f9fa); padding: 12px 14px;
+        border-radius: 10px; color: var(--text, #111); margin: 0;
+        border: 1px solid var(--border-light, #eee);
+      }
+      .strat-platform-section { }
+      .strat-platform-row { display: flex; flex-wrap: wrap; gap: 8px; }
+      .strat-upsell-stats { display: flex; flex-wrap: wrap; gap: 8px; }
+      .strat-stat-pill {
+        display: inline-flex; align-items: center; gap: 5px;
+        padding: 5px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;
+        background: var(--surface-raised, #f3f4f6); color: var(--text-secondary, #555);
+      }
+      .strat-stat-pill.warn { background: rgba(234,179,8,0.12); color: #b45309; }
+      .strat-stat-pill.highlight { background: rgba(0,52,155,0.1); color: #00349b; }
+      .strat-script-list { display: flex; flex-direction: column; gap: 10px; }
+      .strat-script-item {
+        background: var(--surface-raised, #f8f9fa); border-radius: 10px;
+        padding: 12px 14px; border: 1px solid var(--border-light, #eee);
+      }
+      .strat-script-label { font-size: 11px; font-weight: 700; color: #00349b; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px; }
+      .strat-script-text { font-size: 13px; line-height: 1.5; color: var(--text, #111); margin-bottom: 8px; font-style: italic; }
+      .strat-happy-hour-preview { }
+      .strat-hh-badge {
+        display: inline-flex; align-items: center; gap: 6px;
+        background: linear-gradient(135deg, #7c3aed, #00349b);
+        color: white; border-radius: 20px; padding: 6px 16px;
+        font-size: 13px; font-weight: 700;
+      }
+    `;
+    document.head.appendChild(style);
   }
 
   function renderStrategy() {
     const grid = document.getElementById("mktStrategyGrid");
-    if (grid) grid.innerHTML = buildStrategy();
+    if (!grid) return;
+    grid.innerHTML = buildStrategy();
+    // Event delegation: tombol aksi buka modal
+    grid.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-strat-action]");
+      if (!btn) return;
+      openStrategyModal(
+        btn.dataset.stratAction,
+        btn.dataset.stratTitle,
+        btn.dataset.stratDesc,
+        btn.dataset.stratLabel
+      );
+    });
   }
 
   // ── Insight Penjualan ─────────────────────────────────────────

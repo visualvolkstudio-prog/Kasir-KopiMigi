@@ -1,4 +1,4 @@
-const CACHE_NAME = "kasir-migi-v173";
+const CACHE_NAME = "kasir-migi-v174";
 const APP_SHELL = [
   "/app",
   "/pos.html",
@@ -42,6 +42,13 @@ self.addEventListener("activate", (event) => {
       .then((keys) => Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))))
       .then(() => self.clients.claim()),
   );
+});
+
+// Terima perintah SKIP_WAITING dari app agar SW baru langsung aktif
+self.addEventListener("message", (event) => {
+  if (event.data && event.data.type === "SKIP_WAITING") {
+    self.skipWaiting();
+  }
 });
 
 self.addEventListener("fetch", (event) => {
