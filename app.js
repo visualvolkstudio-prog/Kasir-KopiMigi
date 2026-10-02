@@ -11731,27 +11731,60 @@ if (navigator.onLine) checkRemoteLogout().catch(() => null);
     const slow3    = sortedByQty.slice(-3).filter(([, q]) => q <= 3);
     const topRev1  = sortedByRev[0];
 
-    // ── Hitung pola bundling (item yang sering dibeli bersamaan) ──
-    const pairCount = new Map();
+    // ── Market Basket Analysis (MBA) — Apriori dengan threshold ilmiah ──
+    // Threshold minimum absolute count & lift berdasarkan ukuran dataset
+    // Sumber: Apriori guideline F&B dataset kecil (codefinity.com, geeksforgeeks.org)
+    const txnCount = thisMonth.length;
+    const mbaMinCount = txnCount < 100 ? 5 : txnCount < 200 ? 7 : 10; // min co-purchase absolut
+    const mbaMinConf  = 0.50; // min confidence 50%
+    const mbaMinLift  = txnCount < 100 ? 1.0 : 1.2; // lift > 1 = genuine association
+
+    const itemCountMap = new Map();
+    const pairCountMap = new Map();
     thisMonth.forEach((t) => {
-      const names = (t.items || []).map((i) => i.name).filter(Boolean);
+      const names = [...new Set((t.items || []).map((i) => i.name).filter(Boolean))];
+      names.forEach((n) => itemCountMap.set(n, (itemCountMap.get(n) || 0) + 1));
       for (let i = 0; i < names.length; i++) {
         for (let j = i + 1; j < names.length; j++) {
-          const pair = [names[i], names[j]].sort().join(" + ");
-          pairCount.set(pair, (pairCount.get(pair) || 0) + 1);
+          const pair = [names[i], names[j]].sort().join("|");
+          pairCountMap.set(pair, (pairCountMap.get(pair) || 0) + 1);
         }
       }
     });
-    const topPair = [...pairCount.entries()].sort((a, b) => b[1] - a[1])[0];
+
+    // Cari pasangan dengan lift tertinggi yang lolos semua threshold
+    let bestPair = null, bestLift = 0;
+    pairCountMap.forEach((count, pair) => {
+      if (count < mbaMinCount) return;
+      const [A, B] = pair.split("|");
+      const suppA  = (itemCountMap.get(A) || 0) / txnCount;
+      const suppB  = (itemCountMap.get(B) || 0) / txnCount;
+      const suppAB = count / txnCount;
+      if (!suppA || !suppB) return;
+      const confidence = suppAB / suppA;
+      const lift = confidence / suppB;
+      if (confidence >= mbaMinConf && lift >= mbaMinLift && lift > bestLift) {
+        bestLift = lift;
+        bestPair = { name: pair.replace("|", " + "), count, lift: lift.toFixed(1) };
+      }
+    });
 
     // ── Jam sepi (opportunity window) ────────────────────────────
+    // Hanya hitung jam dalam rentang operasional Kopi Migi: 10.00–22.00
+    const OPEN_HOUR  = 10; // jam buka
+    const CLOSE_HOUR = 22; // jam tutup (eksklusif, slot terakhir adalah 21.xx)
     const hourMap = new Map();
     thisWeek.forEach((t) => {
       const h = new Date(t.createdAt).getHours();
-      hourMap.set(h, (hourMap.get(h) || 0) + 1);
+      if (h >= OPEN_HOUR && h < CLOSE_HOUR) {
+        hourMap.set(h, (hourMap.get(h) || 0) + 1);
+      }
     });
+    // Tambahkan semua slot operasional agar jam yang belum ada transaksi tetap masuk (nilai 0)
+    for (let h = OPEN_HOUR; h < CLOSE_HOUR; h++) {
+      if (!hourMap.has(h)) hourMap.set(h, 0);
+    }
     const allHours = [...hourMap.entries()].sort((a, b) => a[1] - b[1]);
-    const quietHour = allHours[0]; // jam paling sepi
 
     // ── Rata-rata nilai transaksi ─────────────────────────────────
     const avgOrder = thisMonth.length > 0
@@ -11765,18 +11798,18 @@ if (navigator.onLine) checkRemoteLogout().catch(() => null);
     // ── Generate kartu strategi ───────────────────────────────────
     const cards = [];
 
-    // 1. Bundling dari pasangan item yang sering beli bareng
-    if (topPair && topPair[1] >= 2) {
-      const [pairName, count] = topPair;
-      const parts = pairName.split(" + ");
+    // 1. Bundling — hanya tampil jika lolos uji lift MBA (asosiasi nyata, bukan kebetulan)
+    if (bestPair) {
+      const parts = bestPair.name.split(" + ");
       const p1 = itemPrice.get(parts[0]) || 0;
       const p2 = itemPrice.get(parts[1]) || 0;
+      // Diskon 10% aman untuk GM kopi 65–75% (break-even hanya butuh +14% lebih transaksi)
       const bundlePrice = p1 + p2 > 0 ? Math.round((p1 + p2) * 0.9 / 500) * 500 : null;
       cards.push({
         icon: `<i class="ph ph-gift" aria-hidden="true"></i>`,
         label: "Bundling Rekomendasi",
-        title: pairName,
-        desc: `Sudah dibeli bersamaan ${count}× bulan ini. Buat paket bundling dengan diskon ~10%${bundlePrice ? " — harga bundle Rp" + bundlePrice.toLocaleString("id") : ""}.`,
+        title: bestPair.name,
+        desc: `Dibeli bersamaan ${bestPair.count}× bulan ini dengan asosiasi kuat (lift ${bestPair.lift}×). Bundling diskon 10%${bundlePrice ? " — harga Rp" + bundlePrice.toLocaleString("id") : ""} bisa naikkan average ticket.`,
         action: "Buat Promo",
         type: "highlight",
       });
@@ -11808,19 +11841,27 @@ if (navigator.onLine) checkRemoteLogout().catch(() => null);
       });
     }
 
-    // 4. Jam sepi → flash sale / happy hour
-    if (quietHour) {
-      const h = quietHour[0];
-      const hLabel = (h < 10 ? "0" + h : h) + ".00–" + (h + 1) + ".00";
+    // 4. Jam sepi → flash sale / happy hour (tampilkan top-3 slot)
+    const quietSlots = allHours.slice(0, 3); // ambil 3 jam paling sepi
+    const hhDescs = [
+      (h, cnt) => `Jam ${(h < 10 ? "0"+h : h)+".00"} cuma ${cnt} order minggu ini — pas banget buat flash sale kilat. Kasih diskon 15%, bisa langsung ramai.`,
+      (h, cnt) => `${(h < 10 ? "0"+h : h)+".00"}–${(h+1 < 10 ? "0"+(h+1) : h+1)+".00"} biasanya lowong (${cnt} order). Coba announce promo 30 menit sebelumnya di WA/IG Story supaya pelanggan siap-siap.`,
+      (h, cnt) => `Di jam ${(h < 10 ? "0"+h : h)+".00"} order masih ${cnt}/minggu. Bundling 2 minuman + diskon bisa jadi alasan pelanggan mampir di waktu ini.`,
+    ];
+    quietSlots.forEach(([h, cnt], idx) => {
+      const hStr  = (h < 10 ? "0" + h : "" + h);
+      const hEnd  = (h + 1 < 10 ? "0" + (h + 1) : "" + (h + 1));
+      const hLabel = `${hStr}.00–${hEnd}.00`;
       cards.push({
         icon: `<i class="ph ph-lightning" aria-hidden="true"></i>`,
         label: "Happy Hour",
         title: `Flash Sale jam ${hLabel}`,
-        desc: `Jam ini paling sepi (${quietHour[1]} order minggu ini). Coba promo "Diskon 15% jam ${hLabel}" untuk tarik pelanggan di waktu sepi.`,
+        desc: hhDescs[idx](h, cnt),
         action: "Jadwalkan",
         type: "default",
       });
-    }
+    });
+
 
     // 5. Menu bintang untuk konten & promosi
     if (topRev1) {
@@ -11834,15 +11875,44 @@ if (navigator.onLine) checkRemoteLogout().catch(() => null);
       });
     }
 
-    // 6. Target omzet minggu depan
-    if (thisWeek.length > 0) {
-      const weekRev  = thisWeek.reduce((s, t) => s + (t.paid || 0), 0);
-      const target10 = Math.round(weekRev * 1.1 / 1000) * 1000;
+    // 6. Target omzet minggu depan — EWMA 4 minggu (α=0.3)
+    // Lebih akurat dari flat +10% karena memperhitungkan tren aktual
+    // Sumber: ACCA Global, EWMA forecasting standard untuk bisnis kecil
+    const EWMA_ALPHA = 0.3;
+    const weeklyRevHistory = [];
+    for (let w = 3; w >= 0; w--) {
+      const wStart = new Date(now); wStart.setDate(now.getDate() - (w + 1) * 7);
+      const wEnd   = new Date(now); wEnd.setDate(now.getDate() - w * 7);
+      const wRev = history
+        .filter((t) => { const d = new Date(t.createdAt); return d >= wStart && d < wEnd; })
+        .reduce((s, t) => s + (t.paid || 0), 0);
+      if (wRev > 0) weeklyRevHistory.push(wRev);
+    }
+    const currentWeekRev = thisWeek.reduce((s, t) => s + (t.paid || 0), 0);
+    if (weeklyRevHistory.length >= 2) {
+      let ewma = weeklyRevHistory[0];
+      for (let i = 1; i < weeklyRevHistory.length; i++) {
+        ewma = EWMA_ALPHA * weeklyRevHistory[i] + (1 - EWMA_ALPHA) * ewma;
+      }
+      const ewmaTarget   = Math.round(ewma * 1.05 / 1000) * 1000;
+      const ewmaGrowthPct = currentWeekRev > 0
+        ? Math.round(((ewmaTarget / currentWeekRev) - 1) * 100)
+        : 5;
       cards.push({
         icon: `<i class="ph ph-target" aria-hidden="true"></i>`,
         label: "Target Minggu Depan",
-        title: "Rp" + target10.toLocaleString("id"),
-        desc: `Naik 10% dari minggu ini (Rp${weekRev.toLocaleString("id")}). Strategi: tambah 1 promo, posting 3× di IG, aktifkan 1 bundling baru.`,
+        title: "Rp" + ewmaTarget.toLocaleString("id"),
+        desc: `Dihitung dari tren 4 minggu terakhir (EWMA) + proyeksi tumbuh ${ewmaGrowthPct > 0 ? "+" : ""}${ewmaGrowthPct}%. Fokus: konsistensi jam ramai, 3–5 post IG/TikTok per minggu, 1 broadcast WA.`,
+        action: null,
+        type: "default",
+      });
+    } else if (currentWeekRev > 0) {
+      const fallbackTarget = Math.round(currentWeekRev * 1.05 / 1000) * 1000;
+      cards.push({
+        icon: `<i class="ph ph-target" aria-hidden="true"></i>`,
+        label: "Target Minggu Depan",
+        title: "Rp" + fallbackTarget.toLocaleString("id"),
+        desc: `Naik ~5% dari minggu ini (Rp${currentWeekRev.toLocaleString("id")}). Butuh lebih banyak data historis untuk proyeksi tren akurat.`,
         action: null,
         type: "default",
       });
@@ -11965,7 +12035,7 @@ if (navigator.onLine) checkRemoteLogout().catch(() => null);
             <div class="strat-form-row" style="margin-top:10px;">
               <div class="strat-field">
                 <label class="strat-label">Jam posting</label>
-                <input id="stratContentTime" class="strat-input" type="time" value="09:00" style="width:110px;" />
+                <input id="stratContentTime" class="strat-input" type="time" value="10:00" style="width:110px;" />
               </div>
             </div>
           </div>
@@ -11996,12 +12066,11 @@ if (navigator.onLine) checkRemoteLogout().catch(() => null);
             <div class="strat-form-row" style="margin-top:16px;">
               <div class="strat-field">
                 <label class="strat-label">Diskon yang ditawarkan</label>
-                <select id="stratHHDiscount" class="strat-input" style="height:38px;">
-                  <option value="10">10%</option>
-                  <option value="15" selected>15%</option>
-                  <option value="20">20%</option>
-                  <option value="25">25%</option>
-                </select>
+                <div style="display:flex;align-items:center;gap:6px;">
+                  <input id="stratHHDiscount" class="strat-input" type="number" min="5" max="30" step="1" value="15" style="width:72px;text-align:center;" />
+                  <span style="color:var(--muted);font-size:14px;">%</span>
+                </div>
+                <div id="stratHHBreakEven" style="font-size:11px;color:var(--muted);margin-top:4px;"></div>
               </div>
               <div class="strat-field">
                 <label class="strat-label">Jam mulai promosi konten</label>
@@ -12212,7 +12281,7 @@ if (navigator.onLine) checkRemoteLogout().catch(() => null);
         if (active) navigator.clipboard.writeText(active.textContent).then(() => showToast("Caption disalin!"));
       });
       document.getElementById("stratModalSave")?.addEventListener("click", () => {
-        const time = document.getElementById("stratContentTime")?.value || "09:00";
+        const time = document.getElementById("stratContentTime")?.value || "10:00";
         const platforms = [...backdrop.querySelectorAll(".mkt-platform-check input:checked")].map((cb) => cb.value);
         const calData = readJson ? readJson(storageKeys.marketingHashtags + "-cal", {}) : {};
         const today = dateKey(new Date());
@@ -12226,16 +12295,38 @@ if (navigator.onLine) checkRemoteLogout().catch(() => null);
     }
 
     if (action === "Jadwalkan") {
-      // Update caption saat diskon berubah
+      // Update caption & break-even info saat diskon berubah (real-time)
+      // Break-even formula (contribution margin analysis): ΔQ/Q = d / (GM - d)
+      // Gross margin kopi Indonesia umumnya 65–75%; pakai 70% sebagai baseline
+      const HH_GROSS_MARGIN = 0.70;
       function updateHHCaption() {
-        const disc = document.getElementById("stratHHDiscount")?.value || "15";
+        const discInput = document.getElementById("stratHHDiscount");
+        const disc = Math.max(5, Math.min(30, Number(discInput?.value || 15)));
         const hourMatch = title.match(/jam (\d+)/);
-        const h = hourMatch ? parseInt(hourMatch[1]) : 9;
-        const hLabel = (h < 10 ? "0" + h : h) + ".00–" + (h + 1) + ".00";
+        const h = hourMatch ? parseInt(hourMatch[1]) : 10;
+        const hStr = (h < 10 ? "0" + h : "" + h);
+        const hEnd = (h + 1 < 10 ? "0" + (h + 1) : "" + (h + 1));
+        const hLabel = `${hStr}.00–${hEnd}.00`;
+
+        // Break-even volume increase yang dibutuhkan
+        const discDec = disc / 100;
+        const beEl = document.getElementById("stratHHBreakEven");
+        if (beEl) {
+          if (discDec >= HH_GROSS_MARGIN) {
+            beEl.innerHTML = `<span style="color:#ef4444;">⚠️ Diskon terlalu besar — margin habis.</span>`;
+          } else {
+            const neededLift = Math.round((discDec / (HH_GROSS_MARGIN - discDec)) * 100);
+            const safeColor = neededLift <= 20 ? "#16a34a" : neededLift <= 35 ? "#b45309" : "#ef4444";
+            const emoji = neededLift <= 20 ? "✅" : neededLift <= 35 ? "⚠️" : "🔴";
+            beEl.innerHTML = `<span style="color:${safeColor};">${emoji} Butuh +${neededLift}% lebih transaksi untuk balik modal diskon ini.</span>`;
+          }
+        }
+
         const cap = document.getElementById("stratHHCaption");
         if (cap) cap.textContent = `⚡ FLASH SALE sekarang!\n\nDiskon ${disc}% untuk SEMUA MENU jam ${hLabel} aja!\n\nBuruan ke Kopi Migi sebelum habis! ☕🔥\n\n#KopiMigi #FlashSale #HappyHour`;
       }
-      document.getElementById("stratHHDiscount")?.addEventListener("change", updateHHCaption);
+      updateHHCaption(); // init on open
+      document.getElementById("stratHHDiscount")?.addEventListener("input", updateHHCaption);
       document.getElementById("stratHHCopyCaption")?.addEventListener("click", () => {
         const text = document.getElementById("stratHHCaption")?.textContent || "";
         navigator.clipboard.writeText(text).then(() => showToast("Caption disalin!"));
@@ -12248,7 +12339,7 @@ if (navigator.onLine) checkRemoteLogout().catch(() => null);
         });
       });
       document.getElementById("stratModalSave")?.addEventListener("click", () => {
-        const time = document.getElementById("stratHHNotifTime")?.value || "09:00";
+        const time = document.getElementById("stratHHNotifTime")?.value || "10:00";
         const platforms = [...backdrop.querySelectorAll(".mkt-platform-check input:checked")].map((cb) => cb.value);
         const calData = readJson ? readJson(storageKeys.marketingHashtags + "-cal", {}) : {};
         const today = dateKey(new Date());
