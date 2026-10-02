@@ -3829,6 +3829,11 @@ body.locked .login-screen { display: grid; }
     grid-column: 1 / -1;
   }
 
+  /* Panel marketing selalu full-width di tablet */
+  .management-grid > .settings-panel.mkt-full {
+    grid-column: 1 / -1;
+  }
+
   .daily-sales-grid {
     grid-template-columns: minmax(0, 1fr) minmax(260px, 320px);
   }
