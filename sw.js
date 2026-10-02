@@ -1,4 +1,4 @@
-const CACHE_NAME = "kasir-migi-v172";
+const CACHE_NAME = "kasir-migi-v173";
 const APP_SHELL = [
   "/app",
   "/pos.html",
@@ -62,19 +62,19 @@ self.addEventListener("fetch", (event) => {
   }
 
   const url = new URL(request.url);
-  // File statis besar: cache-first, hanya fetch jika belum ada di cache
+  // File statis besar: network-first — selalu ambil versi terbaru dari server,
+  // simpan ke cache, fallback ke cache hanya jika benar-benar offline.
   if (["/app", "/app.js", "/styles.css", "/pos.html"].includes(url.pathname)) {
     event.respondWith(
-      caches.match(request).then((cached) => {
-        if (cached) return cached;
-        return fetch(request).then((response) => {
+      fetch(request)
+        .then((response) => {
           if (response.ok) {
             const clone = response.clone();
             caches.open(CACHE_NAME).then((cache) => cache.put(request, clone)).catch(() => null);
           }
           return response;
-        });
-      }),
+        })
+        .catch(() => caches.match(request)),
     );
     return;
   }
