@@ -11866,67 +11866,71 @@ if (navigator.onLine) checkRemoteLogout().catch(() => null);
       });
     }
 
-    // 4b. Hari lesu — analisis hari mana yang paling sepi selama 4 minggu terakhir
+    // 4b. Hari lesu — analisis hari mana yang paling sepi (data 2 bulan terakhir, selalu tampil)
     const DAY_NAMES = ["Minggu","Senin","Selasa","Rabu","Kamis","Jumat","Sabtu"];
-    const dayRevMap = new Map();
-    const fourWeeksAgo = new Date(now); fourWeeksAgo.setDate(now.getDate() - 28);
-    const history4w = history.filter((t) => new Date(t.createdAt) >= fourWeeksAgo);
-    // Hitung rata-rata revenue per hari-dalam-seminggu berdasarkan berapa kali hari itu muncul
-    const dayOccurrences = new Map();
-    history4w.forEach((t) => {
+    const DAY_SHORT = ["Min","Sen","Sel","Rab","Kam","Jum","Sab"];
+    const twoMonthsAgo = new Date(now); twoMonthsAgo.setDate(now.getDate() - 60);
+    const history2m = history.filter((t) => new Date(t.createdAt) >= twoMonthsAgo);
+    // Akumulasi revenue & hitung berapa kali tiap hari muncul dalam 60 hari
+    const dayRev2m = new Map();
+    const dayOcc2m = new Map();
+    history2m.forEach((t) => {
       const d = new Date(t.createdAt).getDay();
-      dayRevMap.set(d, (dayRevMap.get(d) || 0) + (t.paid || 0));
+      dayRev2m.set(d, (dayRev2m.get(d) || 0) + (t.paid || 0));
     });
+    // Hitung kemunculan per hari berdasarkan kalender aktual (bukan cuma transaksi)
     for (let d = 0; d < 7; d++) {
       let occ = 0;
-      for (let w = 0; w < 4; w++) {
-        const wStart = new Date(now); wStart.setDate(now.getDate() - (w + 1) * 7);
-        const wEnd   = new Date(now); wEnd.setDate(now.getDate() - w * 7);
-        if (history.some((t) => { const dt = new Date(t.createdAt); return dt >= wStart && dt < wEnd && dt.getDay() === d; })) occ++;
+      for (let offset = 0; offset < 60; offset++) {
+        const day = new Date(now); day.setDate(now.getDate() - offset);
+        if (day.getDay() === d) occ++;
       }
-      dayOccurrences.set(d, occ);
+      dayOcc2m.set(d, occ);
     }
-    const dayAvgRev = [...Array(7).keys()]
-      .map((d) => [d, dayOccurrences.get(d) > 0 ? (dayRevMap.get(d) || 0) / dayOccurrences.get(d) : 0, dayOccurrences.get(d)])
-      .filter(([, , occ]) => occ >= 2); // minimal muncul 2× agar signifikan
+    // Rata-rata revenue per hari
+    const dayAvg2m = [...Array(7).keys()].map((d) => ({
+      d,
+      name: DAY_NAMES[d],
+      short: DAY_SHORT[d],
+      avg: dayOcc2m.get(d) > 0 ? Math.round((dayRev2m.get(d) || 0) / dayOcc2m.get(d)) : 0,
+    }));
+    const sorted2m   = [...dayAvg2m].sort((a, b) => a.avg - b.avg);
+    const slowestDay = sorted2m[0];
+    const busiestDay = sorted2m[sorted2m.length - 1];
+    const dropPct2m  = busiestDay.avg > 0 ? Math.round((1 - slowestDay.avg / busiestDay.avg) * 100) : 0;
 
-    if (dayAvgRev.length >= 3) {
-      const sortedDays = [...dayAvgRev].sort((a, b) => a[1] - b[1]);
-      const [slowDay, slowAvgRev] = sortedDays[0];
-      const [topDay, topAvgRev]   = sortedDays[sortedDays.length - 1];
-      const dropPct = topAvgRev > 0 ? Math.round((1 - slowAvgRev / topAvgRev) * 100) : 0;
+    // Ranking bar teks (terendah → tertinggi) untuk desc
+    const maxAvg = busiestDay.avg || 1;
+    const rankingLines = sorted2m.map((day, i) => {
+      const barLen  = Math.round((day.avg / maxAvg) * 8);
+      const bar     = "█".repeat(barLen) + "░".repeat(8 - barLen);
+      const label   = i === 0 ? " ← paling sepi" : i === sorted2m.length - 1 ? " ← terbaik" : "";
+      return `${day.short}: ${bar} Rp${day.avg.toLocaleString("id")}${label}`;
+    }).join("\n");
 
-      // Insight kontekstual: kenapa mungkin sepi + 1 aksi yang paling masuk akal
-      // Bukan satu promo per hari — tapi baca pola: weekday vs weekend anomali
-      const isWeekend = slowDay === 0 || slowDay === 6;
-      const isMonday  = slowDay === 1;
-      const isMidweek = slowDay >= 2 && slowDay <= 4;
-      let whyDesc, whatAction;
-      if (isWeekend) {
-        whyDesc = `Lazimnya ${DAY_NAMES[slowDay]} harusnya ramai — ini anomali. Kemungkinan ada kompetitor baru, acara luar, atau pola pelanggan yang berubah.`;
-        whatAction = `Cek apakah ada event lokal di area sekitar setiap ${DAY_NAMES[slowDay]}. Kalau ya, justru bisa kolaborasi atau pasang iklan yang muncul saat orang cari tempat di area itu (Google Ads lokasi).`;
-      } else if (isMonday) {
-        whyDesc = `Senin memang hari transisi — tapi kalau dropnya sampai ${dropPct}%, ada yang perlu dibenahi bukan sekadar promo.`;
-        whatAction = `Coba kirim 1 WA Broadcast tiap Minggu malam ke pelanggan lama — bukan promo, tapi konten ringan ("Menu baru minggu ini"). Buat mereka ingat kamu sebelum Senin mulai.`;
-      } else if (isMidweek) {
-        whyDesc = `${DAY_NAMES[slowDay]} konsisten sepi selama 4 minggu — ini pola struktural, bukan kebetulan.`;
-        whatAction = `Jadikan ${DAY_NAMES[slowDay]} hari "soft target": fokus ke pelanggan yang sudah ada (loyalty reward, cashback poin) bukan akuisisi baru. Lebih murah dan konversinya lebih tinggi.`;
-      } else {
-        whyDesc = `${DAY_NAMES[slowDay]} jauh di bawah hari lain selama 4 minggu terakhir — perlu satu intervensi spesifik, bukan promo rutin.`;
-        whatAction = `Coba 1 eksperimen: buka 30 menit lebih awal atau tutup 30 menit lebih malam khusus hari ini selama 2 minggu, lalu bandingkan revenue-nya.`;
-      }
-
-      if (dropPct >= 25) {
-        cards.push({
-          icon: `<i class="ph ph-chart-line-down" aria-hidden="true"></i>`,
-          label: "Hari Lesu",
-          title: `${DAY_NAMES[slowDay]} konsisten ${dropPct}% di bawah ${DAY_NAMES[topDay]}`,
-          desc: `${whyDesc} → ${whatAction}`,
-          action: "Buat Promo",
-          type: "default",
-        });
-      }
+    // Insight kontekstual: baca pola weekday vs weekend
+    const isWeekend = slowestDay.d === 0 || slowestDay.d === 6;
+    const isMonday  = slowestDay.d === 1;
+    const isMidweek = slowestDay.d >= 2 && slowestDay.d <= 4;
+    let whatAction;
+    if (isWeekend) {
+      whatAction = `${slowestDay.name} seharusnya ramai — ini anomali. Cek apakah ada event rutin di sekitar area yang menyaingi traffic. Bisa kolaborasi atau pasang Google Ads lokasi khusus hari ini.`;
+    } else if (isMonday) {
+      whatAction = `Kirim WA Broadcast tiap Minggu malam ke pelanggan lama — bukan promo, cukup konten ringan ("Menu baru minggu ini"). Buat mereka ingat sebelum Senin mulai.`;
+    } else if (isMidweek) {
+      whatAction = `Pola struktural — bukan kebetulan. Fokus ke retention: loyalty reward atau cashback poin berlipat khusus hari ${slowestDay.name}. Lebih murah dari akuisisi baru.`;
+    } else {
+      whatAction = `Coba 1 eksperimen kecil: naikkan porsi konten IG/TikTok yang ditarget ke hari ${slowestDay.name} (scheduling post). Ukur selama 2 minggu sebelum buat promo besar.`;
     }
+
+    cards.push({
+      icon: `<i class="ph ph-chart-line-down" aria-hidden="true"></i>`,
+      label: "Hari Lesu",
+      title: `${slowestDay.name} paling sepi — ${dropPct2m}% di bawah ${busiestDay.name}`,
+      desc: `Data 2 bulan terakhir:\n${rankingLines}\n\n💡 ${whatAction}`,
+      action: "Buat Promo",
+      type: "default",
+    });
 
 
     // 5. Menu bintang untuk konten & promosi
