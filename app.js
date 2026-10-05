@@ -5603,6 +5603,22 @@ function openOrderModal() {
         )
         .join("")
       : `<div class="empty-state">Keranjang kosong.</div>`;
+
+  // Safety guard: pastikan tombol-tombol modal selalu dalam keadaan siap saat
+  // modal dibuka, walau sebelumnya ada proses yang tidak ter-reset dengan benar.
+  if (!state.orderProcessing) {
+    const submitButton = els.orderForm?.querySelector('button[type="submit"]');
+    [submitButton, els.billOrderBtn, els.clearCart, els.cancelOrderModal].forEach((btn) => {
+      if (btn) btn.disabled = false;
+    });
+    if (submitButton) {
+      submitButton.textContent = submitButton.dataset.idleText || "Bayar & Cetak";
+    }
+    if (els.billOrderBtn) {
+      els.billOrderBtn.textContent = els.billOrderBtn.dataset.idleText || "Bayar Nanti";
+    }
+  }
+
   els.orderModal.classList.add("open");
   els.orderModal.setAttribute("aria-hidden", "false");
 }
@@ -6858,6 +6874,25 @@ async function encodeCupLabel(transaction, item, itemIndex, totalItems) {
 // font, positions, and wrapping that the preview uses. This is slower than
 // native text but avoids firmware-specific ESC/POS font differences.
 let _labelFontLoaded = false;
+
+// Cache global untuk gambar label — load sekali per sesi, reuse untuk semua label dalam batch.
+// Key = imageSrc (URL/dataURL), Value = HTMLImageElement yang sudah loaded.
+const _labelImageCache = new Map();
+
+/**
+ * Load gambar untuk label printer dengan cache global.
+ * Menghindari reload jaringan/decode berulang untuk setiap label dalam batch.
+ */
+async function _loadLabelImage(src) {
+  if (_labelImageCache.has(src)) return _labelImageCache.get(src);
+  return new Promise((resolve) => {
+    const image = new Image();
+    image.onload = () => { _labelImageCache.set(src, image); resolve(image); };
+    image.onerror = () => resolve(null);
+    image.src = src;
+  });
+}
+
 async function encodeCupLabelBitmap(transaction, item, itemIndex, totalItems) {
   const settings = getLabelPrinterSettings();
   if (!_labelFontLoaded && document.fonts?.load) {
@@ -6887,16 +6922,16 @@ async function encodeCupLabelBitmap(transaction, item, itemIndex, totalItems) {
     { text: barcodeValue, enabled: settings.barcodeEnabled === true, barcode: true, x: settings.barcodeX ?? 60, y: settings.barcodeY ?? 130, width: settings.barcodeWidth ?? 200, height: settings.barcodeMaxHeight ?? 20 }
   ].filter((element) => element.enabled && (element.text || element.isImage));
 
+  // Pakai cache global — gambar diload sekali per sesi, label ke-2 dst langsung dari cache.
   const loadedImages = new Map();
-  await Promise.all(elements.filter((element) => element.isImage && element.imageSrc).map((element) => new Promise((resolve) => {
-    const image = new Image();
-    image.onload = () => {
-      loadedImages.set(element.imageSrc, image);
-      resolve();
-    };
-    image.onerror = resolve;
-    image.src = element.imageSrc;
-  })));
+  await Promise.all(
+    elements
+      .filter((element) => element.isImage && element.imageSrc)
+      .map(async (element) => {
+        const img = await _loadLabelImage(element.imageSrc);
+        if (img) loadedImages.set(element.imageSrc, img);
+      })
+  );
 
   const canvas = document.createElement("canvas");
   canvas.width = printerWidth;
@@ -7031,21 +7066,63 @@ async function performCupLabelPrint(transaction) {
   if (!labelItems.length) return true;
 
   const labelSettings = getLabelPrinterSettings();
-  const delayMs = Math.max(100, Number(labelSettings.labelDelay ?? 300));
   const printEngine = labelSettings.printEngine || "bitmap";
 
   try {
-    for (let i = 0; i < labelItems.length; i++) {
-      if (!isLabelPrinterReady()) throw new Error("Koneksi label printer terputus.");
-      const bytes = printEngine === "native"
-        ? await encodeCupLabel(transaction, labelItems[i], i, labelItems.length)
-        : await encodeCupLabelBitmap(transaction, labelItems[i], i, labelItems.length);
-      await writeLabelPrinterChunks(bytes);
-      // Gap kecil/jeda antar label agar printer menyelesaikan feed sebelumnya
-      if (i < labelItems.length - 1) {
-        await new Promise((resolve) => setTimeout(resolve, delayMs));
+    if (!isLabelPrinterReady()) throw new Error("Koneksi label printer terputus.");
+
+    // OPTIMASI 1: Pre-encode semua label secara paralel.
+    // Untuk engine bitmap: encoding berjalan di main thread tapi Promise.all
+    // menjadwalkan semua sekaligus sehingga image cache (_loadLabelImage) hanya
+    // diakses sekali lalu reused — jauh lebih cepat dari sequential await.
+    const allBytes = await Promise.all(
+      labelItems.map((item, i) =>
+        printEngine === "native"
+          ? encodeCupLabel(transaction, item, i, labelItems.length)
+          : encodeCupLabelBitmap(transaction, item, i, labelItems.length)
+      )
+    );
+
+    if (!isLabelPrinterReady()) throw new Error("Koneksi label printer terputus.");
+
+    // OPTIMASI 2: Gabungkan semua label bytes menjadi satu stream BLE.
+    // - Reset ESC @ (0x1B 0x40) dikirim HANYA SEKALI di awal via writeLabelPrinterChunks.
+    // - Label berikutnya (index 1, 2, ...) sudah mengandung ESC @ di bytes[0..1] —
+    //   cukup nempel langsung tanpa overhead init 80-200ms per label.
+    // - Printer memproses data secara streaming; gap sensor / pitch feed yang sudah
+    //   di-embed di akhir setiap label bytes menjadi pemisah antar stiker fisik.
+    if (allBytes.length === 1) {
+      // Single label — pakai path biasa agar reset + delay init tetap ada.
+      await writeLabelPrinterChunks(allBytes[0]);
+    } else {
+      // Multi label — kirim sebagai satu batch:
+      // writeLabelPrinterChunks menangani reset + init delay sekali,
+      // lalu kita append label[1..n] langsung tanpa reset ulang.
+      await writeLabelPrinterChunks(allBytes[0]);
+      const characteristic = state.labelPrinterCharacteristic;
+      const hasWriteResponse = Boolean(characteristic?.properties?.write);
+      // Delay antar label jauh lebih kecil — hanya beri printer waktu flush UART
+      // untuk label yang sedang diproses. Gap sensor sudah ada di byte feed akhir label.
+      const interLabelDelayMs = hasWriteResponse ? 80 : 160;
+      for (let i = 1; i < allBytes.length; i++) {
+        if (!isLabelPrinterReady()) throw new Error("Koneksi label printer terputus.");
+        await new Promise((resolve) => setTimeout(resolve, interLabelDelayMs));
+        // Kirim bytes label berikutnya langsung (tanpa init overhead writeLabelPrinterChunks).
+        // ESC @ di awal setiap label bytes sudah cukup me-reset parser printer.
+        await writePrinterChunks(
+          allBytes[i],
+          characteristic,
+          hasWriteResponse ? 2 : 20,
+          true,
+          {
+            burstEvery: hasWriteResponse ? 30 : 12,
+            burstPauseMs: hasWriteResponse ? 15 : 100,
+            chunkSize: hasWriteResponse ? 20 : 16,
+          },
+        );
       }
     }
+
     toast(`${labelItems.length} label cup dicetak.`);
     return true;
   } catch (error) {
@@ -7299,7 +7376,17 @@ function createBoothQueue(transaction) {
   return upsertPendingBoothSession(transaction);
 }
 
+// Timer safety: pastikan orderProcessing tidak stuck. Dibatalkan jika
+// setOrderProcessing(false) dipanggil lebih dulu.
+let _orderProcessingSafetyTimer = null;
+
 function setOrderProcessing(active, label = "Memproses...") {
+  // Batalkan timer lama apapun dulu
+  if (_orderProcessingSafetyTimer !== null) {
+    clearTimeout(_orderProcessingSafetyTimer);
+    _orderProcessingSafetyTimer = null;
+  }
+
   state.orderProcessing = active;
   const submitButton = els.orderForm?.querySelector('button[type="submit"]');
   [els.checkoutBtn, els.billOrderBtn, submitButton, els.clearCart, els.cancelOrderModal].forEach((button) => {
@@ -7307,14 +7394,31 @@ function setOrderProcessing(active, label = "Memproses...") {
   });
   if (submitButton) {
     if (active) {
+      // Prioritas: gunakan data-idle-text dari HTML sebagai sumber kebenaran,
+      // baru gunakan textContent saat ini sebagai fallback.
       submitButton.dataset.idleText = submitButton.dataset.idleText || submitButton.textContent;
       submitButton.textContent = label;
-    } else if (submitButton.dataset.idleText) {
-      submitButton.textContent = submitButton.dataset.idleText;
+    } else {
+      // Restore: data-idle-text dari HTML lebih terpercaya dari runtime state
+      const idleText = submitButton.dataset.idleText || "Bayar & Cetak";
+      submitButton.textContent = idleText;
     }
   }
   if (els.billOrderBtn) {
-    els.billOrderBtn.textContent = active ? "Menyimpan..." : "Bayar Nanti";
+    const idleText = els.billOrderBtn.dataset.idleText || "Bayar Nanti";
+    els.billOrderBtn.textContent = active ? "Menyimpan..." : idleText;
+  }
+
+  // Safety net: auto-reset setelah 30 detik agar tombol tidak pernah stuck
+  // disabled selamanya karena exception tak terduga atau timeout Bluetooth.
+  if (active) {
+    _orderProcessingSafetyTimer = setTimeout(() => {
+      _orderProcessingSafetyTimer = null;
+      if (state.orderProcessing) {
+        console.warn("[Safety] orderProcessing stuck — auto-reset setelah 30 detik.");
+        setOrderProcessing(false);
+      }
+    }, 30_000);
   }
 }
 
@@ -8165,8 +8269,12 @@ async function syncSettingsToCloud({ force = false } = {}) {
   return true;
 }
 
-async function pullSettingsFromSupabase({ render = false } = {}) {
+async function pullSettingsFromSupabase({ render = false, force = false } = {}) {
   if (!navigator.onLine) return false;
+  // Jika ada perubahan lokal yang belum dikirim ke cloud (dirty),
+  // jangan overwrite dengan data cloud yang mungkin sudah ketinggalan.
+  // Kecuali caller secara eksplisit memaksa dengan force: true.
+  if (!force && hasDirtySettings()) return false;
   const result = await postSupabaseAction("get-settings");
   if (!result?.success) throw new Error(result?.error || "Pull setting gagal.");
   if (result.found && result.settings) {
