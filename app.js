@@ -11224,6 +11224,20 @@ els.menuCategorySelect.addEventListener("change", syncMenuCategoryField);
 els.menuCategoryCustom.addEventListener("input", syncMenuCategoryField);
 els.menuImageFile?.addEventListener("change", readMenuImageFile);
 
+// Tombol export sementara untuk recovery menu dari device yang masih punya data
+document.querySelector("#exportMenuBtn")?.addEventListener("click", () => {
+  const data = localStorage.getItem(storageKeys.menu) || "[]";
+  const count = JSON.parse(data).length;
+  const blob = new Blob([data], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "menu-backup-" + new Date().toISOString().slice(0,10) + ".json";
+  a.click();
+  URL.revokeObjectURL(url);
+  toast(`✅ ${count} menu diekspor sebagai file JSON.`);
+});
+
 els.menuEditCategoryTabs?.addEventListener("click", (event) => {
   const button = event.target.closest("button[data-menu-edit-category]");
   if (!button) return;
