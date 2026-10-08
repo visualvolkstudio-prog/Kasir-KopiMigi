@@ -8261,9 +8261,23 @@ async function deleteCashflowInCloud(id) {
   return true;
 }
 
+function isMenuSafeToSync() {
+  // Jangan push ke cloud jika menu yang ada di localStorage
+  // identik dengan defaultMenu — artinya data cloud belum sempat di-pull,
+  // dan push ini akan menimpa menu asli di Supabase dengan data default.
+  const current = readJson(storageKeys.menu, null);
+  if (!current || !current.length) return false; // belum ada data sama sekali
+  if (current.length !== defaultMenu.length) return true; // ukuran berbeda = sudah dikustomisasi
+  const defaultIds = new Set(defaultMenu.map((i) => i.id));
+  const allDefault = current.every((item) => defaultIds.has(item.id));
+  return !allDefault; // aman jika ada item yang bukan dari defaultMenu
+}
+
 async function syncSettingsToCloud({ force = false } = {}) {
   if (!navigator.onLine || !isLoggedIn() || !isOwner()) return false;
   if (!force && !hasDirtySettings()) return false;
+  // Guard: jangan timpa cloud dengan defaultMenu saat localStorage belum ter-load dari cloud
+  if (!isMenuSafeToSync()) return false;
   await postSupabaseAction("sync-settings", { settings: getSettingsPayload() });
   clearSettingsDirty();
   return true;
