@@ -46,6 +46,7 @@ const storageKeys = {
   lastRemoteLogout: "kasir-migi-last-remote-logout",
   attendanceResets: "kasir-migi-attendance-resets",
   marketingHashtags: "kasir-migi-marketing-hashtags",
+  menuUpdatedAt: "kopishop-pos-menu-updated-at",
 };
 
 const sessionTtlMs = 10 * 60 * 60 * 1000;
@@ -1977,9 +1978,20 @@ function updateClock() {
   updateEmployeeHeaderState(now);
 }
 
+function getMenuUpdatedAt() {
+  return localStorage.getItem(storageKeys.menuUpdatedAt) || null;
+}
+
+function writeMenu(menu) {
+  writeJson(storageKeys.menu, menu);
+  localStorage.setItem(storageKeys.menuUpdatedAt, new Date().toISOString());
+}
+
 function getMenu() {
   const saved = readJson(storageKeys.menu, null);
   if (saved?.length) return saved;
+  // Jangan tulis timestamp saat pakai defaultMenu — supaya tidak dianggap
+  // sebagai menu yang sudah "dikustomisasi" dan aman untuk di-sync ke cloud
   writeJson(storageKeys.menu, defaultMenu);
   return defaultMenu;
 }
@@ -2022,7 +2034,7 @@ function updateAutoBestSellers() {
   });
 
   if (changed) {
-    writeJson(storageKeys.menu, menu);
+    writeMenu(menu);
     markSettingsDirty();
   }
 }
@@ -2225,6 +2237,7 @@ function voucherLabel(voucher) {
 function getSettingsPayload() {
   return {
     menu: getMenu(),
+    menuUpdatedAt: getMenuUpdatedAt(),
     recipes: getRecipes(),
     discountVouchers: getDiscountVouchers(),
     employeeLeaves: getEmployeeLeaveMap(),
@@ -2254,7 +2267,15 @@ function applyCloudSettings(settings) {
   if (!settings || typeof settings !== "object") return false;
   let changed = false;
   if (Array.isArray(settings.menu) && settings.menu.length) {
-    writeJson(storageKeys.menu, settings.menu);
+    // Hanya timpa localStorage jika data cloud lebih baru dari data lokal
+    const localUpdatedAt = getMenuUpdatedAt();
+    const cloudUpdatedAt = settings.menuUpdatedAt || null;
+    const cloudIsNewer = !localUpdatedAt || (cloudUpdatedAt && cloudUpdatedAt > localUpdatedAt);
+    if (cloudIsNewer) {
+      writeJson(storageKeys.menu, settings.menu);
+      // Catat timestamp cloud agar device lain tidak timpa balik dengan data lebih lama
+      if (cloudUpdatedAt) localStorage.setItem(storageKeys.menuUpdatedAt, cloudUpdatedAt);
+    }
     changed = true;
   }
   if (settings.recipes && typeof settings.recipes === "object" && !Array.isArray(settings.recipes)) {
@@ -9661,7 +9682,7 @@ async function saveMenu(event) {
 
   if (recipeRows.length) recipes[data.id] = recipeRows;
   else delete recipes[data.id];
-  writeJson(storageKeys.menu, menu);
+  writeMenu(menu);
   saveRecipes(recipes);
   markSettingsDirty();
   setMenuSaveState(true);
@@ -11258,7 +11279,7 @@ els.menuTable.addEventListener("click", async (event) => {
     const item = menu.find((entry) => entry.id === toggleButton.dataset.toggleActiveMenu);
     if (!item) return;
     item.active = item.active === false ? true : false;
-    writeJson(storageKeys.menu, menu);
+    writeMenu(menu);
     markSettingsDirty();
     renderAll();
     persistMenuSettings(); // Fire background sync
@@ -11291,7 +11312,7 @@ els.menuTable.addEventListener("click", async (event) => {
     const recipes = getRecipes();
     delete recipes[deleteButton.dataset.deleteMenu];
     saveRecipes(recipes);
-    writeJson(storageKeys.menu, menu.filter((entry) => entry.id !== deleteButton.dataset.deleteMenu));
+    writeMenu(menu.filter((entry) => entry.id !== deleteButton.dataset.deleteMenu));
     markSettingsDirty();
     renderAll();
     try {
