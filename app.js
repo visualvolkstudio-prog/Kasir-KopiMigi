@@ -6008,6 +6008,9 @@ function currentTransaction(draft = false) {
       ...(isCustomOrder ? { isCustomOrder: true } : {}),
       ...(customStockUsage ? { customStockUsage } : {}),
     })),
+    // Snapshot penggunaan bahan baku saat transaksi — agar laporan tetap akurat
+    // meski resep/menu kemudian dihapus. Hanya disimpan untuk transaksi paid (bukan draft/bill).
+    ...(!draft ? { ingredientUsage: requiredIngredientsForItems(transactionItems, staffDrink ? "dine_in" : (state.serviceType || "dine_in")) } : {}),
     ...total,
   };
 }
@@ -6036,6 +6039,15 @@ function ingredientUsageFromHistory(history = []) {
   const usage = history
     .filter(isPaidTransaction)
     .reduce((required, entry) => {
+      // Prioritaskan snapshot yang tersimpan di transaksi (untuk transaksi baru)
+      // agar laporan tetap akurat meski resep/menu sudah dihapus sejak itu.
+      if (entry.ingredientUsage && typeof entry.ingredientUsage === "object" && !Array.isArray(entry.ingredientUsage)) {
+        Object.entries(entry.ingredientUsage).forEach(([ingredientId, qty]) => {
+          required[ingredientId] = (required[ingredientId] || 0) + Number(qty || 0);
+        });
+        return required;
+      }
+      // Fallback: kalkulasi dari resep aktif (untuk transaksi lama tanpa snapshot)
       const items = Array.isArray(entry.items) ? entry.items : [];
       const itemRequired = requiredIngredientsForItems(items, entry.serviceType);
       Object.entries(itemRequired).forEach(([ingredientId, qty]) => {
@@ -7869,6 +7881,8 @@ async function saveTransactionEdit(event) {
     editReason: reason,
     editHistory: [...(Array.isArray(transaction.editHistory) ? transaction.editHistory : []), editEntry].slice(-20),
     stockSyncedAt: stockResult.changed ? now : transaction.stockSyncedAt,
+    // Perbarui snapshot bahan baku agar sesuai dengan item setelah koreksi
+    ingredientUsage: requiredIngredientsForItems(items, transaction.serviceType || "dine_in"),
   };
   history[index] = next;
   writeJson(storageKeys.history, history.slice(0, 2000));
