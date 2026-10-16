@@ -9223,10 +9223,11 @@ function renderAnalytics() {
 
   history.forEach((entry) => {
     entry.items.forEach((item) => {
-      const current = products.get(item.id) || { name: item.name, qty: 0, revenue: 0 };
+      const key = item.name;
+      const current = products.get(key) || { name: item.name, qty: 0, revenue: 0 };
       current.qty += item.qty;
       current.revenue += item.qty * item.price;
-      products.set(item.id, current);
+      products.set(key, current);
     });
   });
 
