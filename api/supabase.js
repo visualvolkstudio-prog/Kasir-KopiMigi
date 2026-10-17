@@ -11,7 +11,7 @@ const CASHIER_ALIASES = (process.env.CASHIER_ALIASES || "").split(",").map((entr
 const CASHIER_PASSWORD = process.env.CASHIER_PASSWORD;
 
 const activeWindowMs = 2 * 60 * 1000;
-const transactionCacheLimit = 50;
+const transactionCacheLimit = 500;
 const supabasePageSize = 1000;
 const archiveMaxRows = 50000;
 
