@@ -9012,7 +9012,7 @@ async function refreshAnalyticsPeriod({ render = true, month = selectedMonth(), 
     if (requestId !== state.analyticsPeriodRequestId) return false;
     await cacheCloudTransactionsWithPending(result.transactions);
     state.analyticsPeriodKey = periodKey;
-    state.analyticsPeriodTransactions = null;
+    state.analyticsPeriodTransactions = result.transactions;
     state.analyticsLoadError = "";
     state.analyticsLoadErrorPeriodKey = "";
     if (Array.isArray(result.deletedTransactions)) mergeDeletedTransactionTombstones(result.deletedTransactions);
