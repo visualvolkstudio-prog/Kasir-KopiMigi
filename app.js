@@ -38,6 +38,7 @@ const storageKeys = {
   shiftAssignments: "kasir-migi-shift-assignments",
   dailyCashReports: "kasir-migi-daily-cash-reports",
   juneRecoverySynced: "kasir-migi-june-recovery-synced-v1",
+  analyticsCache: "kasir-migi-analytics-period-cache-v1",
   wifiReceipt: "kasir-migi-wifi-receipt",
   settingsDirty: "kasir-migi-settings-dirty",
   deviceId: "kasir-migi-device-id",
@@ -100,8 +101,8 @@ const state = {
   menuSaving: false,
   wifiEditing: false,
   reportShareText: "",
-  analyticsPeriodKey: "",
-  analyticsPeriodTransactions: [],
+  analyticsPeriodKey: (() => { try { return JSON.parse(localStorage.getItem("kasir-migi-analytics-period-cache-v1"))?.key || ""; } catch { return ""; } })(),
+  analyticsPeriodTransactions: (() => { try { const c = JSON.parse(localStorage.getItem("kasir-migi-analytics-period-cache-v1")); return Array.isArray(c?.transactions) ? c.transactions : []; } catch { return []; } })(),
   analyticsPeriodLoading: false,
   analyticsPeriodRequestId: 0,
   analyticsLoadError: "",
@@ -9013,6 +9014,7 @@ async function refreshAnalyticsPeriod({ render = true, month = selectedMonth(), 
     await cacheCloudTransactionsWithPending(result.transactions);
     state.analyticsPeriodKey = periodKey;
     state.analyticsPeriodTransactions = result.transactions;
+    writeJson(storageKeys.analyticsCache, { key: periodKey, transactions: result.transactions });
     state.analyticsLoadError = "";
     state.analyticsLoadErrorPeriodKey = "";
     if (Array.isArray(result.deletedTransactions)) mergeDeletedTransactionTombstones(result.deletedTransactions);
