@@ -3315,114 +3315,127 @@ function scaleLabelLayoutForPaperChange(previousSettings, nextPaperSize) {
 }
 
 function saveLabelPrinterSettingsFromUI() {
-  const previousSettings = getLabelPrinterSettings();
-  const paperSize = els.labelPrinterPaperSize?.value || "40x20mm";
-  if (previousSettings.paperSize !== paperSize) {
-    scaleLabelLayoutForPaperChange(previousSettings, paperSize);
+  try {
+    const orderCard = els.labelSettingsModal?.querySelector(".order-card");
+    if (orderCard && orderCard.scrollTop !== 0) {
+      orderCard.scrollTop = 0;
+    }
+
+    const previousSettings = getLabelPrinterSettings();
+    const paperSize = els.labelPrinterPaperSize?.value || "40x20mm";
+    if (previousSettings.paperSize !== paperSize) {
+      scaleLabelLayoutForPaperChange(previousSettings, paperSize);
+    }
+
+    const presetPitch = getLabelPaperDimensions({ paperSize }).height;
+    const pitch = previousSettings.paperSize !== paperSize
+      ? presetPitch
+      : Math.max(1, Number(els.labelPrinterPitch?.value || previousSettings.pitch || presetPitch));
+    if (els.labelPrinterPitch) els.labelPrinterPitch.value = pitch;
+
+    const settings = {
+      ...previousSettings,
+      printEngine: els.labelPrinterPrintEngine?.value || "bitmap",
+      paperSize,
+      feedMethod: els.labelPrinterFeedMethod?.value || "gap",
+      pitch,
+      lineSpacing: Number(els.labelPrinterLineSpacing?.value || 20),
+      labelDelay: Number(els.labelPrinterDelay?.value || 300),
+      labelMargin: Number(els.labelPrinterMargin?.value || 8),
+      labelSpaces: Number(els.labelPrinterSpaces?.value || 0),
+      stickerOffsetX: syncLabelOffsetLimit({ paperSize }),
+      fontScaleV2: true,
+
+      drinkNameEnabled: els.labelDrinkNameEnabled?.checked !== false,
+      drinkNameBold: els.labelDrinkNameBold?.checked !== false,
+      drinkNameFontSize: Number(els.labelDrinkNameFontSize?.value ?? 1),
+      drinkNameX: parseInt(els.labelPreviewDrinkName?.getAttribute("data-drag-x") || els.labelPreviewDrinkName?.style.left || "12"),
+      drinkNameY: parseInt(els.labelPreviewDrinkName?.getAttribute("data-drag-y") || els.labelPreviewDrinkName?.style.top || "12"),
+      drinkNameWidth: parseInt(els.labelPreviewDrinkName?.style.width || "200"),
+      drinkNameMaxHeight: parseInt(els.labelPreviewDrinkName?.style.height || "48"),
+
+      notesEnabled: els.labelNotesEnabled?.checked !== false,
+      notesBold: els.labelNotesBold?.checked === true,
+      notesFontSize: Number(els.labelNotesFontSize?.value ?? 1),
+      notesX: parseInt(els.labelPreviewNotes?.getAttribute("data-drag-x") || els.labelPreviewNotes?.style.left || "12"),
+      notesY: parseInt(els.labelPreviewNotes?.getAttribute("data-drag-y") || els.labelPreviewNotes?.style.top || "48"),
+      notesWidth: parseInt(els.labelPreviewNotes?.style.width || "280"),
+      notesMaxHeight: parseInt(els.labelPreviewNotes?.style.height || "24"),
+
+      orderCodeEnabled: els.labelOrderCodeEnabled?.checked !== false,
+      orderCodeBold: els.labelOrderCodeBold?.checked === true,
+      orderCodeFontSize: Number(els.labelOrderCodeFontSize?.value ?? 1),
+      orderCodeX: parseInt(els.labelPreviewOrderCode?.getAttribute("data-drag-x") || els.labelPreviewOrderCode?.style.left || "12"),
+      orderCodeY: parseInt(els.labelPreviewOrderCode?.getAttribute("data-drag-y") || els.labelPreviewOrderCode?.style.top || "84"),
+      orderCodeWidth: parseInt(els.labelPreviewOrderCode?.style.width || "120"),
+      orderCodeMaxHeight: parseInt(els.labelPreviewOrderCode?.style.height || "24"),
+
+      customerEnabled: els.labelCustomerEnabled?.checked !== false,
+      customerBold: els.labelCustomerBold?.checked === true,
+      customerFontSize: Number(els.labelCustomerFontSize?.value ?? 1),
+      customerX: parseInt(els.labelPreviewCustomer?.getAttribute("data-drag-x") || els.labelPreviewCustomer?.style.left || "12"),
+      customerY: parseInt(els.labelPreviewCustomer?.getAttribute("data-drag-y") || els.labelPreviewCustomer?.style.top || "110"),
+      customerWidth: parseInt(els.labelPreviewCustomer?.style.width || "150"),
+      customerMaxHeight: parseInt(els.labelPreviewCustomer?.style.height || "24"),
+
+      serviceTypeEnabled: els.labelServiceTypeEnabled?.checked !== false,
+      serviceTypeFontSize: Number(els.labelServiceTypeFontSize?.value ?? 16),
+      serviceTypeX: parseInt(els.labelPreviewServiceType?.getAttribute("data-drag-x") || els.labelPreviewServiceType?.style.left || "214"),
+      serviceTypeY: parseInt(els.labelPreviewServiceType?.getAttribute("data-drag-y") || els.labelPreviewServiceType?.style.top || "88"),
+      serviceTypeWidth: parseInt(els.labelPreviewServiceType?.style.width || "64"),
+      serviceTypeMaxHeight: parseInt(els.labelPreviewServiceType?.style.height || "24"),
+
+      counterEnabled: els.labelCounterEnabled?.checked !== false,
+      counterBold: els.labelCounterBold?.checked === true,
+      counterFontSize: Number(els.labelCounterFontSize?.value ?? 1),
+      counterX: parseInt(els.labelPreviewCounter?.getAttribute("data-drag-x") || els.labelPreviewCounter?.style.left || "240"),
+      counterY: parseInt(els.labelPreviewCounter?.getAttribute("data-drag-y") || els.labelPreviewCounter?.style.top || "84"),
+      counterWidth: parseInt(els.labelPreviewCounter?.style.width || "80"),
+      counterMaxHeight: parseInt(els.labelPreviewCounter?.style.height || "24"),
+
+      customTextEnabled: els.labelCustomTextEnabled?.checked === true,
+      customTextBold: els.labelCustomTextBold?.checked !== false,
+      customTextFontSize: Number(els.labelCustomTextFontSize?.value ?? 1),
+      customTextX: parseInt(els.labelPreviewCustomText?.getAttribute("data-drag-x") || els.labelPreviewCustomText?.style.left || "150"),
+      customTextY: parseInt(els.labelPreviewCustomText?.getAttribute("data-drag-y") || els.labelPreviewCustomText?.style.top || "12"),
+      customTextWidth: parseInt(els.labelPreviewCustomText?.style.width || "100"),
+      customTextMaxHeight: parseInt(els.labelPreviewCustomText?.style.height || "24"),
+      customTextValue: els.labelCustomTextValue?.value || "TEMAN",
+
+      logoEnabled: els.labelLogoEnabled?.checked === true,
+      logoX: parseInt(els.labelPreviewLogo?.getAttribute("data-drag-x") || els.labelPreviewLogo?.style.left || "12"),
+      logoY: parseInt(els.labelPreviewLogo?.getAttribute("data-drag-y") || els.labelPreviewLogo?.style.top || "12"),
+      logoWidth: parseInt(els.labelPreviewLogo?.style.width || "32"),
+      logoMaxHeight: parseInt(els.labelPreviewLogo?.style.height || "32"),
+
+      customImageEnabled: els.labelCustomImageEnabled?.checked === true && Boolean(previousSettings.customImageData),
+      customImageX: parseInt(els.labelPreviewCustomImage?.getAttribute("data-drag-x") || els.labelPreviewCustomImage?.style.left || "260"),
+      customImageY: parseInt(els.labelPreviewCustomImage?.getAttribute("data-drag-y") || els.labelPreviewCustomImage?.style.top || "12"),
+      customImageWidth: parseInt(els.labelPreviewCustomImage?.style.width || "48"),
+      customImageMaxHeight: parseInt(els.labelPreviewCustomImage?.style.height || "48"),
+
+      barcodeEnabled: els.labelBarcodeEnabled?.checked === true,
+      barcodeX: parseInt(els.labelPreviewBarcode?.getAttribute("data-drag-x") || els.labelPreviewBarcode?.style.left || "60"),
+      barcodeY: parseInt(els.labelPreviewBarcode?.getAttribute("data-drag-y") || els.labelPreviewBarcode?.style.top || "130"),
+      barcodeWidth: parseInt(els.labelPreviewBarcode?.style.width || "160"),
+      barcodeMaxHeight: (() => {
+        const renderedHeight = parseInt(els.labelPreviewBarcode?.style.height || "44");
+        return Math.max(1, renderedHeight > 24 ? renderedHeight - 24 : renderedHeight);
+      })()
+    };
+    writeJson("kasir-migi-label-printer-settings", settings);
+    markSettingsDirty();
+    toggleLabelPrinterManualSettingsVisibility();
+    updateLabelPreview();
+    renderLabelSettingsSummary();
+    autoSyncLabelSettings();
+
+    if (orderCard && orderCard.scrollTop !== 0) {
+      orderCard.scrollTop = 0;
+    }
+  } catch (error) {
+    console.error("Gagal memperbarui pengaturan label:", error);
   }
-
-  const presetPitch = getLabelPaperDimensions({ paperSize }).height;
-  const pitch = previousSettings.paperSize !== paperSize
-    ? presetPitch
-    : Math.max(1, Number(els.labelPrinterPitch?.value || previousSettings.pitch || presetPitch));
-  if (els.labelPrinterPitch) els.labelPrinterPitch.value = pitch;
-
-  const settings = {
-    ...previousSettings,
-    printEngine: els.labelPrinterPrintEngine?.value || "bitmap",
-    paperSize,
-    feedMethod: els.labelPrinterFeedMethod?.value || "gap",
-    pitch,
-    lineSpacing: Number(els.labelPrinterLineSpacing?.value || 20),
-    labelDelay: Number(els.labelPrinterDelay?.value || 300),
-    labelMargin: Number(els.labelPrinterMargin?.value || 8),
-    labelSpaces: Number(els.labelPrinterSpaces?.value || 0),
-    stickerOffsetX: syncLabelOffsetLimit({ paperSize }),
-    fontScaleV2: true,
-
-    drinkNameEnabled: els.labelDrinkNameEnabled?.checked !== false,
-    drinkNameBold: els.labelDrinkNameBold?.checked !== false,
-    drinkNameFontSize: Number(els.labelDrinkNameFontSize?.value ?? 1),
-    drinkNameX: parseInt(els.labelPreviewDrinkName?.getAttribute("data-drag-x") || els.labelPreviewDrinkName?.style.left || "12"),
-    drinkNameY: parseInt(els.labelPreviewDrinkName?.getAttribute("data-drag-y") || els.labelPreviewDrinkName?.style.top || "12"),
-    drinkNameWidth: parseInt(els.labelPreviewDrinkName?.style.width || "200"),
-    drinkNameMaxHeight: parseInt(els.labelPreviewDrinkName?.style.height || "48"),
-
-    notesEnabled: els.labelNotesEnabled?.checked !== false,
-    notesBold: els.labelNotesBold?.checked === true,
-    notesFontSize: Number(els.labelNotesFontSize?.value ?? 1),
-    notesX: parseInt(els.labelPreviewNotes?.getAttribute("data-drag-x") || els.labelPreviewNotes?.style.left || "12"),
-    notesY: parseInt(els.labelPreviewNotes?.getAttribute("data-drag-y") || els.labelPreviewNotes?.style.top || "48"),
-    notesWidth: parseInt(els.labelPreviewNotes?.style.width || "280"),
-    notesMaxHeight: parseInt(els.labelPreviewNotes?.style.height || "24"),
-
-    orderCodeEnabled: els.labelOrderCodeEnabled?.checked !== false,
-    orderCodeBold: els.labelOrderCodeBold?.checked === true,
-    orderCodeFontSize: Number(els.labelOrderCodeFontSize?.value ?? 1),
-    orderCodeX: parseInt(els.labelPreviewOrderCode?.getAttribute("data-drag-x") || els.labelPreviewOrderCode?.style.left || "12"),
-    orderCodeY: parseInt(els.labelPreviewOrderCode?.getAttribute("data-drag-y") || els.labelPreviewOrderCode?.style.top || "84"),
-    orderCodeWidth: parseInt(els.labelPreviewOrderCode?.style.width || "120"),
-    orderCodeMaxHeight: parseInt(els.labelPreviewOrderCode?.style.height || "24"),
-
-    customerEnabled: els.labelCustomerEnabled?.checked !== false,
-    customerBold: els.labelCustomerBold?.checked === true,
-    customerFontSize: Number(els.labelCustomerFontSize?.value ?? 1),
-    customerX: parseInt(els.labelPreviewCustomer?.getAttribute("data-drag-x") || els.labelPreviewCustomer?.style.left || "12"),
-    customerY: parseInt(els.labelPreviewCustomer?.getAttribute("data-drag-y") || els.labelPreviewCustomer?.style.top || "110"),
-    customerWidth: parseInt(els.labelPreviewCustomer?.style.width || "150"),
-    customerMaxHeight: parseInt(els.labelPreviewCustomer?.style.height || "24"),
-
-    serviceTypeEnabled: els.labelServiceTypeEnabled?.checked !== false,
-    serviceTypeFontSize: Number(els.labelServiceTypeFontSize?.value ?? 16),
-    serviceTypeX: parseInt(els.labelPreviewServiceType?.getAttribute("data-drag-x") || els.labelPreviewServiceType?.style.left || "214"),
-    serviceTypeY: parseInt(els.labelPreviewServiceType?.getAttribute("data-drag-y") || els.labelPreviewServiceType?.style.top || "88"),
-    serviceTypeWidth: parseInt(els.labelPreviewServiceType?.style.width || "64"),
-    serviceTypeMaxHeight: parseInt(els.labelPreviewServiceType?.style.height || "24"),
-
-    counterEnabled: els.labelCounterEnabled?.checked !== false,
-    counterBold: els.labelCounterBold?.checked === true,
-    counterFontSize: Number(els.labelCounterFontSize?.value ?? 1),
-    counterX: parseInt(els.labelPreviewCounter?.getAttribute("data-drag-x") || els.labelPreviewCounter?.style.left || "240"),
-    counterY: parseInt(els.labelPreviewCounter?.getAttribute("data-drag-y") || els.labelPreviewCounter?.style.top || "84"),
-    counterWidth: parseInt(els.labelPreviewCounter?.style.width || "80"),
-    counterMaxHeight: parseInt(els.labelPreviewCounter?.style.height || "24"),
-
-    customTextEnabled: els.labelCustomTextEnabled?.checked === true,
-    customTextBold: els.labelCustomTextBold?.checked !== false,
-    customTextFontSize: Number(els.labelCustomTextFontSize?.value ?? 1),
-    customTextX: parseInt(els.labelPreviewCustomText?.getAttribute("data-drag-x") || els.labelPreviewCustomText?.style.left || "150"),
-    customTextY: parseInt(els.labelPreviewCustomText?.getAttribute("data-drag-y") || els.labelPreviewCustomText?.style.top || "12"),
-    customTextWidth: parseInt(els.labelPreviewCustomText?.style.width || "100"),
-    customTextMaxHeight: parseInt(els.labelPreviewCustomText?.style.height || "24"),
-    customTextValue: els.labelCustomTextValue?.value || "TEMAN",
-
-    logoEnabled: els.labelLogoEnabled?.checked === true,
-    logoX: parseInt(els.labelPreviewLogo?.getAttribute("data-drag-x") || els.labelPreviewLogo?.style.left || "12"),
-    logoY: parseInt(els.labelPreviewLogo?.getAttribute("data-drag-y") || els.labelPreviewLogo?.style.top || "12"),
-    logoWidth: parseInt(els.labelPreviewLogo?.style.width || "32"),
-    logoMaxHeight: parseInt(els.labelPreviewLogo?.style.height || "32"),
-
-    customImageEnabled: els.labelCustomImageEnabled?.checked === true && Boolean(previousSettings.customImageData),
-    customImageX: parseInt(els.labelPreviewCustomImage?.getAttribute("data-drag-x") || els.labelPreviewCustomImage?.style.left || "260"),
-    customImageY: parseInt(els.labelPreviewCustomImage?.getAttribute("data-drag-y") || els.labelPreviewCustomImage?.style.top || "12"),
-    customImageWidth: parseInt(els.labelPreviewCustomImage?.style.width || "48"),
-    customImageMaxHeight: parseInt(els.labelPreviewCustomImage?.style.height || "48"),
-
-    barcodeEnabled: els.labelBarcodeEnabled?.checked === true,
-    barcodeX: parseInt(els.labelPreviewBarcode?.getAttribute("data-drag-x") || els.labelPreviewBarcode?.style.left || "60"),
-    barcodeY: parseInt(els.labelPreviewBarcode?.getAttribute("data-drag-y") || els.labelPreviewBarcode?.style.top || "130"),
-    barcodeWidth: parseInt(els.labelPreviewBarcode?.style.width || "160"),
-    barcodeMaxHeight: (() => {
-      const renderedHeight = parseInt(els.labelPreviewBarcode?.style.height || "44");
-      return Math.max(1, renderedHeight > 24 ? renderedHeight - 24 : renderedHeight);
-    })()
-  };
-  writeJson("kasir-migi-label-printer-settings", settings);
-  markSettingsDirty();
-  toggleLabelPrinterManualSettingsVisibility();
-  updateLabelPreview();
-  renderLabelSettingsSummary();
-  autoSyncLabelSettings();
 }
 
 function persistLabelLayoutSnapshot() {
@@ -3662,7 +3675,11 @@ function updateLabelPreview() {
     const fontSize = fontSizeInput
       ? normalizeLabelFontScale(fontSizeInputVal)
       : normalizeLabelFontScale(labelSettings[`${key.charAt(0).toLowerCase() + key.slice(1)}FontSize`]);
-    const bold = boldInput ? boldInput.checked : (labelSettings[`${key.charAt(0).toLowerCase() + key.slice(1)}Bold`] === true);
+    const bold = boldInput
+      ? boldInput.checked
+      : (key === "DrinkName" || key === "CustomText"
+          ? labelSettings[`${key.charAt(0).toLowerCase() + key.slice(1)}Bold`] !== false
+          : labelSettings[`${key.charAt(0).toLowerCase() + key.slice(1)}Bold`] === true);
 
     if (fontSizeVal && fontSizeInput) {
       fontSizeVal.textContent = String(fontSize);
@@ -4079,7 +4096,11 @@ function initPrinterSettings() {
     const previewEl = els[`labelPreview${key}`];
 
     if (enabledInput) enabledInput.checked = labelSettings[`${keyLower}Enabled`] !== false;
-    if (boldInput) boldInput.checked = labelSettings[`${keyLower}Bold`] === true;
+    if (boldInput) {
+      boldInput.checked = (key === "DrinkName" || key === "CustomText")
+        ? labelSettings[`${keyLower}Bold`] !== false
+        : labelSettings[`${keyLower}Bold`] === true;
+    }
     if (fontSizeInput) fontSizeInput.value = normalizeLabelFontScale(labelSettings[`${keyLower}FontSize`]);
     if (widthInput) widthInput.value = labelSettings[`${keyLower}Width`] !== undefined ? labelSettings[`${keyLower}Width`] : (key === "Barcode" ? 200 : 150);
 
@@ -11105,6 +11126,8 @@ els.printerPaperSize?.addEventListener("change", () => {
 async function openLabelSettingsModal() {
   const modal = els.labelSettingsModal;
   if (!modal) return;
+  const orderCard = modal.querySelector(".order-card");
+  if (orderCard) orderCard.scrollTop = 0;
 
   // Jika online & owner, pull settings cloud terbaru dulu supaya semua device sinkron
   if (navigator.onLine && isOwner()) {
@@ -11118,11 +11141,13 @@ async function openLabelSettingsModal() {
 
   modal.classList.add("open");
   modal.setAttribute("aria-hidden", "false");
+  if (orderCard) orderCard.scrollTop = 0;
   initDraggableRows();
   updateLabelPreview();
   requestAnimationFrame(() => {
     updateLabelPreview();
     setTimeout(updateLabelPreview, 80);
+    if (orderCard) orderCard.scrollTop = 0;
   });
 }
 function closeLabelSettingsModal() {
