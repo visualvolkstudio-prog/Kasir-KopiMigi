@@ -3837,27 +3837,30 @@ function updateLabelPreview() {
 
   [els.labelPreviewPaper, document.getElementById("labelReadOnlyPreviewPaper")].forEach((paper) => {
     if (!paper) return;
-    let parentWidth = paper.parentElement?.getBoundingClientRect().width || 0;
-    if (parentWidth < 100) {
-      parentWidth = paper.parentElement?.offsetWidth || 384;
-    }
-    if (parentWidth < 100) {
-      parentWidth = 384; // Safe fallback to prevent scale(0) or scale(negative) on initial render
-    }
-    const padding = 32;
-    const availableWidth = parentWidth - padding;
-    const currentPaperWidth = parseInt(paper.style.width || "384");
-    const currentPaperHeight = parseInt(paper.style.height || "160");
-    if (availableWidth < currentPaperWidth && availableWidth > 0) {
-      const scale = availableWidth / currentPaperWidth;
+    const stageWrap = paper.parentElement;
+    const currentPaperWidth = parseInt(paper.style.width || "384") || 384;
+    const currentPaperHeight = parseInt(paper.style.height || "160") || 160;
+
+    const cardEl = paper.closest(".order-card") || paper.closest(".settings-panel");
+    const cardWidth = cardEl?.clientWidth || (window.innerWidth ? Math.min(window.innerWidth - 48, 560) : 560);
+    const availableWidth = Math.max(280, cardWidth - 48);
+
+    if (availableWidth < currentPaperWidth) {
+      const scale = Math.max(0.65, availableWidth / currentPaperWidth);
       paper.style.transform = `scale(${scale})`;
-      paper.style.transformOrigin = "top center";
-      paper.style.margin = `0 -${(currentPaperWidth - availableWidth) / 2}px`;
-      if (paper.parentElement) paper.parentElement.style.height = `${Math.ceil(currentPaperHeight * scale)}px`;
+      paper.style.transformOrigin = "center center";
+      paper.style.margin = "0";
+      if (stageWrap) {
+        stageWrap.style.minHeight = `${Math.ceil(currentPaperHeight * scale)}px`;
+        stageWrap.style.height = `${Math.ceil(currentPaperHeight * scale)}px`;
+      }
     } else {
       paper.style.transform = "none";
       paper.style.margin = "0";
-      if (paper.parentElement) paper.parentElement.style.height = `${currentPaperHeight}px`;
+      if (stageWrap) {
+        stageWrap.style.minHeight = `${currentPaperHeight}px`;
+        stageWrap.style.height = `${currentPaperHeight}px`;
+      }
     }
   });
 }
@@ -11115,7 +11118,12 @@ async function openLabelSettingsModal() {
 
   modal.classList.add("open");
   modal.setAttribute("aria-hidden", "false");
+  initDraggableRows();
   updateLabelPreview();
+  requestAnimationFrame(() => {
+    updateLabelPreview();
+    setTimeout(updateLabelPreview, 80);
+  });
 }
 function closeLabelSettingsModal() {
   const modal = els.labelSettingsModal;
@@ -11167,7 +11175,8 @@ els.labelDrinkNameHeight?.addEventListener("input", () => {
 
 window.addEventListener("resize", () => {
   const viewSettings = document.getElementById("view-settings");
-  if (viewSettings && viewSettings.classList.contains("active")) {
+  const modalOpen = els.labelSettingsModal?.classList.contains("open");
+  if (modalOpen || (viewSettings && viewSettings.classList.contains("active"))) {
     updateLabelPreview();
   }
 });
