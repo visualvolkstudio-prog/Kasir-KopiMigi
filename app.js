@@ -452,6 +452,7 @@ const els = {
   monthTransactions: document.querySelector("#monthTransactions"),
   monthItems: document.querySelector("#monthItems"),
   landingViewCount: document.querySelector("#landingViewCount"),
+  analyticsLoadingBanner: document.querySelector("#analyticsLoadingBanner"),
   revenueChart: document.querySelector("#revenueChart"),
   bestsellerList: document.querySelector("#bestsellerList"),
   insightList: document.querySelector("#insightList"),
@@ -8067,7 +8068,7 @@ async function recoverAndSyncAllLocalTransactions({ interactive = true } = {}) {
 
   for (const tx of allTx) {
     try {
-      const response = await fetch("/api/supabase", {
+      const response = await fetchWithTimeout("/api/supabase", {
         method: "POST",
         headers: {
           ...authHeaders(),
@@ -8125,29 +8126,36 @@ async function syncPendingTransactions({ pull = true } = {}) {
 
   const pending = await pendingOfflineTransactions().catch(() => []);
   for (const transaction of pending) {
-    try {
-      const response = await fetch("/api/supabase", {
-        method: "POST",
-        headers: {
-          ...authHeaders(),
-          "Content-Type": "application/json",
-          "Idempotency-Key": transaction.idempotencyKey || transaction.localId,
-        },
-        body: JSON.stringify({ action: "sync-transaction", transaction }),
-      });
-      const result = await response.json().catch(() => ({}));
-      if (!response.ok || result?.success === false) throw new Error(result?.error || `Sync gagal: ${response.status}`);
-      await updateOfflineTransaction(transaction.localId, {
-        syncStatus: "SYNCED",
-        syncedAt: new Date().toISOString(),
-        lastSyncError: "",
-      });
-    } catch (error) {
-      await updateOfflineTransaction(transaction.localId, {
-        syncStatus: "PENDING_SYNC",
-        lastSyncAttemptAt: new Date().toISOString(),
-        lastSyncError: error.message || "Sync transaksi gagal.",
-      }).catch(() => null);
+    let synced = false;
+    for (let attempt = 0; attempt < 3 && !synced; attempt++) {
+      try {
+        if (attempt > 0) await new Promise((r) => setTimeout(r, 1000 * attempt));
+        const response = await fetchWithTimeout("/api/supabase", {
+          method: "POST",
+          headers: {
+            ...authHeaders(),
+            "Content-Type": "application/json",
+            "Idempotency-Key": transaction.idempotencyKey || transaction.localId,
+          },
+          body: JSON.stringify({ action: "sync-transaction", transaction }),
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || result?.success === false) throw new Error(result?.error || `Sync gagal: ${response.status}`);
+        await updateOfflineTransaction(transaction.localId, {
+          syncStatus: "SYNCED",
+          syncedAt: new Date().toISOString(),
+          lastSyncError: "",
+        });
+        synced = true;
+      } catch (error) {
+        if (attempt >= 2) {
+          await updateOfflineTransaction(transaction.localId, {
+            syncStatus: "PENDING_SYNC",
+            lastSyncAttemptAt: new Date().toISOString(),
+            lastSyncError: error.message || "Sync transaksi gagal.",
+          }).catch(() => null);
+        }
+      }
     }
   }
   renderPendingSync();
@@ -8163,8 +8171,14 @@ function authHeaders() {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
+function fetchWithTimeout(url, options = {}, timeoutMs = 10000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  return fetch(url, { ...options, signal: controller.signal }).finally(() => clearTimeout(timer));
+}
+
 async function postCloudJson(url, payload) {
-  const response = await fetch(url, {
+  const response = await fetchWithTimeout(url, {
     method: "POST",
     headers: { ...authHeaders(), "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -9018,6 +9032,7 @@ async function refreshAnalyticsPeriod({ render = true, month = selectedMonth(), 
     state.analyticsLoadError = "";
     state.analyticsLoadErrorPeriodKey = "";
     if (Array.isArray(result.deletedTransactions)) mergeDeletedTransactionTombstones(result.deletedTransactions);
+    if (requestId === state.analyticsPeriodRequestId) state.analyticsPeriodLoading = false;
     if (render) {
       renderAnalytics();
       renderHistory();
@@ -9025,6 +9040,7 @@ async function refreshAnalyticsPeriod({ render = true, month = selectedMonth(), 
     return true;
   } catch (error) {
     if (requestId === state.analyticsPeriodRequestId) {
+      state.analyticsPeriodLoading = false;
       state.analyticsLoadError = error.message || "Arsip analitik belum bisa dimuat.";
       state.analyticsLoadErrorPeriodKey = periodKey;
       if (render) {
@@ -9183,6 +9199,48 @@ async function mutateDiscountVoucher(id, updater) {
 
 function renderAnalytics() {
   renderAnalyticsControls();
+
+  /* ── Skeleton loading state ── */
+  const analyticsPanel = document.querySelector("#view-analytics");
+  const metricGrid = analyticsPanel?.querySelector(".metric-grid");
+  if (els.analyticsLoadingBanner) els.analyticsLoadingBanner.hidden = !state.analyticsPeriodLoading;
+  if (metricGrid) metricGrid.classList.toggle("analytics-loading", state.analyticsPeriodLoading);
+
+  if (state.analyticsPeriodLoading) {
+    // Show placeholder text that gets the shimmer effect via CSS
+    const placeholderVal = "———";
+    if (els.monthRevenue) els.monthRevenue.textContent = placeholderVal;
+    if (els.monthTunaiRevenue) els.monthTunaiRevenue.textContent = placeholderVal;
+    if (els.monthQrisRevenue) els.monthQrisRevenue.textContent = placeholderVal;
+    if (els.monthDiscountTotal) els.monthDiscountTotal.textContent = placeholderVal;
+    if (els.monthDiscountCount) els.monthDiscountCount.textContent = placeholderVal;
+    if (els.avgDailyRevenue) els.avgDailyRevenue.textContent = placeholderVal;
+    if (els.monthTransactions) els.monthTransactions.textContent = placeholderVal;
+    if (els.monthItems) els.monthItems.textContent = placeholderVal;
+    // Skeleton rows for bestseller, insight, and ingredient lists
+    const skeletonRows = Array.from({ length: 4 }, () => `<div class="skeleton-row" style="margin-bottom:8px"></div>`).join("");
+    if (els.bestsellerList) els.bestsellerList.innerHTML = skeletonRows;
+    if (els.insightList) els.insightList.innerHTML = skeletonRows;
+    if (els.ingredientOutList) els.ingredientOutList.innerHTML = skeletonRows;
+    // Skeleton for chart
+    const chartCanvas = els.revenueChart;
+    if (chartCanvas) {
+      chartCanvas.style.display = "none";
+      let skeletonChart = chartCanvas.parentElement.querySelector(".skeleton-chart");
+      if (!skeletonChart) {
+        skeletonChart = document.createElement("div");
+        skeletonChart.className = "skeleton-chart";
+        chartCanvas.parentElement.appendChild(skeletonChart);
+      }
+    }
+    return;
+  }
+
+  // Remove skeleton chart placeholder when loading is done
+  const skeletonChart = analyticsPanel?.querySelector(".skeleton-chart");
+  if (skeletonChart) skeletonChart.remove();
+  if (els.revenueChart) els.revenueChart.style.display = "";
+
   const requestedPeriodKey = state.chartRange === "daily" ? `month:${selectedMonth()}` : `year:${selectedAnalyticsYear()}`;
   if (analyticsLoadFailedForPeriod(requestedPeriodKey)) {
     const message = `Gagal memuat arsip Supabase: ${state.analyticsLoadError}`;
@@ -11490,7 +11548,7 @@ function scheduleRealtimePoll() {
       _realtimePulling = true;
       try {
         await syncPendingTransactions({ pull: false }).catch(() => null);
-        await pullTransactionsFromSupabase({ render: false, limit: 10 });
+        await pullTransactionsFromSupabase({ render: false, limit: 50 });
         await pullCashflowFromSupabase({ render: false }).catch(() => null);
         renderHistory();
         renderOrders();

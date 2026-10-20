@@ -2151,6 +2151,89 @@ input[aria-invalid="true"]:focus {
   color: var(--ink);
 }
 
+/* ── Analytics skeleton loading ── */
+@keyframes skeletonShimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.skeleton-pulse {
+  background: linear-gradient(90deg, var(--line) 25%, rgba(0,52,155,0.06) 50%, var(--line) 75%);
+  background-size: 200% 100%;
+  animation: skeletonShimmer 1.6s ease-in-out infinite;
+  border-radius: 6px;
+  color: transparent !important;
+  pointer-events: none;
+  user-select: none;
+}
+
+.analytics-loading .metric-card strong {
+  background: linear-gradient(90deg, var(--line) 25%, rgba(0,52,155,0.06) 50%, var(--line) 75%);
+  background-size: 200% 100%;
+  animation: skeletonShimmer 1.6s ease-in-out infinite;
+  border-radius: 6px;
+  color: transparent !important;
+  min-width: 60px;
+  display: inline-block;
+}
+
+.analytics-loading .metric-card span {
+  opacity: 0.5;
+}
+
+.skeleton-row {
+  height: 44px;
+  border-radius: 8px;
+  background: linear-gradient(90deg, var(--line) 25%, rgba(0,52,155,0.06) 50%, var(--line) 75%);
+  background-size: 200% 100%;
+  animation: skeletonShimmer 1.6s ease-in-out infinite;
+}
+
+.skeleton-chart {
+  height: 200px;
+  border-radius: 10px;
+  background: linear-gradient(90deg, var(--line) 25%, rgba(0,52,155,0.06) 50%, var(--line) 75%);
+  background-size: 200% 100%;
+  animation: skeletonShimmer 1.6s ease-in-out infinite;
+  margin-top: 12px;
+}
+
+.analytics-loading-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  border-radius: 10px;
+  background: rgba(0, 52, 155, 0.05);
+  border: 1px solid rgba(0, 52, 155, 0.12);
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.analytics-loading-banner .loading-dot-anim {
+  display: inline-flex;
+  gap: 3px;
+}
+
+.analytics-loading-banner .loading-dot-anim span {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent, #00349b);
+  animation: loadingDotBounce 1.2s ease-in-out infinite;
+  display: inline-block;
+}
+
+.analytics-loading-banner .loading-dot-anim span:nth-child(2) { animation-delay: 0.15s; }
+.analytics-loading-banner .loading-dot-anim span:nth-child(3) { animation-delay: 0.3s; }
+
+@keyframes loadingDotBounce {
+  0%, 80%, 100% { opacity: 0.25; transform: scale(0.8); }
+  40% { opacity: 1; transform: scale(1.2); }
+}
+
 .chart-panel { margin-bottom: 16px; }
 
 #revenueChart {
