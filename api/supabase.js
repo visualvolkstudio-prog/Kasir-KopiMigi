@@ -1,4 +1,23 @@
 const crypto = require("crypto");
+const fs = require("fs");
+const path = require("path");
+
+function getDiskCache(key) {
+  try {
+    const filePath = path.join("/tmp", `kasirmigi_${key}.json`);
+    if (fs.existsSync(filePath)) {
+      return JSON.parse(fs.readFileSync(filePath, "utf8"));
+    }
+  } catch {}
+  return null;
+}
+
+function setDiskCache(key, value) {
+  try {
+    const filePath = path.join("/tmp", `kasirmigi_${key}.json`);
+    fs.writeFileSync(filePath, JSON.stringify(value), "utf8");
+  } catch {}
+}
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -120,17 +139,25 @@ function assertSupabaseEnv() {
 
 async function supabaseFetch(path, options = {}) {
   assertSupabaseEnv();
-  const response = await fetch(`${SUPABASE_URL}/${path}`, {
-    method: options.method || "GET",
-    headers: {
-      apikey: SUPABASE_SERVICE_ROLE_KEY,
-      Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-      "Content-Type": "application/json",
-      Prefer: options.prefer || "return=representation",
-      ...(options.headers || {}),
-    },
-    body: options.body === undefined ? undefined : JSON.stringify(options.body),
-  });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15000);
+  let response;
+  try {
+    response = await fetch(`${SUPABASE_URL}/${path}`, {
+      method: options.method || "GET",
+      headers: {
+        apikey: SUPABASE_SERVICE_ROLE_KEY,
+        Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+        "Content-Type": "application/json",
+        Prefer: options.prefer || "return=representation",
+        ...(options.headers || {}),
+      },
+      body: options.body === undefined ? undefined : JSON.stringify(options.body),
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
 
   const text = await response.text();
   let data = null;
@@ -221,9 +248,26 @@ function toIso(value) {
   return Number.isNaN(date.getTime()) ? new Date().toISOString() : date.toISOString();
 }
 
+// Tanggal laporan transaksi: gunakan editedAt jika ada, fallback ke createdAt
+function summaryReportDate(t) {
+  const editDate = t.editedAt || t.paymentEditedAt || '';
+  const source = editDate || t.createdAt || '';
+  if (!source) return '';
+  if (source.length >= 10) return source.slice(0, 10);
+  return '';
+}
+
 function toNumber(value) {
   const number = Number(value || 0);
   return Number.isFinite(number) ? number : 0;
+}
+
+function summaryReportDate(t) {
+  const editDate = t.editedAt || t.paymentEditedAt || "";
+  const source = editDate || t.createdAt || "";
+  if (!source) return "";
+  if (source.length >= 10) return source.slice(0, 10);
+  return "";
 }
 
 function timestampMs(value) {
@@ -804,6 +848,171 @@ async function getSettings() {
   };
 }
 
+// ── ANALYTICS SUMMARY CACHE ──
+
+async function computeAnalyticsSummary(body) {
+  const month = String(body.month || "").trim();
+  if (!/^\d{4}-\d{2}$/.test(month)) {
+    return { status: 400, payload: { success: false, error: "Format bulan harus YYYY-MM (contoh: 2026-09)." } };
+  }
+
+  // Hitung tanggal awal dan akhir bulan
+  const [yearStr, monthStr] = month.split("-");
+  const year = Number(yearStr);
+  const mon = Number(monthStr);
+  const startDate = new Date(Date.UTC(year, mon - 1, 1)).toISOString();
+  const endDate = new Date(Date.UTC(year, mon, 1)).toISOString();
+
+  // Ambil semua transaksi dan transaksi yang dihapus dalam periode tersebut
+  const [rawTransactions, deletedTransactions] = await Promise.all([
+    fetchTransactionRows({ startDate, endDate, limit: 50000, fullArchive: true, withItems: true }),
+    fetchDeletedTransactionRows({ startDate, endDate, limit: 50000, fullArchive: true }),
+  ]);
+
+  // Konversi ke format lokal
+  const allTransactions = rawTransactions.map((row) => toLocalTransaction(row, formatItems(row.transaction_items)));
+
+  // Filter transaksi yang sudah dihapus
+  const deletedIds = new Set(deletedTransactions.map((d) => d.id));
+  const transactions = allTransactions.filter((t) => !deletedIds.has(t.id));
+
+  // Hitung ringkasan: hanya transaksi paid dan bukan staff drink
+  let revenue = 0;
+  let tunai = 0;
+  let qris = 0;
+  let itemCount = 0;
+  let discountTotal = 0;
+  let discountCount = 0;
+  const daysSet = new Set();
+  const dailyRevenue = {};
+  const itemMap = new Map(); // name -> { qty, revenue }
+
+  for (const t of transactions) {
+    const isPaid = t.status === "paid";
+    const isStaff = t.orderType === "staff_drink" || t.isStaffDrink === true;
+    const date = summaryReportDate(t);
+    const payment = t.payment || "";
+    const grand = Number(t.grandTotal || 0);
+
+    if (date) daysSet.add(date);
+
+    if (isPaid && !isStaff) {
+      revenue += grand;
+      if (payment === "Tunai") tunai += grand;
+      if (payment === "QRIS") qris += grand;
+      if (date) dailyRevenue[date] = (dailyRevenue[date] || 0) + grand;
+    }
+
+    // Hitung item dan diskon dari semua transaksi (termasuk staff drink) yang paid
+    if (isPaid) {
+      const disc = Number(t.discountTotal || 0);
+      if (disc > 0) {
+        discountTotal += disc;
+        discountCount++;
+      }
+
+      const items = Array.isArray(t.items) ? t.items : [];
+      for (const item of items) {
+        const qty = Number(item.qty || 0);
+        const price = Number(item.price || 0);
+        itemCount += qty;
+        const name = item.name || "Unknown";
+        const existing = itemMap.get(name);
+        if (existing) {
+          existing.qty += qty;
+          existing.revenue += qty * price;
+        } else {
+          itemMap.set(name, { name, qty, revenue: qty * price });
+        }
+      }
+    }
+  }
+
+  // Top 10 bestsellers berdasarkan qty
+  const bestsellers = [...itemMap.values()]
+    .sort((a, b) => b.qty - a.qty)
+    .slice(0, 10);
+
+  const summary = {
+    month,
+    computedAt: new Date().toISOString(),
+    transactionCount: transactions.filter((t) => t.status === "paid" && t.orderType !== "staff_drink" && t.isStaffDrink !== true).length,
+    revenue,
+    tunai,
+    qris,
+    uniqueDays: daysSet.size,
+    itemCount,
+    discountTotal,
+    discountCount,
+    bestsellers,
+    dailyRevenue,
+    transactions,
+  };
+
+  // Simpan ke disk cache di VPS (<1ms)
+  setDiskCache(`analytics_summary_${month}`, summary);
+
+  // Simpan ke app_settings di database Supabase
+  const settingsKey = `analytics_summary_${month}`;
+  await supabaseFetch("app_settings?on_conflict=key", {
+    method: "POST",
+    prefer: "resolution=merge-duplicates,return=representation",
+    body: [{ key: settingsKey, value: summary, updated_at: toIso() }],
+  }).catch((err) => {
+    console.error("[computeAnalyticsSummary] Supabase save warning:", err.message);
+  });
+
+  return {
+    status: 200,
+    payload: {
+      success: true,
+      month,
+      transactionCount: summary.transactionCount,
+      savedAt: summary.computedAt,
+    },
+  };
+}
+
+async function getAnalyticsSummary(body) {
+  const month = String(body.month || "").trim();
+  if (!/^\d{4}-\d{2}$/.test(month)) {
+    return { status: 400, payload: { success: false, error: "Format bulan harus YYYY-MM (contoh: 2026-09)." } };
+  }
+
+  // 1. Cek disk cache di VPS (<1ms)
+  const diskCached = getDiskCache(`analytics_summary_${month}`);
+  if (diskCached) {
+    return { status: 200, payload: { success: true, found: true, source: "disk", summary: diskCached } };
+  }
+
+  // 2. Cek database Supabase app_settings
+  const settingsKey = `analytics_summary_${month}`;
+  const rows = await supabaseFetch(`app_settings?select=*&key=eq.${encodeURIComponent(settingsKey)}&limit=1`).catch(() => []);
+  const row = Array.isArray(rows) ? rows[0] : null;
+
+  if (row?.value) {
+    setDiskCache(`analytics_summary_${month}`, row.value);
+    return { status: 200, payload: { success: true, found: true, source: "db", summary: row.value } };
+  }
+
+  // 3. Jika belum ada di cache dan ini bulan yang sudah lewat, langsung hitung & simpan di VPS!
+  const now = new Date();
+  const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  if (month < currentMonth) {
+    try {
+      await computeAnalyticsSummary({ month });
+      const freshCached = getDiskCache(`analytics_summary_${month}`);
+      if (freshCached) {
+        return { status: 200, payload: { success: true, found: true, source: "auto_computed", summary: freshCached } };
+      }
+    } catch (err) {
+      console.error("[getAnalyticsSummary] Auto compute error:", err.message);
+    }
+  }
+
+  return { status: 200, payload: { success: true, found: false } };
+}
+
 async function deleteById(table, id, label) {
   const value = String(id || "").trim();
   if (!value) return { status: 400, payload: { success: false, error: `${label} wajib ada.` } };
@@ -1054,6 +1263,11 @@ async function dispatch(body, req) {
     case "get-view-count":
       if (role !== "owner") return { status: 403, payload: { success: false, error: "Hanya Owner yang bisa melihat data pengunjung." } };
       return getLandingViewCount();
+    case "compute-analytics-summary":
+      if (role !== "owner") return { status: 403, payload: { success: false, error: "Hanya Owner yang bisa menghitung ringkasan analytics." } };
+      return computeAnalyticsSummary(body);
+    case "get-analytics-summary":
+      return getAnalyticsSummary(body);
     default:
       return { status: 400, payload: { success: false, error: "Action Supabase tidak dikenal." } };
   }

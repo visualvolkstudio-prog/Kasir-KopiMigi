@@ -39,6 +39,7 @@ const storageKeys = {
   dailyCashReports: "kasir-migi-daily-cash-reports",
   juneRecoverySynced: "kasir-migi-june-recovery-synced-v1",
   analyticsCache: "kasir-migi-analytics-period-cache-v1",
+  analyticsMonthCache: "kasir-migi-analytics-month-v1:",
   wifiReceipt: "kasir-migi-wifi-receipt",
   settingsDirty: "kasir-migi-settings-dirty",
   deviceId: "kasir-migi-device-id",
@@ -8998,6 +8999,13 @@ function renderAnalyticsControls() {
   if (els.analyticsYear) els.analyticsYear.hidden = !yearlyMode;
 }
 
+function isPastMonth(month) {
+  if (!month || month.length < 7) return false;
+  const now = new Date();
+  const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  return month < currentMonth;
+}
+
 async function refreshAnalyticsPeriod({ render = true, month = selectedMonth(), range = state.chartRange, silent = false } = {}) {
   if (!navigator.onLine) {
     state.analyticsPeriodKey = "";
@@ -9008,6 +9016,30 @@ async function refreshAnalyticsPeriod({ render = true, month = selectedMonth(), 
     await loadCloudData().catch(() => null);
   }
   await ensureJuneRecoveryImported().catch(() => null);
+
+  // ── Instant render dari localStorage per-bulan (past months only) ──
+  if (range === "daily" && isPastMonth(month)) {
+    const localKey = storageKeys.analyticsMonthCache + month;
+    try {
+      const cached = JSON.parse(localStorage.getItem(localKey));
+      if (Array.isArray(cached) && cached.length > 0) {
+        const periodKey = `month:${month}`;
+        state.analyticsPeriodKey = periodKey;
+        state.analyticsPeriodTransactions = cached;
+        state.analyticsPeriodLoading = false;
+        state.analyticsLoadError = "";
+        state.analyticsLoadErrorPeriodKey = "";
+        if (render) {
+          renderAnalytics();
+          renderHistory();
+        }
+        return true;
+      }
+    } catch {
+      // Lanjut ke server fetch
+    }
+  }
+
   const requestId = state.analyticsPeriodRequestId + 1;
   state.analyticsPeriodRequestId = requestId;
   state.analyticsPeriodLoading = true;
@@ -9018,21 +9050,59 @@ async function refreshAnalyticsPeriod({ render = true, month = selectedMonth(), 
   }
   try {
     const { startDate, endDate } = range === "daily" ? monthDateRange(month) : yearDateRange(selectedAnalyticsYear());
-    const result = await postSupabaseAction("get-transactions", {
-      startDate,
-      endDate,
-      limit: 5000,
-    });
-    if (!result?.success || !Array.isArray(result.transactions)) throw new Error(result?.error || "Ambil arsip analitik gagal.");
+
+    // ── Coba cached summary dari server untuk bulan lalu ──
+    let transactions = null;
+    let deletedTransactions = null;
+
+    if (range === "daily" && isPastMonth(month)) {
+      try {
+        const cached = await postSupabaseAction("get-analytics-summary", { month });
+        if (cached?.success && cached?.found && Array.isArray(cached.summary?.transactions)) {
+          transactions = cached.summary.transactions;
+          deletedTransactions = cached.summary.deletedTransactions || [];
+        }
+      } catch {
+        // Fallback ke live fetch
+      }
+    }
+
+    // ── Live fetch jika tidak ada cache ──
+    if (!transactions) {
+      const result = await postSupabaseAction("get-transactions", {
+        startDate,
+        endDate,
+        limit: 5000,
+      });
+      if (!result?.success || !Array.isArray(result.transactions)) throw new Error(result?.error || "Ambil arsip analitik gagal.");
+      transactions = result.transactions;
+      deletedTransactions = result.deletedTransactions || [];
+
+      // ── Auto-cache past months di server (fire-and-forget) ──
+      if (range === "daily" && isPastMonth(month) && isOwner()) {
+        postSupabaseAction("compute-analytics-summary", { month }).catch(() => null);
+      }
+    }
+
     if (requestId !== state.analyticsPeriodRequestId) return false;
-    await cacheCloudTransactionsWithPending(result.transactions);
+    await cacheCloudTransactionsWithPending(transactions);
     state.analyticsPeriodKey = periodKey;
-    state.analyticsPeriodTransactions = result.transactions;
-    writeJson(storageKeys.analyticsCache, { key: periodKey, transactions: result.transactions });
+    state.analyticsPeriodTransactions = transactions;
+    writeJson(storageKeys.analyticsCache, { key: periodKey, transactions });
     state.analyticsLoadError = "";
     state.analyticsLoadErrorPeriodKey = "";
-    if (Array.isArray(result.deletedTransactions)) mergeDeletedTransactionTombstones(result.deletedTransactions);
+    if (Array.isArray(deletedTransactions)) mergeDeletedTransactionTombstones(deletedTransactions);
     if (requestId === state.analyticsPeriodRequestId) state.analyticsPeriodLoading = false;
+
+    // ── Simpan cache per-bulan di localStorage untuk bulan lalu ──
+    if (range === "daily" && isPastMonth(month)) {
+      try {
+        localStorage.setItem(storageKeys.analyticsMonthCache + month, JSON.stringify(transactions));
+      } catch {
+        // localStorage penuh — abaikan
+      }
+    }
+
     if (render) {
       renderAnalytics();
       renderHistory();
@@ -9203,7 +9273,10 @@ function renderAnalytics() {
   /* ── Skeleton loading state ── */
   const analyticsPanel = document.querySelector("#view-analytics");
   const metricGrid = analyticsPanel?.querySelector(".metric-grid");
-  if (els.analyticsLoadingBanner) els.analyticsLoadingBanner.hidden = !state.analyticsPeriodLoading;
+  if (els.analyticsLoadingBanner) {
+    els.analyticsLoadingBanner.hidden = !state.analyticsPeriodLoading;
+    els.analyticsLoadingBanner.style.display = state.analyticsPeriodLoading ? "flex" : "none";
+  }
   if (metricGrid) metricGrid.classList.toggle("analytics-loading", state.analyticsPeriodLoading);
 
   if (state.analyticsPeriodLoading) {
