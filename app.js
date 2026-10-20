@@ -2308,6 +2308,9 @@ function applyCloudSettings(settings) {
   if (settings.labelPrinter && typeof settings.labelPrinter === "object" && !Array.isArray(settings.labelPrinter)) {
     writeJson("kasir-migi-label-printer-settings", settings.labelPrinter);
     changed = true;
+    if (typeof initPrinterSettings === "function") {
+      try { initPrinterSettings(); } catch {}
+    }
   }
   if (Array.isArray(settings.employees) && settings.employees.length > 0) {
     applyCloudEmployeeRoster(settings.employees);
@@ -3044,6 +3047,17 @@ function getLabelPaperDimensions(settings = {}) {
 
 const LABEL_PRINTER_WIDTH_DOTS = 384;
 
+let _labelSyncDebounceTimer = null;
+function autoSyncLabelSettings() {
+  clearTimeout(_labelSyncDebounceTimer);
+  _labelSyncDebounceTimer = setTimeout(async () => {
+    if (!navigator.onLine || !isLoggedIn() || !isOwner()) return;
+    try {
+      await syncSettingsToCloud({ force: true });
+    } catch {}
+  }, 1500);
+}
+
 function getMaxLabelOffsetX(paperWidth) {
   return Math.max(0, LABEL_PRINTER_WIDTH_DOTS - Number(paperWidth || LABEL_PRINTER_WIDTH_DOTS));
 }
@@ -3408,6 +3422,7 @@ function saveLabelPrinterSettingsFromUI() {
   toggleLabelPrinterManualSettingsVisibility();
   updateLabelPreview();
   renderLabelSettingsSummary();
+  autoSyncLabelSettings();
 }
 
 function persistLabelLayoutSnapshot() {
@@ -3863,6 +3878,8 @@ function initDraggableRows() {
 
   items.forEach(({ el, key }) => {
     if (!el) return;
+    if (el.dataset.dragInitialized === "true") return;
+    el.dataset.dragInitialized = "true";
 
     if (!el.querySelector(".label-width-handle")) {
       const widthHandleElement = document.createElement("button");
@@ -3897,13 +3914,13 @@ function initDraggableRows() {
     if (widthHandle) {
       const onWidthResizeStart = (e) => {
         e.stopPropagation();
-        e.preventDefault();
+        if (e.cancelable) e.preventDefault();
         isWidthResizing = true;
 
         const clientX = e.touches ? e.touches[0].clientX : e.clientX;
         startX = clientX;
         originalWidth = el.offsetWidth;
-        el.style.borderColor = "#3b82f6";
+        el.style.borderColor = "#2563eb";
       };
       widthHandle.addEventListener("mousedown", onWidthResizeStart);
       widthHandle.addEventListener("touchstart", onWidthResizeStart, { passive: false });
@@ -3912,13 +3929,13 @@ function initDraggableRows() {
     if (heightHandle) {
       const onHeightResizeStart = (e) => {
         e.stopPropagation();
-        e.preventDefault();
+        if (e.cancelable) e.preventDefault();
         isHeightResizing = true;
 
         const clientY = e.touches ? e.touches[0].clientY : e.clientY;
         startY = clientY;
         originalHeight = el.offsetHeight;
-        el.style.borderColor = "#3b82f6";
+        el.style.borderColor = "#2563eb";
       };
       heightHandle.addEventListener("mousedown", onHeightResizeStart);
       heightHandle.addEventListener("touchstart", onHeightResizeStart, { passive: false });
@@ -3927,8 +3944,7 @@ function initDraggableRows() {
     const onDragStart = (e) => {
       if (isWidthResizing || isHeightResizing) return;
       isDragging = true;
-      el.style.borderColor = "#3b82f6";
-      el.style.backgroundColor = "rgba(59, 130, 246, 0.05)";
+      el.classList.add("is-dragging");
       
       const clientX = e.touches ? e.touches[0].clientX : e.clientX;
       const clientY = e.touches ? e.touches[0].clientY : e.clientY;
@@ -3938,13 +3954,16 @@ function initDraggableRows() {
       originalLeft = parseInt(el.getAttribute("data-drag-x") || el.style.left || "12");
       originalTop = parseInt(el.getAttribute("data-drag-y") || el.style.top || "12");
       
-      e.preventDefault();
+      if (e.cancelable) e.preventDefault();
     };
 
     el.addEventListener("mousedown", onDragStart);
     el.addEventListener("touchstart", onDragStart, { passive: false });
 
     const onGlobalMove = (e) => {
+      if (!isWidthResizing && !isHeightResizing && !isDragging) return;
+      if (e.cancelable) e.preventDefault();
+
       const stickerEl = els.labelPreviewSticker;
       const containerWidth = stickerEl ? parseInt(stickerEl.style.width || "320") : 320;
       const containerHeight = stickerEl ? parseInt(stickerEl.style.height || "160") : 160;
@@ -3991,26 +4010,25 @@ function initDraggableRows() {
         newLeft = Math.max(0, Math.min(containerWidth - elWidth, newLeft));
         newTop = Math.max(0, Math.min(containerHeight - elHeight, newTop));
         
-        // Move smoothly during dragging
         el.style.left = `${newLeft}px`;
         el.style.top = `${newTop}px`;
-
       }
     };
 
     const onGlobalEnd = () => {
       if (isWidthResizing) {
         isWidthResizing = false;
-        el.style.borderColor = "rgba(59, 130, 246, 0.3)";
+        el.style.borderColor = "";
         saveLabelPrinterSettingsFromUI();
       } else if (isHeightResizing) {
         isHeightResizing = false;
-        el.style.borderColor = "rgba(59, 130, 246, 0.3)";
+        el.style.borderColor = "";
         saveLabelPrinterSettingsFromUI();
       } else if (isDragging) {
         isDragging = false;
-        el.style.borderColor = "rgba(59, 130, 246, 0.3)";
-        el.style.backgroundColor = "transparent";
+        el.classList.remove("is-dragging");
+        el.style.borderColor = "";
+        el.style.backgroundColor = "";
         
         // Persist final dragged positions and snap to printer lines
         const finalLeft = parseInt(el.style.left || "0");
@@ -10470,6 +10488,9 @@ function setActiveView(viewName, { persist = true } = {}) {
   if (viewName === "settings") {
     updateLabelPreview();
     if (isOwner()) renderDeviceMonitor();
+    if (navigator.onLine) {
+      pullSettingsFromSupabase({ render: false }).catch(() => null);
+    }
   }
   if (viewName === "cashflow") {
     refreshCashflowSalesForSelection({ silent: true }).then((loaded) => {
@@ -11077,9 +11098,21 @@ els.printerTabLabel?.addEventListener("click", () => switchPrinterTab("label"));
 els.printerPaperSize?.addEventListener("change", () => {
   localStorage.setItem("kasir-migi-printer-paper-size", els.printerPaperSize.value);
 });
-function openLabelSettingsModal() {
+
+async function openLabelSettingsModal() {
   const modal = els.labelSettingsModal;
   if (!modal) return;
+
+  // Jika online & owner, pull settings cloud terbaru dulu supaya semua device sinkron
+  if (navigator.onLine && isOwner()) {
+    try {
+      await pullSettingsFromSupabase({ render: false });
+      initPrinterSettings(); // Terapkan settings terbaru ke form
+    } catch {
+      // Lanjutkan dengan data lokal jika gagal
+    }
+  }
+
   modal.classList.add("open");
   modal.setAttribute("aria-hidden", "false");
   updateLabelPreview();
@@ -11097,8 +11130,9 @@ els.saveLabelSettingsBtn?.addEventListener("click", async () => {
   saveLabelPrinterSettingsFromUI();
   const synced = await syncSettingsToCloud({ force: true }).catch(() => false);
   closeLabelSettingsModal();
-  toast(synced ? "Tata letak stiker tersimpan dan tersinkron." : "Tata letak stiker tersimpan lokal; sync cloud akan dicoba lagi.");
+  toast(synced ? "Tata letak stiker tersimpan dan tersinkron ke semua perangkat." : "Tata letak stiker tersimpan lokal; sync cloud akan dicoba lagi.");
 });
+
 
 els.labelPrinterPrintEngine?.addEventListener("change", saveLabelPrinterSettingsFromUI);
 els.labelPrinterPaperSize?.addEventListener("change", saveLabelPrinterSettingsFromUI);
