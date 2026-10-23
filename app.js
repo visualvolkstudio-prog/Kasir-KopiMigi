@@ -818,9 +818,29 @@ function paidOrderCategories(transactions = []) {
   return [...categories, ...transactionCategoriesToday];
 }
 
+const _jsonCache = new Map();
+
+if (typeof window !== "undefined") {
+  window.addEventListener("storage", (event) => {
+    if (!event.key) _jsonCache.clear();
+    else _jsonCache.delete(event.key);
+  });
+}
+
 function readJson(key, fallback) {
   try {
-    return JSON.parse(localStorage.getItem(key)) ?? fallback;
+    const raw = localStorage.getItem(key);
+    if (raw === null) {
+      _jsonCache.delete(key);
+      return fallback;
+    }
+    const cached = _jsonCache.get(key);
+    if (cached && cached.raw === raw) {
+      return cached.value ?? fallback;
+    }
+    const parsed = JSON.parse(raw);
+    _jsonCache.set(key, { raw, value: parsed });
+    return parsed ?? fallback;
   } catch {
     return fallback;
   }
@@ -828,7 +848,12 @@ function readJson(key, fallback) {
 
 function writeJson(key, value) {
   try {
-    localStorage.setItem(key, JSON.stringify(value));
+    const raw = JSON.stringify(value);
+    const cached = _jsonCache.get(key);
+    if (!cached || cached.raw !== raw || localStorage.getItem(key) !== raw) {
+      localStorage.setItem(key, raw);
+    }
+    _jsonCache.set(key, { raw, value });
   } catch (err) {
     console.error(`[writeJson] Gagal menyimpan key "${key}":`, err);
   }
@@ -1540,6 +1565,7 @@ async function finishLogin(role, employee, shift, dutyRole = "karyawan", token =
   }
   updateDevicePresence().catch(() => null);
   if (role === "owner") refreshActiveCashierPresence().catch(() => null);
+  document.dispatchEvent(new CustomEvent("kasirmigi:loggedin", { detail: { role, employee } }));
   
   return true;
 }
@@ -1626,6 +1652,7 @@ function logout({ remote = false } = {}) {
   applyAccessControls();
   setTimeout(() => els.loginUsername?.focus(), 50);
   toast("Kasir logout.");
+  document.dispatchEvent(new CustomEvent("kasirmigi:loggedout"));
 }
 
 function isLoggedIn() {
@@ -1761,7 +1788,15 @@ function openWhatsAppReport(text) {
   window.open(`https://wa.me/?text=${encodeURIComponent(["*Kopi Migi*", "", text].join("\n"))}`, "_blank", "noopener");
 }
 
-function markReportReady(action, label, text) {
+function hasShiftActionRun(action, date = new Date()) {
+  const key = `${dateKey(date)}:${action}`;
+  const actions = readJson(storageKeys.shiftActions, {});
+  return Boolean(actions[key]);
+}
+
+function markReportReady(action, label, textOrBuilder) {
+  if (hasShiftActionRun(action)) return;
+  const text = typeof textOrBuilder === "function" ? textOrBuilder() : textOrBuilder;
   if (!text?.trim() || !markShiftActionOnce(action)) return;
   state.reportShareText = text;
   if (els.dailyReportShareStatus) els.dailyReportShareStatus.textContent = `${label} siap dikirim`;
@@ -1901,11 +1936,11 @@ function runShiftScheduleChecks(now = new Date()) {
   const minuteOfDay = hour * 60 + minute;
 
   if (minuteOfDay >= 17 * 60 + 30 && minuteOfDay < 23 * 60) {
-    markReportReady("shift-1-wa-report", "Laporan Shift 1", shiftReportText("Shift 1", dateKey(now)));
+    markReportReady("shift-1-wa-report", "Laporan Shift 1", () => shiftReportText("Shift 1", dateKey(now)));
   }
 
   if (minuteOfDay >= 23 * 60 + 30) {
-    markReportReady("daily-wa-report", "Laporan harian", dailyReportText(dayTransactions(dateKey(now)), dateKey(now)));
+    markReportReady("daily-wa-report", "Laporan harian", () => dailyReportText(dayTransactions(dateKey(now)), dateKey(now)));
   }
 
   if (!isLoggedIn() || !isCashier()) return;
@@ -1958,8 +1993,10 @@ function completeDeferredShiftLogout() {
 
 function updateClock() {
   const now = new Date();
-  els.todayLabel.textContent = now.toLocaleDateString("id-ID", { weekday: "short", day: "2-digit", month: "short" });
-  els.clockLabel.textContent = now.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
+  const todayText = now.toLocaleDateString("id-ID", { weekday: "short", day: "2-digit", month: "short" });
+  const clockText = now.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
+  if (els.todayLabel && els.todayLabel.textContent !== todayText) els.todayLabel.textContent = todayText;
+  if (els.clockLabel && els.clockLabel.textContent !== clockText) els.clockLabel.textContent = clockText;
   if (getAuth()?.loggedIn && isAuthExpired()) {
     logout({ remote: true });
     toast("Sesi login habis. Silakan masuk lagi.", "error");
@@ -3761,7 +3798,7 @@ function updateLabelPreview() {
       [previewEl, readOnlyEl].forEach((el) => {
         if (!el) return;
         const image = el.querySelector("img");
-        if (image && imageData) image.src = imageData;
+        if (image && imageData && image.getAttribute("src") !== imageData) image.src = imageData;
         el.style.display = "block";
         el.style.left = `${x}px`;
         el.style.top = `${printedY}px`;
@@ -3931,6 +3968,22 @@ function initDraggableRows() {
     const widthHandle = el.querySelector(".label-width-handle");
     const heightHandle = el.querySelector(".label-height-handle");
 
+    const attachGlobalDragListeners = () => {
+      window.addEventListener("mousemove", onGlobalMove);
+      window.addEventListener("touchmove", onGlobalMove, { passive: false });
+      window.addEventListener("mouseup", onGlobalEnd);
+      window.addEventListener("touchend", onGlobalEnd);
+      window.addEventListener("touchcancel", onGlobalEnd);
+    };
+
+    const detachGlobalDragListeners = () => {
+      window.removeEventListener("mousemove", onGlobalMove);
+      window.removeEventListener("touchmove", onGlobalMove);
+      window.removeEventListener("mouseup", onGlobalEnd);
+      window.removeEventListener("touchend", onGlobalEnd);
+      window.removeEventListener("touchcancel", onGlobalEnd);
+    };
+
     if (widthHandle) {
       const onWidthResizeStart = (e) => {
         e.stopPropagation();
@@ -3941,6 +3994,7 @@ function initDraggableRows() {
         startX = clientX;
         originalWidth = el.offsetWidth;
         el.style.borderColor = "#2563eb";
+        attachGlobalDragListeners();
       };
       widthHandle.addEventListener("mousedown", onWidthResizeStart);
       widthHandle.addEventListener("touchstart", onWidthResizeStart, { passive: false });
@@ -3956,6 +4010,7 @@ function initDraggableRows() {
         startY = clientY;
         originalHeight = el.offsetHeight;
         el.style.borderColor = "#2563eb";
+        attachGlobalDragListeners();
       };
       heightHandle.addEventListener("mousedown", onHeightResizeStart);
       heightHandle.addEventListener("touchstart", onHeightResizeStart, { passive: false });
@@ -3975,6 +4030,7 @@ function initDraggableRows() {
       originalTop = parseInt(el.getAttribute("data-drag-y") || el.style.top || "12");
       
       if (e.cancelable) e.preventDefault();
+      attachGlobalDragListeners();
     };
 
     el.addEventListener("mousedown", onDragStart);
@@ -4036,6 +4092,7 @@ function initDraggableRows() {
     };
 
     const onGlobalEnd = () => {
+      detachGlobalDragListeners();
       if (isWidthResizing) {
         isWidthResizing = false;
         el.style.borderColor = "";
@@ -4059,11 +4116,6 @@ function initDraggableRows() {
         saveLabelPrinterSettingsFromUI();
       }
     };
-
-    window.addEventListener("mousemove", onGlobalMove);
-    window.addEventListener("touchmove", onGlobalMove, { passive: false });
-    window.addEventListener("mouseup", onGlobalEnd);
-    window.addEventListener("touchend", onGlobalEnd);
   });
 }
 
@@ -4768,6 +4820,42 @@ function renderMenuGrid() {
     : `<div class="empty-state">Menu tidak ditemukan.</div>`;
 }
 
+function syncMenuGridQuantities() {
+  if (!els.menuGrid) return;
+  const cards = els.menuGrid.querySelectorAll(".menu-card");
+  if (!cards.length) {
+    renderMenuGrid();
+    return;
+  }
+  const qtyById = new Map();
+  state.cart.forEach((entry) => {
+    if (entry?.id && !qtyById.has(entry.id)) {
+      qtyById.set(entry.id, Number(entry.qty || 0));
+    }
+  });
+  cards.forEach((card) => {
+    const id = card.dataset.id;
+    const qty = qtyById.get(id) || 0;
+    card.classList.toggle("selected", qty > 0);
+    const ctrl = card.querySelector(".menu-qty-control");
+    if (qty > 0) {
+      if (ctrl) {
+        const strong = ctrl.querySelector("strong");
+        if (strong && strong.textContent !== String(qty)) strong.textContent = String(qty);
+      } else {
+        const safeId = escapeHtml(id);
+        const safeName = escapeHtml(card.querySelector("span > strong")?.textContent || "");
+        card.insertAdjacentHTML(
+          "afterbegin",
+          `<span class="menu-qty-control"><button class="menu-qty-btn" data-menu-decrease="${safeId}" type="button" title="Kurangi ${safeName}">-</button><strong>${qty}</strong><button class="menu-qty-btn" data-menu-increase="${safeId}" type="button" title="Tambah ${safeName}">+</button></span>`,
+        );
+      }
+    } else if (ctrl) {
+      ctrl.remove();
+    }
+  });
+}
+
 function renderMenuTable() {
   const recipes = getRecipes();
   const menu = getMenu();
@@ -5283,8 +5371,18 @@ function renderCashflow() {
   if (els.cfNetLabel) els.cfNetLabel.textContent = `${net >= 0 ? "surplus" : "defisit"} ${periodLabel}`;
 
   const activeFilter = els.cfFilterTabs?.querySelector("button.active")?.dataset?.cfFilter || "all";
+  const salesByCreatedDay = new Map();
+  periodSales.forEach((entry) => {
+    const dk = dateKey(entry.createdAt);
+    if (!salesByCreatedDay.has(dk)) salesByCreatedDay.set(dk, []);
+    salesByCreatedDay.get(dk).push(entry);
+  });
+  const displayCodesById = new Map();
+  salesByCreatedDay.forEach((dayEntries) => {
+    paidOrderDisplayCodes(dayEntries).forEach((code, id) => displayCodesById.set(id, code));
+  });
   const salesList = periodSales
-    .map((entry) => ({ type: "in", category: "Masuk", label: `Penjualan · ${paidOrderDisplayCode(entry, periodSales)}`, amount: entry.grandTotal, note: entry.customer, createdAt: entry.createdAt || entry.created_at, reportDate: transactionReportDate(entry) }));
+    .map((entry) => ({ type: "in", category: "Masuk", label: `Penjualan · ${displayCodesById.get(entry.id) || entry.id}`, amount: entry.grandTotal, note: entry.customer, createdAt: entry.createdAt || entry.created_at, reportDate: transactionReportDate(entry) }));
   const expenseList = periodExpenses.map((entry) => ({
     type: "out",
     category: entry.category || "Lain-lain",
@@ -5472,7 +5570,12 @@ function mergeLineItems(items = []) {
   const merged = new Map();
   (Array.isArray(items) ? items : []).forEach((rawItem) => {
     if (!rawItem) return;
-    const item = JSON.parse(JSON.stringify(rawItem)); // Paranoid deep clone
+    const item = {
+      ...rawItem,
+      ...(Array.isArray(rawItem.customStockUsage)
+        ? { customStockUsage: rawItem.customStockUsage.map((u) => ({ ...u })) }
+        : {}),
+    };
     const key = lineItemMergeKey(item);
     const qty = Number(item.qty || 0);
     if (!key || qty <= 0) return;
@@ -5791,15 +5894,17 @@ function addToCart(id) {
   }
   const existing = state.cart.find((entry) => entry.id === id);
   if (existing) existing.qty += 1;
-  else state.cart.push(JSON.parse(JSON.stringify({ ...item, qty: 1 }))); // Failsafe deep clone
+  else {
+    const { image: _image, ...cartEntry } = item;
+    state.cart.push(JSON.parse(JSON.stringify({ ...cartEntry, qty: 1 }))); // Failsafe deep clone tanpa base64 image
+  }
 
   ensurePhotoboothCode(item);
 
   renderCart();
-  renderMenuGrid();
+  syncMenuGridQuantities();
 
-  // Animate the freshly-rendered card — "I received your order" pulse.
-  // Runs after renderMenuGrid so we get the current DOM element.
+  // Animate the card — "I received your order" pulse.
   requestAnimationFrame(() => {
     const card = els.menuGrid.querySelector(`.menu-card[data-id="${CSS.escape(id)}"]`);
     if (card) {
@@ -5945,7 +6050,7 @@ function changeQty(id, delta) {
   }
   syncPhotoboothCodeFromCart();
   renderCart();
-  renderMenuGrid();
+  syncMenuGridQuantities();
 }
 
 function syncQuickCashActiveState() {
@@ -7530,7 +7635,7 @@ function clearActiveOrder({ silent = false } = {}) {
   els.boothPackage.value = "classic";
   closeOrderModal();
   renderCart();
-  renderMenuGrid();
+  syncMenuGridQuantities();
   renderBoothQueue();
   renderOrders();
   if (!silent) toast("Order dibatalkan.");
@@ -8321,9 +8426,13 @@ async function pullCashflowFromSupabase({ render = false } = {}) {
   try {
     const result = await postSupabaseAction("get-cashflow");
     if (result?.success && Array.isArray(result.cashflowExpenses)) {
-      writeJson(storageKeys.cashflowExpenses, result.cashflowExpenses.slice(0, 2000));
-      if (render) renderCashflow();
-      return true;
+      const nextSlice = result.cashflowExpenses.slice(0, 2000);
+      const prevRaw = _jsonCache.get(storageKeys.cashflowExpenses)?.raw ?? localStorage.getItem(storageKeys.cashflowExpenses);
+      writeJson(storageKeys.cashflowExpenses, nextSlice);
+      const nextRaw = _jsonCache.get(storageKeys.cashflowExpenses)?.raw ?? localStorage.getItem(storageKeys.cashflowExpenses);
+      const changed = prevRaw !== nextRaw;
+      if (render && changed) renderCashflow();
+      return { synced: true, changed };
     }
   } catch {
     return false;
@@ -8396,7 +8505,7 @@ async function pullSettingsFromSupabase({ render = false, force = false } = {}) 
 }
 
 function sortTransactionsNewestFirst(transactions = []) {
-  return [...transactions].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+  return [...transactions].sort((a, b) => (Date.parse(b.createdAt || "") || 0) - (Date.parse(a.createdAt || "") || 0));
 }
 
 function cacheCloudTransactions(transactions = [], localPending = []) {
@@ -8411,22 +8520,32 @@ function cacheCloudTransactions(transactions = [], localPending = []) {
     byId.set(entry.id, preferredTransaction(byId.get(entry.id), entry));
   };
 
-  sortTransactionsNewestFirst(list).forEach(merge);
-  sortTransactionsNewestFirst(getHistory()).forEach(merge);
-  sortTransactionsNewestFirst(localPending).forEach(merge);
-  sortTransactionsNewestFirst(getOrderDrafts()).forEach(merge);
+  list.forEach(merge);
+  getHistory().forEach(merge);
+  (Array.isArray(localPending) ? localPending : []).forEach(merge);
+  getOrderDrafts().forEach(merge);
 
   const merged = sortTransactionsNewestFirst([...byId.values()]);
   const unpaid = merged.filter(isUnpaidTransaction).map((entry) => ({ ...entry, status: "unpaid", payment: entry.payment || "Bill" }));
   const paid = merged.filter(isPaidTransaction);
+
+  const prevHistoryRaw = _jsonCache.get(storageKeys.history)?.raw ?? localStorage.getItem(storageKeys.history);
+  const prevDraftsRaw = _jsonCache.get(storageKeys.orderDrafts)?.raw ?? localStorage.getItem(storageKeys.orderDrafts);
+
   writeJson(storageKeys.history, paid.slice(0, 2000));
   saveOrderDrafts(unpaid.slice(0, 200));
-  updateAutoBestSellers();
+
+  const nextHistoryRaw = _jsonCache.get(storageKeys.history)?.raw ?? localStorage.getItem(storageKeys.history);
+  const nextDraftsRaw = _jsonCache.get(storageKeys.orderDrafts)?.raw ?? localStorage.getItem(storageKeys.orderDrafts);
+  const changed = prevHistoryRaw !== nextHistoryRaw || prevDraftsRaw !== nextDraftsRaw;
+
+  if (changed) updateAutoBestSellers();
+  return changed;
 }
 
 async function cacheCloudTransactionsWithPending(transactions = []) {
   const pending = await pendingOfflineTransactions().catch(() => []);
-  cacheCloudTransactions(transactions, pending);
+  return cacheCloudTransactions(transactions, pending);
 }
 
 async function pullTransactionsFromSupabase({ render = true, limit } = {}) {
@@ -8437,14 +8556,14 @@ async function pullTransactionsFromSupabase({ render = true, limit } = {}) {
     throw new Error(result?.error || "Pull transaksi gagal.");
   }
   if (Array.isArray(result.deletedTransactions)) mergeDeletedTransactionTombstones(result.deletedTransactions);
-  await cacheCloudTransactionsWithPending(result.transactions);
+  const changed = await cacheCloudTransactionsWithPending(result.transactions);
   if (render) {
     renderHistory();
     renderOrders();
     renderCashflow();
     renderAnalytics();
   }
-  return true;
+  return { synced: true, changed };
 }
 
 async function deleteTransactionInSupabase(id) {
@@ -8522,7 +8641,7 @@ async function syncCloudData({ refresh = true } = {}) {
 async function refreshOnlineData({ render = true } = {}) {
   if (!navigator.onLine || !isLoggedIn()) return false;
   await processPendingDeletes().catch(() => null);
-  await recoverAndSyncAllLocalTransactions({ interactive: false }).catch(() => null);
+  await syncPendingTransactions({ pull: false }).catch(() => null);
   await syncInventoryToCloud().catch(() => null);
   await loadCloudData().catch(() => null);
   await ensureJuneRecoveryImported().catch(() => null);
@@ -10530,6 +10649,9 @@ function setActiveView(viewName, { persist = true } = {}) {
     initStaffDateRange();
     renderStaffView();
   }
+  if (viewName === "marketing" && typeof window._renderMarketingView === "function") {
+    window._renderMarketingView();
+  }
   return true;
 }
 
@@ -11123,25 +11245,14 @@ els.printerPaperSize?.addEventListener("change", () => {
   localStorage.setItem("kasir-migi-printer-paper-size", els.printerPaperSize.value);
 });
 
-async function openLabelSettingsModal() {
+function openLabelSettingsModal() {
   const modal = els.labelSettingsModal;
   if (!modal) return;
   const orderCard = modal.querySelector(".order-card");
   if (orderCard) orderCard.scrollTop = 0;
 
-  // Jika online & owner, pull settings cloud terbaru dulu supaya semua device sinkron
-  if (navigator.onLine && isOwner()) {
-    try {
-      await pullSettingsFromSupabase({ render: false });
-      initPrinterSettings(); // Terapkan settings terbaru ke form
-    } catch {
-      // Lanjutkan dengan data lokal jika gagal
-    }
-  }
-
   modal.classList.add("open");
   modal.setAttribute("aria-hidden", "false");
-  if (orderCard) orderCard.scrollTop = 0;
   initDraggableRows();
   updateLabelPreview();
   requestAnimationFrame(() => {
@@ -11149,6 +11260,18 @@ async function openLabelSettingsModal() {
     setTimeout(updateLabelPreview, 80);
     if (orderCard) orderCard.scrollTop = 0;
   });
+
+  // Pull settings cloud terbaru secara non-blocking di background supaya modal langsung terbuka instan
+  if (navigator.onLine && isOwner()) {
+    pullSettingsFromSupabase({ render: false })
+      .then((pulled) => {
+        if (pulled && modal.classList.contains("open")) {
+          initPrinterSettings();
+          updateLabelPreview();
+        }
+      })
+      .catch(() => null);
+  }
 }
 function closeLabelSettingsModal() {
   const modal = els.labelSettingsModal;
@@ -11668,8 +11791,93 @@ setInterval(() => {
 setInterval(() => {
   if (document.visibilityState === "visible") checkRemoteLogout().catch(() => null);
 }, 15000);
-// ─── Adaptive Realtime Polling ───────────────────────────────────────────────
-// Saat tab aktif & user tidak idle: pull transaksi terbaru tiap 8 detik
+// ─── [A] Server-Sent Events (SSE) — Realtime Push ───────────────────────────
+// Saat ada order baru/update dari device lain, server push event langsung ke sini
+// Lebih simpel dari WebSocket, auto-reconnect sudah built-in di browser
+// Fallback ke polling jika SSE tidak tersedia / server tidak support
+// ─────────────────────────────────────────────────────────────────────────────
+let _realtimeSse = null;
+let _realtimeSseReady = false;
+
+async function _realtimeOnOrderChange() {
+  if (!isLoggedIn() || !navigator.onLine || _realtimePulling) return;
+  _realtimePulling = true;
+  try {
+    await syncPendingTransactions({ pull: false }).catch(() => null);
+    const txPull = await pullTransactionsFromSupabase({ render: false, limit: 50 });
+    renderPendingSync();
+    if (txPull?.changed) {
+      renderHistory();
+      renderOrders();
+      if (document.querySelector("#view-cashflow")?.classList.contains("active")) {
+        renderCashflow();
+        refreshActiveCashflowSales();
+      }
+    }
+  } catch {
+    // silent
+  } finally {
+    _realtimePulling = false;
+  }
+}
+
+function _connectRealtimeSse() {
+  const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+  if (isLocal || !navigator.onLine || !isLoggedIn()) return;
+  // Sudah terhubung & ready — skip
+  if (_realtimeSse && _realtimeSseReady) return;
+  // Tutup koneksi lama jika ada
+  if (_realtimeSse) { _realtimeSse.close(); _realtimeSse = null; }
+
+  try {
+    const sse = new EventSource("/api/events");
+    _realtimeSse = sse;
+
+    sse.onopen = () => { _realtimeSseReady = true; };
+
+    sse.onmessage = (event) => {
+      try {
+        const msg = JSON.parse(event.data);
+        if (msg?.type === "order_change") _realtimeOnOrderChange();
+      } catch {
+        // abaikan pesan non-JSON
+      }
+    };
+
+    sse.onerror = () => {
+      _realtimeSseReady = false;
+      // EventSource auto-reconnect sendiri — tidak perlu manual
+    };
+  } catch {
+    // Browser tidak support EventSource — fallback ke polling saja
+  }
+}
+
+function _disconnectRealtimeSse() {
+  if (_realtimeSse) {
+    _realtimeSse.close();
+    _realtimeSse = null;
+  }
+  _realtimeSseReady = false;
+}
+
+// Connect saat user login
+document.addEventListener("kasirmigi:loggedin", () => { setTimeout(_connectRealtimeSse, 500); });
+// Disconnect saat logout
+document.addEventListener("kasirmigi:loggedout", _disconnectRealtimeSse);
+// Reconnect saat kembali online
+window.addEventListener("online", () => { if (isLoggedIn() && !_realtimeSseReady) _connectRealtimeSse(); });
+// Reconnect saat tab aktif kembali
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && isLoggedIn()) _connectRealtimeSse();
+});
+
+// Inisialisasi awal jika sudah login sebelum skrip ini jalan
+if (isLoggedIn()) setTimeout(_connectRealtimeSse, 800);
+
+// ─── [B] Adaptive Realtime Polling (fallback jika SSE tidak tersedia) ────────
+// Saat SSE aktif: polling hemat ke 30 detik (hanya safety net)
+// Saat SSE mati + tab aktif + user aktif: pull tiap 3 detik
 // Saat tab tersembunyi / user idle > 5 menit: hemat ke 60 detik
 // Guard _realtimePulling mencegah request overlap jika koneksi lambat
 let _realtimePulling = false;
@@ -11682,20 +11890,27 @@ let _lastInteractionAt = Date.now();
 function scheduleRealtimePoll() {
   const isVisible = document.visibilityState === "visible";
   const isIdle = Date.now() - _lastInteractionAt > 5 * 60 * 1000; // idle > 5 menit
-  const interval = (!isVisible || isIdle) ? 60000 : 8000;         // 8s aktif, 60s idle/hidden
+  const sseActive = _realtimeSseReady;
+  // SSE aktif → polling hemat 30 detik sebagai safety net
+  // SSE mati + aktif → poll tiap 3 detik
+  const interval = (!isVisible || isIdle) ? 60000 : sseActive ? 30000 : 3000;
 
   setTimeout(async () => {
     if (document.visibilityState === "visible" && navigator.onLine && isLoggedIn() && !_realtimePulling) {
       _realtimePulling = true;
       try {
         await syncPendingTransactions({ pull: false }).catch(() => null);
-        await pullTransactionsFromSupabase({ render: false, limit: 50 });
-        await pullCashflowFromSupabase({ render: false }).catch(() => null);
-        renderHistory();
-        renderOrders();
-        renderCashflow();
+        const txPull = await pullTransactionsFromSupabase({ render: false, limit: 50 });
+        const cfPull = await pullCashflowFromSupabase({ render: false }).catch(() => null);
         renderPendingSync();
-        refreshActiveCashflowSales();
+        if (txPull?.changed || cfPull?.changed) {
+          renderHistory();
+          renderOrders();
+          if (document.querySelector("#view-cashflow")?.classList.contains("active")) {
+            renderCashflow();
+            refreshActiveCashflowSales();
+          }
+        }
       } catch {
         // silent fail — tidak spam error
       } finally {
@@ -12957,12 +13172,10 @@ if (navigator.onLine) checkRemoteLogout().catch(() => null);
     document.head.appendChild(style);
   }
 
-  function renderStrategy() {
-    const grid = document.getElementById("mktStrategyGrid");
-    if (!grid) return;
-    grid.innerHTML = buildStrategy();
-    // Event delegation: tombol aksi buka modal
-    grid.addEventListener("click", (e) => {
+  const strategyGrid = document.getElementById("mktStrategyGrid");
+  if (strategyGrid) {
+    // Event delegation: pasang sekali saja (tidak terduplikasi setiap renderStrategy)
+    strategyGrid.addEventListener("click", (e) => {
       const btn = e.target.closest("[data-strat-action]");
       if (!btn) return;
       openStrategyModal(
@@ -12972,6 +13185,12 @@ if (navigator.onLine) checkRemoteLogout().catch(() => null);
         btn.dataset.stratLabel
       );
     });
+  }
+
+  function renderStrategy() {
+    const grid = document.getElementById("mktStrategyGrid");
+    if (!grid) return;
+    grid.innerHTML = buildStrategy();
   }
 
   // ── Insight Penjualan ─────────────────────────────────────────
@@ -13286,20 +13505,35 @@ if (navigator.onLine) checkRemoteLogout().catch(() => null);
 
   // ── Init ──────────────────────────────────────────────────────
 
-  renderInsight();
-  renderCalendar();
-  renderStrategy();
+  function ensureTrendsFrameLoaded() {
+    if (trendsFrame && !trendsFrame.getAttribute("src") && trendsFrame.dataset.src) {
+      const kw = keywordInput ? keywordInput.value.trim() || "kopi susu" : "kopi susu";
+      trendsFrame.src = buildTrendsUrl(kw, getSavedGeo());
+    }
+  }
+
+  function renderMarketingView() {
+    ensureTrendsFrameLoaded();
+    renderInsight();
+    renderCalendar();
+    renderStrategy();
+  }
+  window._renderMarketingView = renderMarketingView;
+
   checkNotifPermission();
   rescheduleAll();
-  // Re-render setelah data cloud sync selesai (delay kecil untuk menunggu localStorage terisi)
-  setTimeout(() => { renderInsight(); renderCalendar(); renderStrategy(); }, 1200);
+
+  if (document.querySelector("#view-marketing")?.classList.contains("active")) {
+    renderMarketingView();
+    setTimeout(renderMarketingView, 1200);
+  }
 
   // Hook view switch
   const _orig = window.setActiveView;
   if (typeof _orig === "function") {
     window.setActiveView = function (viewName, opts) {
       const result = _orig(viewName, opts);
-      if (viewName === "marketing") { renderInsight(); renderCalendar(); renderStrategy(); }
+      if (viewName === "marketing") renderMarketingView();
       return result;
     };
   }
