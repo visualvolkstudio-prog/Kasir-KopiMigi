@@ -2067,7 +2067,7 @@ function updateAutoBestSellers() {
 
   menu.forEach((item) => {
     const isBestSeller = bestsellersIds.includes(item.id);
-    if (item.bestSeller !== isBestSeller) {
+    if (Boolean(item.bestSeller) !== isBestSeller) {
       item.bestSeller = isBestSeller;
       changed = true;
     }
@@ -2306,11 +2306,11 @@ function hasDirtySettings() {
 function applyCloudSettings(settings) {
   if (!settings || typeof settings !== "object") return false;
   let changed = false;
+  const localUpdatedAt = getMenuUpdatedAt();
+  const cloudUpdatedAt = settings.menuUpdatedAt || null;
+  const cloudIsNewer = !localUpdatedAt || (cloudUpdatedAt && cloudUpdatedAt > localUpdatedAt);
   if (Array.isArray(settings.menu) && settings.menu.length) {
     // Hanya timpa localStorage jika data cloud lebih baru dari data lokal
-    const localUpdatedAt = getMenuUpdatedAt();
-    const cloudUpdatedAt = settings.menuUpdatedAt || null;
-    const cloudIsNewer = !localUpdatedAt || (cloudUpdatedAt && cloudUpdatedAt > localUpdatedAt);
     if (cloudIsNewer) {
       writeJson(storageKeys.menu, settings.menu);
       // Catat timestamp cloud agar device lain tidak timpa balik dengan data lebih lama
@@ -2319,7 +2319,9 @@ function applyCloudSettings(settings) {
     changed = true;
   }
   if (settings.recipes && typeof settings.recipes === "object" && !Array.isArray(settings.recipes)) {
-    saveRecipes(settings.recipes);
+    if (cloudIsNewer || !hasDirtySettings()) {
+      saveRecipes(settings.recipes);
+    }
     changed = true;
   }
   if (Array.isArray(settings.discountVouchers)) {
@@ -8470,13 +8472,42 @@ function isMenuSafeToSync() {
   const current = readJson(storageKeys.menu, null);
   if (!current || !current.length) return false; // belum ada data sama sekali
   if (current.length !== defaultMenu.length) return true; // ukuran berbeda = sudah dikustomisasi
-  const defaultIds = new Set(defaultMenu.map((i) => i.id));
-  const allDefault = current.every((item) => defaultIds.has(item.id));
-  return !allDefault; // aman jika ada item yang bukan dari defaultMenu
+  const defaultMap = new Map(defaultMenu.map((i) => [i.id, i]));
+  const allDefault = current.every((item) => {
+    const def = defaultMap.get(item.id);
+    if (!def) return false;
+    return (
+      item.name === def.name &&
+      item.category === def.category &&
+      Number(item.price) === Number(def.price) &&
+      (item.active !== false) === (def.active !== false) &&
+      (item.printLabel !== false) === (def.printLabel !== false) &&
+      Boolean(item.image) === Boolean(def.image)
+    );
+  });
+  return !allDefault; // aman jika ada item yang bukan dari defaultMenu atau sudah diubah
+}
+
+async function syncMenuToCloud({ force = false } = {}) {
+  if (!navigator.onLine || !isLoggedIn()) return false;
+  if (!force && !hasDirtySettings()) return false;
+  if (!isMenuSafeToSync()) return false;
+  await postSupabaseAction("sync-menu", {
+    menu: getMenu(),
+    menuUpdatedAt: getMenuUpdatedAt(),
+    recipes: getRecipes(),
+  });
+  clearSettingsDirty();
+  return true;
 }
 
 async function syncSettingsToCloud({ force = false } = {}) {
-  if (!navigator.onLine || !isLoggedIn() || !isOwner()) return false;
+  if (!navigator.onLine || !isLoggedIn()) return false;
+  if (!isOwner()) {
+    // Role Crew/Kasir hanya sync ke cloud jika ada perubahan menu/resep lokal (dirty)
+    if (!hasDirtySettings()) return false;
+    return syncMenuToCloud({ force: true });
+  }
   if (!force && !hasDirtySettings()) return false;
   // Guard: jangan timpa cloud dengan defaultMenu saat localStorage belum ter-load dari cloud
   if (!isMenuSafeToSync()) return false;
@@ -8596,8 +8627,9 @@ async function loadCloudData() {
   if (Array.isArray(data.cashflowExpenses)) writeJson(storageKeys.cashflowExpenses, data.cashflowExpenses.slice(0, 2000));
   if (data.inventory && typeof data.inventory === "object") applyCloudInventory(data.inventory);
   if (data.settingsFound && data.settings) {
+    const wasDirty = hasDirtySettings();
     applyCloudSettings(data.settings);
-    clearSettingsDirty();
+    if (!wasDirty) clearSettingsDirty();
     enforceCurrentEmployeeAvailability();
   } else if (isOwner() && !data.settingsFound) {
     await syncSettingsToCloud({ force: true }).catch(() => null);
@@ -8643,6 +8675,7 @@ async function refreshOnlineData({ render = true } = {}) {
   await processPendingDeletes().catch(() => null);
   await syncPendingTransactions({ pull: false }).catch(() => null);
   await syncInventoryToCloud().catch(() => null);
+  await syncSettingsToCloud().catch(() => null);
   await loadCloudData().catch(() => null);
   await ensureJuneRecoveryImported().catch(() => null);
   await pullTransactionsFromSupabase({ render: false }).catch(() => null);
@@ -9951,12 +9984,9 @@ async function persistMenuSettings() {
     toast("Menu tersimpan lokal. Akan sync saat online.");
     return false;
   }
-  const synced = await syncSettingsToCloud({ force: true });
-  // Hanya pull dari cloud jika berhasil sync (owner online).
-  // Jika bukan owner, cloud belum terupdate — pull justru akan
-  // menimpa menu yang baru saja disimpan dengan data cloud lama.
+  const synced = await syncMenuToCloud({ force: true });
   if (synced) {
-    await pullSettingsFromSupabase({ render: false });
+    await pullSettingsFromSupabase({ render: false, force: true });
   }
   return synced;
 }
@@ -11621,7 +11651,16 @@ els.menuTable.addEventListener("click", async (event) => {
     writeMenu(menu);
     markSettingsDirty();
     renderAll();
-    persistMenuSettings(); // Fire background sync
+    try {
+      const synced = await persistMenuSettings();
+      toast(
+        synced
+          ? `Menu "${item.name}" ${item.active ? "diaktifkan" : "dinonaktifkan"} dan tersinkron.`
+          : `Menu "${item.name}" ${item.active ? "diaktifkan" : "dinonaktifkan"} lokal.`,
+      );
+    } catch {
+      toast(`Menu "${item.name}" diubah lokal, tapi sync cloud belum berhasil.`);
+    }
     return;
   }
 
@@ -11932,9 +11971,14 @@ setInterval(() => {
 }, 15000);
 setInterval(() => {
   if (document.visibilityState === "visible" && navigator.onLine && isLoggedIn()) {
-    // Sync karyawan setiap 5 menit agar semua device selalu up-to-date
+    // Sync karyawan & menu setiap 5 menit agar semua device selalu up-to-date
     pullSettingsFromSupabase({ render: false })
-      .then(() => renderEmployeeControls())
+      .then(() => {
+        renderEmployeeControls();
+        renderCategories();
+        renderMenuGrid();
+        renderMenuTable();
+      })
       .catch(() => null);
   }
 }, 300000);

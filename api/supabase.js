@@ -820,16 +820,60 @@ async function syncCheckin(body) {
   return { status: 200, payload: { success: true, updated: shouldUpdate } };
 }
 
+async function syncMenu(body) {
+  if (!Array.isArray(body.menu) || !body.menu.length) {
+    return { status: 400, payload: { success: false, error: "Daftar menu wajib berupa array yang tidak kosong." } };
+  }
+
+  const rows = await supabaseFetch("app_settings?select=*&key=eq.global&limit=1").catch(() => []);
+  const settingsRow = Array.isArray(rows) ? rows[0] : null;
+  const settings = settingsRow?.value || {};
+
+  const updatedSettings = {
+    ...settings,
+    menu: body.menu,
+    menuUpdatedAt: body.menuUpdatedAt || toIso(),
+    ...(body.recipes && typeof body.recipes === "object" && !Array.isArray(body.recipes)
+      ? { recipes: body.recipes }
+      : {}),
+  };
+
+  await supabaseFetch("app_settings?on_conflict=key", {
+    method: "POST",
+    prefer: "resolution=merge-duplicates,return=representation",
+    body: [{ key: "global", value: updatedSettings, updated_at: toIso() }],
+  });
+
+  return { status: 200, payload: { success: true } };
+}
+
 async function syncSettings(body) {
   const value = body.settings;
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return { status: 400, payload: { success: false, error: "Settings wajib berupa object." } };
   }
 
+  const rows = await supabaseFetch("app_settings?select=*&key=eq.global&limit=1").catch(() => []);
+  const existingRow = Array.isArray(rows) ? rows[0] : null;
+  const existingSettings = existingRow?.value || {};
+
+  const mergedValue = { ...existingSettings, ...value };
+  // Jangan timpa menu di cloud jika menu di cloud lebih baru (misal baru diupdate oleh Crew)
+  if (
+    Array.isArray(existingSettings.menu) &&
+    existingSettings.menu.length &&
+    existingSettings.menuUpdatedAt &&
+    (!value.menuUpdatedAt || existingSettings.menuUpdatedAt > value.menuUpdatedAt)
+  ) {
+    mergedValue.menu = existingSettings.menu;
+    mergedValue.menuUpdatedAt = existingSettings.menuUpdatedAt;
+    if (existingSettings.recipes) mergedValue.recipes = existingSettings.recipes;
+  }
+
   await supabaseFetch("app_settings?on_conflict=key", {
     method: "POST",
     prefer: "resolution=merge-duplicates,return=representation",
-    body: [{ key: "global", value, updated_at: toIso() }],
+    body: [{ key: "global", value: mergedValue, updated_at: toIso() }],
   });
   return { status: 200, payload: { success: true } };
 }
@@ -1236,6 +1280,8 @@ async function dispatch(body, req) {
       return syncEmployees(body);
     case "add-employee":
       return addEmployee(body);
+    case "sync-menu":
+      return syncMenu(body);
     case "sync-settings":
       if (role !== "owner") return { status: 403, payload: { success: false, error: "Hanya Owner yang bisa mengubah pengaturan." } };
       return syncSettings(body);
