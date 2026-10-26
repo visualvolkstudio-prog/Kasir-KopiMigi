@@ -3098,9 +3098,7 @@ function autoSyncLabelSettings() {
 }
 
 function getMaxLabelOffsetX(paperWidth) {
-  // Stiker boleh digeser melewati tepi kanan head (+64 dot). Bagian yang
-  // keluar dari area 384 dot ikut tersembunyi di preview, sama seperti cetakan.
-  return Math.max(0, LABEL_PRINTER_WIDTH_DOTS - Number(paperWidth || LABEL_PRINTER_WIDTH_DOTS)) + 64;
+  return Math.max(0, LABEL_PRINTER_WIDTH_DOTS - Number(paperWidth || LABEL_PRINTER_WIDTH_DOTS));
 }
 
 function syncLabelOffsetLimit(settings = getLabelPrinterSettings()) {
@@ -3322,12 +3320,12 @@ function getLabelPrinterSettings() {
     settings.labelStabilizedV164 = true;
     writeJson("kasir-migi-label-printer-settings", settings);
   }
-  // v165: kalibrasi fisik tersembunyi dihapus agar live preview = hasil cetak.
-  // Offset 96 = posisi efektif v164 (64 + kalibrasi 32) yang sudah pas di roll 40 mm.
-  if (settings && !settings.labelPreviewMatchV165) {
-    if (settings.paperSize === "40x20mm") settings.stickerOffsetX = 96;
-    settings.labelDelay = 500;
-    settings.labelPreviewMatchV165 = true;
+  if (settings && !settings.labelRestoredV166) {
+    if (settings.paperSize === "40x20mm") settings.stickerOffsetX = 64;
+    settings.feedMethod = "gap";
+    settings.pitch = 160;
+    settings.labelDelay = 700;
+    settings.labelRestoredV166 = true;
     writeJson("kasir-migi-label-printer-settings", settings);
   }
   return settings;
@@ -3893,13 +3891,11 @@ function updateLabelPreview() {
         if (overlapWidth > 4 && overlapHeight > 4) collisions.push(`${left.key}–${right.key}`);
       }
     }
-    // Area yang benar-benar terjangkau head 384 dot (sisanya tidak tercetak).
-    const printableWidth = Math.min(stickerWidth, LABEL_PRINTER_WIDTH_DOTS - stickerOffsetX);
     const clipped = segments
       .filter((segment) => {
         const boxHeight = segment.isBarcode ? segment.height + 24 : segment.height;
         return segment.x < 0 || segment.y < 0 ||
-          segment.x + segment.width > printableWidth ||
+          segment.x + segment.width > stickerWidth ||
           segment.y + boxHeight > stickerHeight;
       })
       .map((segment) => segment.key);
@@ -6724,7 +6720,7 @@ async function writeLabelPrinterChunks(bytes) {
     true,
   );
   const hasWriteResponse = Boolean(characteristic.properties.write);
-  await new Promise((resolve) => setTimeout(resolve, hasWriteResponse ? 80 : 200));
+  await new Promise((resolve) => setTimeout(resolve, hasWriteResponse ? 150 : 350));
 
   // Header GS v 0 sepanjang 13 byte dikirim terpisah agar parser sudah
   // mengunci ukuran raster sebelum aliran piksel dimulai.
@@ -6744,14 +6740,14 @@ async function writeLabelPrinterChunks(bytes) {
       true,
       { chunkSize: hasWriteResponse ? 20 : 13 },
     );
-    await new Promise((resolve) => setTimeout(resolve, hasWriteResponse ? 30 : 100));
+    await new Promise((resolve) => setTimeout(resolve, hasWriteResponse ? 60 : 180));
   }
 
-  // Pacing cepat: drift label ke-2 disebabkan jeda antar-label, bukan jeda
-  // antar-chunk. writeWithResponse sudah memberi flow-control lewat ACK GATT.
-  const transportDelayMs = hasWriteResponse ? 2 : 20;
-  const burstEvery = hasWriteResponse ? 30 : 12;
-  const burstPauseMs = hasWriteResponse ? 15 : 100;
+  // Pacing seimbang (3x lebih cepat dari v164 namun tetap menjaga buffer UART
+  // dan motor stepper RPP02/EPPOS stabil tanpa drift vertikal).
+  const transportDelayMs = hasWriteResponse ? 5 : 20;
+  const burstEvery = hasWriteResponse ? 20 : 10;
+  const burstPauseMs = hasWriteResponse ? 35 : 100;
   await writePrinterChunks(
     rasterHeaderLength ? bytes.slice(rasterHeaderLength) : bytes,
     characteristic,
@@ -6763,7 +6759,7 @@ async function writeLabelPrinterChunks(bytes) {
       chunkSize: hasWriteResponse ? 20 : 16,
     },
   );
-  await new Promise((resolve) => setTimeout(resolve, hasWriteResponse ? 20 : 150));
+  await new Promise((resolve) => setTimeout(resolve, hasWriteResponse ? 300 : 500));
 }
 
 function enqueueLabelPrint(task) {
@@ -7113,9 +7109,10 @@ async function encodeCupLabelBitmap(transaction, item, itemIndex, totalItems) {
   }
   const { width: stickerWidth, height: stickerHeight } = getLabelPaperDimensions(settings);
   const printerWidth = LABEL_PRINTER_WIDTH_DOTS;
-  // Posisi stiker di head = slider "Posisi Horizontal" apa adanya (tanpa
-  // kalibrasi tersembunyi), sehingga sama persis dengan live preview.
-  const offsetX = Math.max(0, Number(settings.stickerOffsetX ?? 64));
+  // Kalibrasi fisik roll 40 mm pada printer 58 mm (RPP02/EPPOS).
+  // Seluruh kanvas stiker digeser sebagai satu kesatuan tanpa mengubah jarak antar-elemen.
+  const physicalCalibrationX = settings.paperSize === "40x20mm" ? 32 : 0;
+  const desiredOffsetX = Math.max(0, Number(settings.stickerOffsetX ?? 64) + physicalCalibrationX);
   const titleCase = (value) => String(value || "").toLowerCase().split(" ").map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(" ");
   const txDate = transaction.createdAt ? new Date(transaction.createdAt) : new Date();
   const barcodeValue = `${String(txDate.getDate()).padStart(2, "0")}${String(txDate.getMonth() + 1).padStart(2, "0")}${txDate.getFullYear()}`;
@@ -7166,24 +7163,29 @@ async function encodeCupLabelBitmap(transaction, item, itemIndex, totalItems) {
     }
     if (element.barcode) {
       const barWidth = Math.max(1, Math.floor(Math.min(element.width, 72) / (element.text.length * 8)));
+      const totalBarWidth = element.text.length * 8 * barWidth;
+      const barStartX = x + Math.max(0, Math.round((Number(element.width || totalBarWidth) - totalBarWidth) / 2));
+      // Samakan tinggi bar dengan live preview (preview merender box height + 24px).
+      const barHeight = Math.max(12, Math.min(stickerHeight - y - 12, Number(element.height || 20) + 10));
       for (let i = 0; i < element.text.length * 8; i += 1) {
-        if ((i + element.text.charCodeAt(i % element.text.length)) % 3 !== 1) stickerCtx.fillRect(x + i * barWidth, y, barWidth, element.height);
+        if ((i + element.text.charCodeAt(i % element.text.length)) % 3 !== 1) {
+          stickerCtx.fillRect(barStartX + i * barWidth, y, barWidth, barHeight);
+        }
       }
       stickerCtx.font = "9px Courier New, monospace";
-      stickerCtx.fillText(element.text, x, y + element.height + 2);
+      const textWidth = stickerCtx.measureText(element.text).width;
+      const textStartX = x + Math.max(0, Math.round((Number(element.width || totalBarWidth) - textWidth) / 2));
+      stickerCtx.fillText(element.text, textStartX, y + barHeight + 2);
       return;
     }
     const metrics = getLabelFontMetrics(element.fontSize);
     const px = metrics.pixelSize;
     stickerCtx.font = `${element.bold ? "bold " : ""}${px}px Geist, Arial, sans-serif`;
-    // Samakan dengan CSS .label-preview-item: border 1.5px + padding
-    // 2px atas / 10px kanan / 4px kiri, dan line-height = charHeight
-    // (glyph berada di tengah baris, bukan menempel di atas).
-    const halfLeading = Math.max(0, (metrics.charHeight - px) / 2);
-    const textX = x + 5.5;
-    const textY = y + 3.5 + halfLeading;
-    const maxWidth = Math.max(1, Number(element.width || 0) - 17);
-    const maxHeight = Math.max(metrics.charHeight, Number(element.height || metrics.charHeight) - 7);
+    // Samakan dengan padding 2px atas/bawah dan 4px kiri/kanan pada live preview.
+    const textX = x + 4;
+    const textY = y + 2;
+    const maxWidth = Math.max(1, Number(element.width || 0) - 8);
+    const maxHeight = Math.max(metrics.charHeight, Number(element.height || metrics.charHeight));
     const words = String(element.text).trim().split(/\s+/);
     const lines = [];
     let line = "";
@@ -7203,14 +7205,29 @@ async function encodeCupLabelBitmap(transaction, item, itemIndex, totalItems) {
     });
   });
 
+  // Cek batas piksel hitam paling kanan pada stiker agar saat digeser ke kanan
+  // tidak pernah terpotong oleh batas head 384 dot.
+  const stickerPixels = stickerCtx.getImageData(0, 0, stickerCanvas.width, stickerCanvas.height).data;
+  let maxBlackX = -1;
+  for (let y = 0; y < stickerCanvas.height; y += 1) {
+    for (let x = stickerCanvas.width - 1; x > maxBlackX; x -= 1) {
+      const idx = (y * stickerCanvas.width + x) * 4;
+      if (stickerPixels[idx] < 180) {
+        maxBlackX = x;
+        break;
+      }
+    }
+  }
+  const offsetX = maxBlackX >= 0
+    ? Math.max(0, Math.min(desiredOffsetX, printerWidth - 2 - maxBlackX))
+    : Math.max(0, Math.min(printerWidth - 1, desiredOffsetX));
+
   const canvas = document.createElement("canvas");
   canvas.width = printerWidth;
   canvas.height = Math.max(1, stickerHeight);
   const ctx = canvas.getContext("2d", { willReadFrequently: true });
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
-  // Bagian stiker yang melewati 384 dot terpotong — sama seperti overflow
-  // hidden pada area abu-abu di live preview.
   ctx.drawImage(stickerCanvas, offsetX, 0);
 
   const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
@@ -7228,32 +7245,22 @@ async function encodeCupLabelBitmap(transaction, item, itemIndex, totalItems) {
     }
   }
 
-  // Pangkas baris kosong di bawah (margin 5 dot). Raster setinggi penuh
-  // 160 dot membuat head melewati gap sehingga GS FF memakan stiker berikutnya
-  // (muncul area kosong di bawah) dan transfer BLE jadi lebih lama.
-  let lastActiveRow = -1;
-  for (let y = canvas.height - 1; y >= 0 && lastActiveRow < 0; y -= 1) {
-    for (let xByte = 0; xByte < widthBytes; xByte += 1) {
-      if (raster[y * widthBytes + xByte] !== 0) { lastActiveRow = y; break; }
-    }
-  }
-  const trimmedHeight = Math.min(canvas.height, Math.max(1, lastActiveRow + 5));
-  const trimmedRaster = raster.slice(0, trimmedHeight * widthBytes);
-
+  // Kirim tinggi penuh stiker (160 dot untuk 40x20mm) tanpa pemangkasan bawah
+  // agar posisi sensor gap (GS FF / 0x1d 0x0c) selalu konsisten dari label ke-1 hingga seterusnya.
   const xL = widthBytes & 0xff;
   const xH = (widthBytes >> 8) & 0xff;
-  const yL = trimmedHeight & 0xff;
-  const yH = (trimmedHeight >> 8) & 0xff;
+  const yL = canvas.height & 0xff;
+  const yH = (canvas.height >> 8) & 0xff;
   const feedBytes = settings.feedMethod === "manual"
     ? (() => {
         const bytes = [];
-        let remaining = Math.max(0, Number(settings.pitch || stickerHeight) - trimmedHeight);
+        let remaining = Math.max(0, Number(settings.pitch || stickerHeight) - canvas.height);
         while (remaining > 255) { bytes.push(0x1b, 0x4a, 255); remaining -= 255; }
         if (remaining > 0) bytes.push(0x1b, 0x4a, remaining);
         return bytes;
       })()
     : [0x1d, 0x0c];
-  return new Uint8Array([0x1b, 0x40, 0x1b, 0x61, 0x00, 0x1d, 0x76, 0x30, 0x00, xL, xH, yL, yH, ...trimmedRaster, ...feedBytes]);
+  return new Uint8Array([0x1b, 0x40, 0x1b, 0x61, 0x00, 0x1d, 0x76, 0x30, 0x00, xL, xH, yL, yH, ...raster, ...feedBytes]);
 }
 
 
@@ -7272,7 +7279,7 @@ async function performCupLabelPrint(transaction) {
 
   const labelSettings = getLabelPrinterSettings();
   const printEngine = labelSettings.printEngine || "bitmap";
-  const delayMs = Math.max(300, Number(labelSettings.labelDelay || 500));
+  const delayMs = Math.max(600, Number(labelSettings.labelDelay || 700));
 
   try {
     if (!isLabelPrinterReady()) throw new Error("Koneksi label printer terputus.");
