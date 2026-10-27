@@ -4339,10 +4339,9 @@ async function connectLabelPrinter() {
         characteristicCandidates.push(candidate);
       }
     });
-    // Utamakan characteristic yang mendukung write (ACK) sekaligus writeWithoutResponse
-    // agar mode Windowed ACK dapat mengirim jauh lebih cepat namun tetap aman.
-    const characteristic = characteristicCandidates.find((entry) => entry.properties.write && entry.properties.writeWithoutResponse)
-      || characteristicCandidates.find((entry) => entry.properties.write)
+    // ACK/write-with-response jauh lebih aman untuk bitmap besar. Jangan
+    // memilih characteristic pertama bila service menyediakan jalur ACK lain.
+    const characteristic = characteristicCandidates.find((entry) => entry.properties.write)
       || characteristicCandidates.find((entry) => entry.properties.writeWithoutResponse)
       || null;
     if (!characteristic) {
@@ -6671,71 +6670,35 @@ async function writePrinterChunks(
   characteristic = state.printerCharacteristic,
   chunkDelayMs = 18,
   preferResponse = false,
-  { burstEvery = 0, burstPauseMs = 0, chunkSize = 20, ackEvery = 1 } = {},
+  { burstEvery = 0, burstPauseMs = 0, chunkSize = 20 } = {},
 ) {
   if (!characteristic) return;
-  const maxAllowed = characteristic._maxBleChunkSize || 120;
-  let safeChunkSize = Math.max(8, Math.min(maxAllowed, Number(chunkSize || 20)));
-  const canWriteWithResponse = Boolean(characteristic.properties.write);
-  const canWriteWithoutResponse = Boolean(characteristic.properties.writeWithoutResponse);
-
-  let chunkNumber = 0;
-  for (let index = 0; index < bytes.length; ) {
+  // Maksimum umum BLE adalah 20 byte; menjaga 20 byte dengan ACK mencegah
+  // byte raster hilang sehingga perintah GS FF (gap feed) di akhir tidak rusak.
+  const safeChunkSize = Math.max(8, Math.min(20, Number(chunkSize || 20)));
+  const canWriteWithResponse = characteristic.properties.write;
+  const canWriteWithoutResponse = characteristic.properties.writeWithoutResponse;
+  for (let index = 0; index < bytes.length; index += safeChunkSize) {
     const chunk = bytes.slice(index, index + safeChunkSize);
-    const isLastChunk = index + safeChunkSize >= bytes.length;
-    const nextChunkNumber = chunkNumber + 1;
-    const shouldAckThisChunk =
-      preferResponse &&
-      canWriteWithResponse &&
-      (!canWriteWithoutResponse || isLastChunk || ackEvery <= 1 || nextChunkNumber % ackEvery === 0);
-
-    try {
-      if (shouldAckThisChunk) {
-        await characteristic.writeValueWithResponse(chunk);
-      } else if (canWriteWithoutResponse) {
-        try {
-          await characteristic.writeValueWithoutResponse(chunk);
-        } catch (err) {
-          if (safeChunkSize > 20) throw err;
-          if (canWriteWithResponse) {
-            await characteristic.writeValueWithResponse(chunk);
-          } else {
-            throw err;
-          }
-        }
-      } else if (canWriteWithResponse) {
-        await characteristic.writeValueWithResponse(chunk);
-      } else {
-        throw new Error("Characteristic printer tidak mendukung write.");
-      }
-    } catch (error) {
-      // Bila MTU printer/OS lebih kecil dari chunkSize yang dicoba (mis. >20 byte
-      // ditolak oleh modul BLE 4.0), turunkan otomatis ke 60 lalu 20 byte dan simpan
-      // pada characteristic agar chunk berikutnya langsung memakai ukuran yang didukung.
-      if (safeChunkSize > 20) {
-        safeChunkSize = safeChunkSize > 60 ? 60 : 20;
-        characteristic._maxBleChunkSize = safeChunkSize;
-        continue;
-      }
-      throw error;
+    if (preferResponse && canWriteWithResponse) {
+      await characteristic.writeValueWithResponse(chunk);
+    } else if (canWriteWithoutResponse) {
+      await characteristic.writeValueWithoutResponse(chunk);
+    } else if (canWriteWithResponse) {
+      await characteristic.writeValueWithResponse(chunk);
+    } else {
+      throw new Error("Characteristic printer tidak mendukung write.");
     }
-
-    index += chunk.length;
-    chunkNumber = nextChunkNumber;
-
-    // Jika chunk ini sudah menunggu ACK GATT dari printer (~12-15ms round-trip),
-    // tidak perlu setTimeout tambahan per chunk yang memperlambat cetak 1 label.
-    const effectiveDelay = shouldAckThisChunk ? 0 : chunkDelayMs;
+    const effectiveDelay = chunkDelayMs;
     if (effectiveDelay > 0) {
       await new Promise((resolve) => setTimeout(resolve, effectiveDelay));
     }
+    const chunkNumber = Math.floor(index / safeChunkSize) + 1;
     if (burstEvery > 0 && burstPauseMs > 0 && chunkNumber % burstEvery === 0) {
       await new Promise((resolve) => setTimeout(resolve, burstPauseMs));
     }
   }
 }
-
-let _lastLabelPrintFinishedAt = 0;
 
 async function writeLabelPrinterChunks(bytes) {
   const characteristic = state.labelPrinterCharacteristic;
@@ -6743,62 +6706,55 @@ async function writeLabelPrinterChunks(bytes) {
     throw new Error("Koneksi label printer tidak siap.");
   }
 
-  // Pastikan jarak waktu dari selesainya label sebelumnya cukup agar motor
-  // stepper RPP02/EPPOS sudah berhenti penuh di gap (GS FF) sebelum menerima
-  // reset ESC @ label berikutnya. Untuk cetak 1 label, tidak ada delay di awal/akhir.
-  const labelSettings = getLabelPrinterSettings();
-  const minGapSettleMs = Math.max(700, Number(labelSettings.labelDelay || 750));
-  if (_lastLabelPrintFinishedAt > 0) {
-    const elapsed = Date.now() - _lastLabelPrintFinishedAt;
-    if (elapsed < minGapSettleMs) {
-      await new Promise((resolve) => setTimeout(resolve, minGapSettleMs - elapsed));
-    }
-  }
-
+  // Reset parser sebagai paket tersendiri, lalu beri waktu firmware masuk ke
+  // mode ESC/POS sebelum header raster dikirim.
+  await writePrinterChunks(
+    new Uint8Array([0x1b, 0x40, 0x1b, 0x61, 0x00]),
+    characteristic,
+    20,
+    true,
+  );
   const hasWriteResponse = Boolean(characteristic.properties.write);
-  const hasWriteWithoutResponse = Boolean(characteristic.properties.writeWithoutResponse);
-  const hasStandardRasterHeader = (
+  await new Promise((resolve) => setTimeout(resolve, hasWriteResponse ? 80 : 200));
+
+  // Header GS v 0 sepanjang 13 byte dikirim terpisah agar parser sudah
+  // mengunci ukuran raster sebelum aliran piksel dimulai.
+  const rasterHeaderLength = (
     bytes.length >= 13 &&
     bytes[0] === 0x1b &&
     bytes[1] === 0x40 &&
     bytes[5] === 0x1d &&
     bytes[6] === 0x76 &&
     bytes[7] === 0x30
-  );
-
-  if (hasStandardRasterHeader) {
-    // Kirim ESC @ + ESC a 0 sekali saja (5 byte), lalu header GS v 0 (8 byte).
-    await writePrinterChunks(bytes.slice(0, 5), characteristic, 0, true, { chunkSize: 20 });
-    await new Promise((resolve) => setTimeout(resolve, hasWriteResponse ? 35 : 100));
-    await writePrinterChunks(bytes.slice(5, 13), characteristic, 0, true, { chunkSize: 20 });
-    await new Promise((resolve) => setTimeout(resolve, hasWriteResponse ? 20 : 60));
-  } else {
+  ) ? 13 : 0;
+  if (rasterHeaderLength) {
     await writePrinterChunks(
-      new Uint8Array([0x1b, 0x40, 0x1b, 0x61, 0x00]),
+      bytes.slice(0, rasterHeaderLength),
       characteristic,
-      0,
+      hasWriteResponse ? 20 : 50,
       true,
-      { chunkSize: 20 },
+      { chunkSize: hasWriteResponse ? 20 : 13 },
     );
-    await new Promise((resolve) => setTimeout(resolve, hasWriteResponse ? 40 : 120));
+    await new Promise((resolve) => setTimeout(resolve, hasWriteResponse ? 30 : 100));
   }
 
-  // Gunakan ukuran chunk optimal (mulai dari 100 byte; otomatis turun ke 60/20 byte
-  // bila MTU printer hanya 20 byte) + Windowed ACK agar cetak 1 label jauh lebih cepat.
-  const canUseWindowedAck = hasWriteResponse && hasWriteWithoutResponse;
+  // Pacing BLE teroptimasi (2ms dengan ACK GATT, 20 byte per chunk) yang terbukti
+  // cepat sekaligus menjaga urutan byte utuh sampai perintah gap feed (0x1d 0x0c).
+  const transportDelayMs = hasWriteResponse ? 2 : 20;
+  const burstEvery = hasWriteResponse ? 30 : 12;
+  const burstPauseMs = hasWriteResponse ? 15 : 100;
   await writePrinterChunks(
-    hasStandardRasterHeader ? bytes.slice(13) : bytes,
+    rasterHeaderLength ? bytes.slice(rasterHeaderLength) : bytes,
     characteristic,
-    canUseWindowedAck ? 2 : (hasWriteResponse ? 0 : 14),
+    transportDelayMs,
     true,
     {
-      ackEvery: canUseWindowedAck ? 4 : 1,
-      burstEvery: hasWriteResponse ? 0 : 12,
-      burstPauseMs: hasWriteResponse ? 0 : 60,
-      chunkSize: hasWriteResponse ? 100 : 20,
+      burstEvery,
+      burstPauseMs,
+      chunkSize: hasWriteResponse ? 20 : 16,
     },
   );
-  _lastLabelPrintFinishedAt = Date.now();
+  await new Promise((resolve) => setTimeout(resolve, hasWriteResponse ? 40 : 150));
 }
 
 function enqueueLabelPrint(task) {
@@ -7204,8 +7160,7 @@ async function encodeCupLabelBitmap(transaction, item, itemIndex, totalItems) {
       const barWidth = Math.max(1, Math.floor(Math.min(element.width, 72) / (element.text.length * 8)));
       const totalBarWidth = element.text.length * 8 * barWidth;
       const barStartX = x + Math.max(0, Math.round((Number(element.width || totalBarWidth) - totalBarWidth) / 2));
-      // Samakan tinggi bar dengan live preview (preview merender box height + 24px).
-      const barHeight = Math.max(12, Math.min(stickerHeight - y - 12, Number(element.height || 20) + 10));
+      const barHeight = Math.max(10, Number(element.height || 20));
       for (let i = 0; i < element.text.length * 8; i += 1) {
         if ((i + element.text.charCodeAt(i % element.text.length)) % 3 !== 1) {
           stickerCtx.fillRect(barStartX + i * barWidth, y, barWidth, barHeight);
@@ -7244,16 +7199,20 @@ async function encodeCupLabelBitmap(transaction, item, itemIndex, totalItems) {
     });
   });
 
-  // Cek batas piksel hitam paling kanan pada stiker agar saat digeser ke kanan
-  // tidak pernah terpotong oleh batas head 384 dot.
+  // Cek batas piksel hitam paling kanan dan paling bawah pada stiker.
+  // Jarak antar label hanya 0.25 cm (2.5 mm = 20 dot). Bila tinggi raster yang
+  // dikirim melebihi ~136 dot (dari tinggi stiker 160 dot), head sudah melewati
+  // awal gap 0.25 cm saat perintah GS FF (0x1d 0x0c) dijalankan sehingga sensor
+  // melewatkan gap tersebut.
   const stickerPixels = stickerCtx.getImageData(0, 0, stickerCanvas.width, stickerCanvas.height).data;
   let maxBlackX = -1;
+  let maxBlackY = -1;
   for (let y = 0; y < stickerCanvas.height; y += 1) {
-    for (let x = stickerCanvas.width - 1; x > maxBlackX; x -= 1) {
+    for (let x = 0; x < stickerCanvas.width; x += 1) {
       const idx = (y * stickerCanvas.width + x) * 4;
       if (stickerPixels[idx] < 180) {
-        maxBlackX = x;
-        break;
+        if (x > maxBlackX) maxBlackX = x;
+        if (y > maxBlackY) maxBlackY = y;
       }
     }
   }
@@ -7261,13 +7220,21 @@ async function encodeCupLabelBitmap(transaction, item, itemIndex, totalItems) {
     ? Math.max(0, Math.min(desiredOffsetX, printerWidth - 2 - maxBlackX))
     : Math.max(0, Math.min(printerWidth - 1, desiredOffsetX));
 
+  // Sisakan minimal 22 dot (2.75 mm) sebelum ujung stiker 160 dot agar sensor gap
+  // selalu menangkap celah 0.25 cm (20 dot) dengan akurat pada GS FF (0x1d 0x0c).
+  const maxSafeRasterY = settings.feedMethod === "manual"
+    ? stickerHeight
+    : Math.max(80, stickerHeight - 22);
+  const sourceHeight = Math.max(1, maxBlackY + 2);
+  const targetHeight = sourceHeight > maxSafeRasterY ? maxSafeRasterY : sourceHeight;
+
   const canvas = document.createElement("canvas");
   canvas.width = printerWidth;
   canvas.height = Math.max(1, stickerHeight);
   const ctx = canvas.getContext("2d", { willReadFrequently: true });
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.drawImage(stickerCanvas, offsetX, 0);
+  ctx.drawImage(stickerCanvas, 0, 0, stickerCanvas.width, sourceHeight, offsetX, 0, stickerCanvas.width, targetHeight);
 
   const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
   const widthBytes = Math.ceil(canvas.width / 8);
@@ -7284,22 +7251,35 @@ async function encodeCupLabelBitmap(transaction, item, itemIndex, totalItems) {
     }
   }
 
-  // Kirim tinggi penuh stiker (160 dot untuk 40x20mm) tanpa pemangkasan bawah
-  // agar posisi sensor gap (GS FF / 0x1d 0x0c) selalu konsisten dari label ke-1 hingga seterusnya.
+  let lastActiveRow = -1;
+  for (let y = canvas.height - 1; y >= 0 && lastActiveRow < 0; y -= 1) {
+    for (let xByte = 0; xByte < widthBytes; xByte += 1) {
+      if (raster[y * widthBytes + xByte] !== 0) {
+        lastActiveRow = y;
+        break;
+      }
+    }
+  }
+  const trimmedHeight = Math.min(
+    settings.feedMethod === "manual" ? canvas.height : maxSafeRasterY + 2,
+    Math.max(1, lastActiveRow + 3),
+  );
+  const trimmedRaster = raster.slice(0, trimmedHeight * widthBytes);
+
   const xL = widthBytes & 0xff;
   const xH = (widthBytes >> 8) & 0xff;
-  const yL = canvas.height & 0xff;
-  const yH = (canvas.height >> 8) & 0xff;
+  const yL = trimmedHeight & 0xff;
+  const yH = (trimmedHeight >> 8) & 0xff;
   const feedBytes = settings.feedMethod === "manual"
     ? (() => {
         const bytes = [];
-        let remaining = Math.max(0, Number(settings.pitch || stickerHeight) - canvas.height);
+        let remaining = Math.max(0, Number(settings.pitch || stickerHeight) - trimmedHeight);
         while (remaining > 255) { bytes.push(0x1b, 0x4a, 255); remaining -= 255; }
         if (remaining > 0) bytes.push(0x1b, 0x4a, remaining);
         return bytes;
       })()
     : [0x1d, 0x0c];
-  return new Uint8Array([0x1b, 0x40, 0x1b, 0x61, 0x00, 0x1d, 0x76, 0x30, 0x00, xL, xH, yL, yH, ...raster, ...feedBytes]);
+  return new Uint8Array([0x1b, 0x40, 0x1b, 0x61, 0x00, 0x1d, 0x76, 0x30, 0x00, xL, xH, yL, yH, ...trimmedRaster, ...feedBytes]);
 }
 
 
@@ -7318,7 +7298,7 @@ async function performCupLabelPrint(transaction) {
 
   const labelSettings = getLabelPrinterSettings();
   const printEngine = labelSettings.printEngine || "bitmap";
-  const delayMs = Math.max(600, Number(labelSettings.labelDelay || 700));
+  const delayMs = Math.max(400, Number(labelSettings.labelDelay || 500));
 
   try {
     if (!isLabelPrinterReady()) throw new Error("Koneksi label printer terputus.");
@@ -7334,12 +7314,12 @@ async function performCupLabelPrint(transaction) {
 
     if (!isLabelPrinterReady()) throw new Error("Koneksi label printer terputus.");
 
-    // Kirim setiap label melalui writeLabelPrinterChunks secara berurutan.
-    // Jeda antar-stiker sudah dijaga otomatis lewat _lastLabelPrintFinishedAt
-    // di dalam writeLabelPrinterChunks agar cetak 1 label selesai instan tanpa delay akhir.
     for (let i = 0; i < allBytes.length; i++) {
       if (!isLabelPrinterReady()) throw new Error("Koneksi label printer terputus.");
       await writeLabelPrinterChunks(allBytes[i]);
+      if (i < allBytes.length - 1) {
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+      }
     }
 
     toast(`${labelItems.length} label cup dicetak.`);
