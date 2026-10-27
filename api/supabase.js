@@ -300,28 +300,87 @@ async function findTransactionById(id) {
 }
 
 function mapTransaction(transaction) {
+  const expectedSubtotal = toNumber(transaction.subtotal || transaction.originalTotal || transaction.grandTotal);
+  const cleanItems = Array.isArray(transaction.items)
+    ? normalizeTransactionItems(transaction.items, expectedSubtotal)
+    : transaction.items;
+  const cleanTransaction = cleanItems !== transaction.items ? { ...transaction, items: cleanItems } : transaction;
   return {
-    id: String(transaction.id || transaction.localId || ""),
-    created_at: toIso(transaction.createdAt),
-    customer: transaction.customer || "",
-    table_number: transaction.table || "",
-    shift: transaction.shift || "",
-    channel: transaction.channel || "Kasir",
-    status: transaction.status || "paid",
-    employee: transaction.employee || "",
-    payment: transaction.payment || "",
-    paid: toNumber(transaction.paid),
-    change: toNumber(transaction.change),
-    subtotal: toNumber(transaction.subtotal),
-    grand_total: toNumber(transaction.grandTotal),
+    id: String(cleanTransaction.id || cleanTransaction.localId || ""),
+    created_at: toIso(cleanTransaction.createdAt),
+    customer: cleanTransaction.customer || "",
+    table_number: cleanTransaction.table || "",
+    shift: cleanTransaction.shift || "",
+    channel: cleanTransaction.channel || "Kasir",
+    status: cleanTransaction.status || "paid",
+    employee: cleanTransaction.employee || "",
+    payment: cleanTransaction.payment || "",
+    paid: toNumber(cleanTransaction.paid),
+    change: toNumber(cleanTransaction.change),
+    subtotal: toNumber(cleanTransaction.subtotal),
+    grand_total: toNumber(cleanTransaction.grandTotal),
     deleted_at: null,
-    raw: transaction,
+    raw: cleanTransaction,
   };
+}
+
+function normalizeTransactionItems(items = [], expectedSubtotal = 0) {
+  if (!Array.isArray(items) || !items.length) return [];
+  const target = toNumber(expectedSubtotal);
+  if (target <= 0) return items;
+  const total = items.reduce((sum, item) => sum + toNumber(item?.price) * toNumber(item?.qty), 0);
+  if (total <= target || total % target !== 0) return items;
+  const factor = total / target;
+  if (!Number.isInteger(factor) || factor < 2) return items;
+
+  if (items.length % factor === 0) {
+    const chunkSize = items.length / factor;
+    const firstChunk = items.slice(0, chunkSize);
+    const chunkTotal = firstChunk.reduce((sum, item) => sum + toNumber(item?.price) * toNumber(item?.qty), 0);
+    const sameSignature = (a, b) =>
+      String(a?.id || a?.menu_id || "") === String(b?.id || b?.menu_id || "") &&
+      String(a?.name || "").trim().toLowerCase() === String(b?.name || "").trim().toLowerCase() &&
+      toNumber(a?.price) === toNumber(b?.price) &&
+      toNumber(a?.qty) === toNumber(b?.qty);
+    let allChunksMatch = chunkTotal === target;
+    for (let i = chunkSize; allChunksMatch && i < items.length; i++) {
+      if (!sameSignature(items[i], firstChunk[i % chunkSize])) allChunksMatch = false;
+    }
+    if (allChunksMatch) return firstChunk;
+  }
+
+  const grouped = new Map();
+  for (const item of items) {
+    if (!item) continue;
+    const key = [
+      String(item.id || item.menu_id || ""),
+      String(item.name || "").trim().toLowerCase(),
+      String(item.category || "").trim().toLowerCase(),
+      toNumber(item.price),
+      String(item.notes || "").trim().toLowerCase(),
+    ].join("|");
+    const current = grouped.get(key);
+    if (current) {
+      current.qty = toNumber(current.qty) + toNumber(item.qty);
+    } else {
+      grouped.set(key, { ...item, qty: toNumber(item.qty) });
+    }
+  }
+  const mergedList = [...grouped.values()];
+  if (mergedList.every((item) => item.qty > 0 && item.qty % factor === 0)) {
+    const divided = mergedList.map((item) => ({ ...item, qty: item.qty / factor }));
+    const dividedTotal = divided.reduce((sum, item) => sum + toNumber(item.price) * toNumber(item.qty), 0);
+    if (dividedTotal === target) return divided;
+  }
+
+  return items;
 }
 
 function mapItems(transaction) {
   const transactionId = String(transaction.id || transaction.localId || "");
-  return (transaction.items || []).map((item) => ({
+  const expectedSubtotal = toNumber(transaction.subtotal || transaction.originalTotal || transaction.grandTotal);
+  const cleanItems = normalizeTransactionItems(transaction.items || [], expectedSubtotal);
+  return cleanItems.map((item) => ({
     transaction_id: transactionId,
     menu_id: item.id || "",
     name: item.name || "",
@@ -342,10 +401,11 @@ function toLocalTransaction(row, items) {
     });
     if (itemIndex === -1) return rawItem;
     usedItemIndexes.add(itemIndex);
-    return { ...rawItem, ...items[itemIndex] };
+    return { ...items[itemIndex], ...rawItem };
   });
-  const extraItems = items.filter((_, index) => !usedItemIndexes.has(index));
-  const mergedItems = [...mergedRawItems, ...extraItems];
+  const baseItems = rawItems.length ? mergedRawItems : items;
+  const expectedSubtotal = Number(raw.subtotal || row.subtotal || raw.originalTotal || row.grand_total || 0);
+  const normalizedItems = normalizeTransactionItems(baseItems, expectedSubtotal);
   return {
     ...raw,
     id: row.id,
@@ -361,7 +421,7 @@ function toLocalTransaction(row, items) {
     change: Number(row.change || 0),
     subtotal: Number(row.subtotal || 0),
     grandTotal: Number(row.grand_total || 0),
-    items: mergedItems.length ? mergedItems : rawItems,
+    items: normalizedItems,
   };
 }
 
@@ -575,7 +635,7 @@ async function syncTransaction(body) {
     await supabaseFetch(`transaction_items?transaction_id=eq.${encodeURIComponent(row.id)}`, {
       method: "DELETE",
       prefer: "return=minimal",
-    }).catch(() => null);
+    });
 
     await supabaseFetch("transaction_items", {
       method: "POST",
@@ -585,6 +645,43 @@ async function syncTransaction(body) {
   }
 
   return { status: 200, payload: { success: true, id: row.id } };
+}
+
+async function repairDuplicateTransactionItems(rows = []) {
+  for (const row of rows) {
+    if (!row?.id) continue;
+    const raw = row.raw && typeof row.raw === "object" ? row.raw : {};
+    const expectedSubtotal = toNumber(raw.subtotal || row.subtotal || raw.originalTotal || row.grand_total);
+    if (expectedSubtotal <= 0) continue;
+    const dbItems = formatItems(row.transaction_items);
+    const dbTotal = dbItems.reduce((sum, item) => sum + toNumber(item.price) * toNumber(item.qty), 0);
+    const rawItems = Array.isArray(raw.items) ? raw.items : [];
+    const rawTotal = rawItems.reduce((sum, item) => sum + toNumber(item?.price) * toNumber(item?.qty), 0);
+    const dbDuplicated = dbTotal > expectedSubtotal && dbTotal % expectedSubtotal === 0;
+    const rawDuplicated = rawTotal > expectedSubtotal && rawTotal % expectedSubtotal === 0;
+    if (!dbDuplicated && !rawDuplicated) continue;
+
+    const cleanLocal = toLocalTransaction(row, dbItems);
+    const cleanItems = mapItems(cleanLocal);
+    if (!cleanItems.length) continue;
+
+    if (rawDuplicated) {
+      await supabaseFetch(`transactions?id=eq.${encodeURIComponent(row.id)}`, {
+        method: "PATCH",
+        prefer: "return=minimal",
+        body: { raw: { ...raw, items: cleanLocal.items } },
+      }).catch(() => null);
+    }
+    await supabaseFetch(`transaction_items?transaction_id=eq.${encodeURIComponent(row.id)}`, {
+      method: "DELETE",
+      prefer: "return=minimal",
+    });
+    await supabaseFetch("transaction_items", {
+      method: "POST",
+      prefer: "return=minimal",
+      body: cleanItems,
+    });
+  }
 }
 
 async function getTransactions(body = {}) {
@@ -600,6 +697,8 @@ async function getTransactions(body = {}) {
     fetchTransactionRows({ startDate, endDate, limit, fullArchive, withItems: true }),
     fetchDeletedTransactionRows({ startDate, endDate, limit, fullArchive }),
   ]);
+
+  await repairDuplicateTransactionItems(transactions).catch(() => null);
 
   return {
     status: 200,

@@ -2040,8 +2040,68 @@ function getMenuCategories() {
   return [...new Set(getMenu().map((item) => item.category).filter(Boolean))].sort((a, b) => a.localeCompare(b, "id-ID"));
 }
 
+function normalizeTransactionItems(items = [], expectedSubtotal = 0) {
+  if (!Array.isArray(items) || !items.length) return [];
+  const target = Number(expectedSubtotal || 0);
+  if (!Number.isFinite(target) || target <= 0) return items;
+  const total = items.reduce((sum, item) => sum + Number(item?.price || 0) * Number(item?.qty || 0), 0);
+  if (total <= target || total % target !== 0) return items;
+  const factor = total / target;
+  if (!Number.isInteger(factor) || factor < 2) return items;
+
+  if (items.length % factor === 0) {
+    const chunkSize = items.length / factor;
+    const firstChunk = items.slice(0, chunkSize);
+    const chunkTotal = firstChunk.reduce((sum, item) => sum + Number(item?.price || 0) * Number(item?.qty || 0), 0);
+    const sameSignature = (a, b) =>
+      String(a?.id || a?.menu_id || "") === String(b?.id || b?.menu_id || "") &&
+      String(a?.name || "").trim().toLowerCase() === String(b?.name || "").trim().toLowerCase() &&
+      Number(a?.price || 0) === Number(b?.price || 0) &&
+      Number(a?.qty || 0) === Number(b?.qty || 0);
+    let allChunksMatch = chunkTotal === target;
+    for (let i = chunkSize; allChunksMatch && i < items.length; i++) {
+      if (!sameSignature(items[i], firstChunk[i % chunkSize])) allChunksMatch = false;
+    }
+    if (allChunksMatch) return firstChunk;
+  }
+
+  const grouped = new Map();
+  for (const item of items) {
+    if (!item) continue;
+    const key = [
+      String(item.id || item.menu_id || ""),
+      String(item.name || "").trim().toLowerCase(),
+      String(item.category || "").trim().toLowerCase(),
+      Number(item.price || 0),
+      String(item.notes || "").trim().toLowerCase(),
+    ].join("|");
+    const current = grouped.get(key);
+    if (current) {
+      current.qty = Number(current.qty || 0) + Number(item.qty || 0);
+    } else {
+      grouped.set(key, { ...item, qty: Number(item.qty || 0) });
+    }
+  }
+  const mergedList = [...grouped.values()];
+  if (mergedList.every((item) => item.qty > 0 && item.qty % factor === 0)) {
+    const divided = mergedList.map((item) => ({ ...item, qty: item.qty / factor }));
+    const dividedTotal = divided.reduce((sum, item) => sum + Number(item.price || 0) * Number(item.qty || 0), 0);
+    if (dividedTotal === target) return divided;
+  }
+
+  return items;
+}
+
+function normalizeTransactionEntry(entry) {
+  if (!entry || typeof entry !== "object" || !Array.isArray(entry.items)) return entry;
+  const expectedSubtotal = Number(entry.subtotal || entry.originalTotal || entry.grandTotal || 0);
+  const cleanItems = normalizeTransactionItems(entry.items, expectedSubtotal);
+  return cleanItems !== entry.items ? { ...entry, items: cleanItems } : entry;
+}
+
 function getHistory() {
-  return readJson(storageKeys.history, []);
+  const list = readJson(storageKeys.history, []);
+  return Array.isArray(list) ? list.map(normalizeTransactionEntry) : [];
 }
 
 function updateAutoBestSellers() {
@@ -2130,7 +2190,8 @@ function getPurchases() {
 }
 
 function getOrderDrafts() {
-  return readJson(storageKeys.orderDrafts, []);
+  const list = readJson(storageKeys.orderDrafts, []);
+  return Array.isArray(list) ? list.map(normalizeTransactionEntry) : [];
 }
 
 function dedupeTransactionsById(list = []) {
